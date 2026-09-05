@@ -1,0 +1,6 @@
+{
+  "name": "يوتيوب الأطفال",
+  "description": "تطبيق ويب تقدمي (PWA) آمن للأطفال لمشاهدة قنوات وفيديوهات مختارة وموثوقة بعناية بدون خوارزميات أو تشتيت.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
