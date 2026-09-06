@@ -72,6 +72,24 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          runtimeCaching: [
+            {
+              // دومين الـ Worker (workers.dev)
+              urlPattern: /^https:\/\/.*\.workers\.dev\/.*/i,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'worker-api-cache',
+                networkTimeoutSeconds: 3,
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 24 * 60 * 60, // أقصى عمر للكاش يوم واحد (24 ساعة)
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+          ],
         },
         devOptions: {
           enabled: false,
