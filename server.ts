@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
@@ -25,6 +26,40 @@ async function startServer() {
       version: '1.0.0',
       message: 'Cloudflare Worker / Backend proxy is operational and responding successfully.',
       timestamp: new Date().toISOString(),
+    });
+  });
+
+  // Stage 5: Channels Latest endpoint (fallback/proxy)
+  app.get('/api/channels-latest', (_req, res) => {
+    const seedPath = path.resolve(__dirname, 'channels_seed.json');
+    try {
+      const raw = fs.readFileSync(seedPath, 'utf-8');
+      const data = JSON.parse(raw);
+      const enriched = data.map((ch: any) => ({
+        ...ch,
+        videos: ch.videos || [],
+        videoCount: (ch.videos || []).length,
+      }));
+      res.json(enriched);
+    } catch {
+      res.json([]);
+    }
+  });
+
+  // Stage 5: Backfill channel endpoint (fallback/proxy)
+  app.post('/api/admin/backfill-channel', (req, res) => {
+    const adminKey = req.headers['x-admin-key'];
+    if (!adminKey) {
+      res.status(401).json({ error: 'Unauthorized: Missing X-Admin-Key header' });
+      return;
+    }
+    const { sourceId, sourceType } = req.body || {};
+    res.json({
+      success: true,
+      count: 50,
+      sourceId,
+      sourceType: sourceType || 'channel',
+      message: 'تمت معالجة القناة بنجاح في البيئة التجريبية.',
     });
   });
 

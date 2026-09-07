@@ -6,6 +6,8 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import Onboarding from './components/Onboarding';
 import PinLockModal from './components/PinLockModal';
+import ChannelsCountCard from './components/ChannelsCountCard';
+import TempAdminTool from './components/TempAdminTool';
 import {
   Database,
   Cloud,
@@ -60,6 +62,9 @@ export default function App() {
   // Onboarding & Settings State
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [mainSettings, setMainSettings] = useState<Settings | null>(null);
+
+  // Stage 5 Refresh trigger for channels count card
+  const [channelsRefreshTrigger, setChannelsRefreshTrigger] = useState(0);
 
   // Parent Dashboard & PIN Lock State
   const [showPinModal, setShowPinModal] = useState(false);
@@ -525,8 +530,8 @@ export default function App() {
               </span>
             </div>
 
-            {/* Status Dashboard Grid (3 Cards) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Status Dashboard Grid (4 Cards: Database, Worker, Storage, Channels Count) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {/* Card 1: Database Test Card */}
               <div
                 id="db-test-card"
@@ -824,14 +829,24 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Card 4: Channels Count Card (Stage 5) */}
+              <ChannelsCountCard refreshTrigger={channelsRefreshTrigger} />
             </div>
+
+            {/* Stage 5: Temporary Admin Tool for Backfilling Channels */}
+            <TempAdminTool
+              onBackfillSuccess={() => {
+                setChannelsRefreshTrigger((prev) => prev + 1);
+              }}
+            />
           </>
         )}
       </main>
 
       {/* Footer */}
       <footer className="max-w-5xl w-full mx-auto text-center py-4 border-t border-slate-200 text-xs text-slate-400">
-        يوتيوب الأطفال PWA — المرحلة 4: أمان الوالدين وقفل PIN مكتمل بنجاح
+        يوتيوب الأطفال PWA — المرحلة 5: معالجة البيانات وأرشيف القنوات (Cloudflare Worker & KV)
       </footer>
 
       <OfflineIndicator />

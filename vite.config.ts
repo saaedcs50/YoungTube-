@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -22,6 +23,59 @@ function workerProxyPlugin(): Plugin {
           );
           return;
         }
+
+        if (req.url?.startsWith('/api/channels-latest')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          const seedPath = path.resolve(process.cwd(), 'channels_seed.json');
+          try {
+            const raw = fs.readFileSync(seedPath, 'utf-8');
+            const data = JSON.parse(raw);
+            const enriched = data.map((ch: any) => ({
+              ...ch,
+              videos: ch.videos || [],
+              videoCount: (ch.videos || []).length,
+            }));
+            res.end(JSON.stringify(enriched));
+          } catch {
+            res.end(JSON.stringify([]));
+          }
+          return;
+        }
+
+        if (req.url === '/api/admin/backfill-channel' && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
+          req.on('end', () => {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            try {
+              const parsed = JSON.parse(body || '{}');
+              const adminKey = req.headers['x-admin-key'];
+              if (!adminKey) {
+                res.statusCode = 401;
+                res.end(JSON.stringify({ error: 'Unauthorized: Missing X-Admin-Key header' }));
+                return;
+              }
+              res.end(
+                JSON.stringify({
+                  success: true,
+                  count: 50,
+                  sourceId: parsed.sourceId,
+                  sourceType: parsed.sourceType || 'channel',
+                  message: 'تمت المعالجة بنجاح عبر البروكسي المحلي (تأكد من نشر Worker لربط KV).',
+                })
+              );
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+          return;
+        }
+
         next();
       });
     },
