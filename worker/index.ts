@@ -434,11 +434,67 @@ export default {
           if (!pageToken || items.length === 0) break;
         }
 
-        // Store all videos in env.CHANNELS_ARCHIVE under key sourceId
+        // 1. Save the channel videos
         if (env.CHANNELS_ARCHIVE) {
           await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(allVideos));
-          // Invalidate merged channels cache so channels-latest reflects fresh archive
-          await env.CHANNELS_ARCHIVE.delete('_channels_latest_merged').catch(() => {});
+
+          // 2. Immediately update the merged list instead of deleting it
+          try {
+            let fullMergedList: any[] = [];
+            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+
+            if (rawMerged) {
+              const parsed = JSON.parse(rawMerged);
+              if (Array.isArray(parsed)) {
+                fullMergedList = parsed;
+              }
+            }
+
+            // If the merged list does not exist yet, build it from channelsSeed
+            if (fullMergedList.length === 0) {
+              fullMergedList = channelsSeed.map((ch: any) => ({
+                ...ch,
+                videos: [],
+                videoCount: 0,
+              }));
+            }
+
+            // Find the channel inside the merged list
+            const targetIdx = fullMergedList.findIndex(
+              (ch: any) => ch.sourceId === sourceId
+            );
+
+            const updatedChannel: any = {
+              ...(targetIdx >= 0 ? fullMergedList[targetIdx] : { sourceId, sourceType }),
+              sourceId,
+              sourceType,
+              videos: allVideos.slice(0, 200),
+              videoCount: Math.min(allVideos.length, 200),
+            };
+
+            // If the channel exists in the seed, merge its metadata (title, thumbnail, categories, etc.)
+            const seedChannel = channelsSeed.find((ch: any) => ch.sourceId === sourceId);
+            if (seedChannel) {
+              Object.assign(updatedChannel, seedChannel, {
+                videos: allVideos.slice(0, 200),
+                videoCount: Math.min(allVideos.length, 200),
+              });
+            }
+
+            if (targetIdx >= 0) {
+              fullMergedList[targetIdx] = updatedChannel;
+            } else {
+              fullMergedList.push(updatedChannel);
+            }
+
+            await env.CHANNELS_ARCHIVE.put(
+              '_channels_latest_merged',
+              JSON.stringify(fullMergedList)
+            );
+          } catch (e) {
+            console.error('Failed to update _channels_latest_merged after backfill:', e);
+            // Do not fail the whole request — the individual archive was already saved
+          }
         }
 
         return new Response(
@@ -448,7 +504,7 @@ export default {
             sourceId,
             sourceType,
             playlistId,
-            message: `تم حفظ ${allVideos.length} فيديو في الأرشيف بنجاح.`,
+            message: `تم حفظ ${allVideos.length} فيديو في الأرشيف وتحديث القائمة المدمجة بنجاح.`,
           }),
           { status: 200, headers: corsHeaders }
         );
