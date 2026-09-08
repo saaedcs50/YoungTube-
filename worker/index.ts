@@ -1,5 +1,5 @@
 import channelsSeed from '../channels_seed.json';
-
+ 
 export interface KVNamespace {
   get(key: string, options?: { type?: 'text' | 'json' | 'arrayBuffer' | 'stream' }): Promise<any>;
   put(
