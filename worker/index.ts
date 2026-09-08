@@ -67,6 +67,195 @@ function parseYouTubeRss(xml: string): VideoItem[] {
   return entries;
 }
 
+/**
+ * Internal helper to fetch and parse YouTube RSS feed live.
+ */
+async function fetchYouTubeRss(sourceType: 'channel' | 'playlist' | string, sourceId: string): Promise<VideoItem[]> {
+  const rssUrl =
+    sourceType === 'playlist'
+      ? `https://www.youtube.com/feeds/videos.xml?playlist_id=${encodeURIComponent(sourceId)}`
+      : `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(sourceId)}`;
+
+  const rssResponse = await fetch(rssUrl, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    },
+  });
+
+  if (!rssResponse.ok) {
+    throw new Error(`YouTube RSS returned status ${rssResponse.status}`);
+  }
+
+  const xmlText = await rssResponse.text();
+  return parseYouTubeRss(xmlText);
+}
+
+/**
+ * Processes a batch of 40 channels from channels_seed.json:
+ * - Reads cursor from KV (_rss_refresh_cursor)
+ * - Fetches live RSS for 40 channels only (safely under the 50 subrequests limit)
+ * - Merges with archived videos in KV
+ * - Deduplicates by videoId, sorts by publishedAt descending, caps at 200 videos
+ * - Updates each channel in place in the full list stored at _channels_latest_merged
+ * - Updates cursor for the next 40 (circular wrap-around)
+ */
+export async function refreshChannelsBatch(env: Env): Promise<{
+  updatedCount: number;
+  cursorBefore: number;
+  cursorAfter: number;
+  updatedChannels: string[];
+}> {
+  const totalChannels = channelsSeed.length;
+  const BATCH_SIZE = 40;
+
+  if (!env.CHANNELS_ARCHIVE) {
+    return {
+      updatedCount: 0,
+      cursorBefore: 0,
+      cursorAfter: 0,
+      updatedChannels: [],
+    };
+  }
+
+  // 1. Get cursor from KV
+  let cursor = 0;
+  try {
+    const rawCursor = await env.CHANNELS_ARCHIVE.get('_rss_refresh_cursor');
+    if (rawCursor) {
+      const parsed = parseInt(rawCursor, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        cursor = parsed % totalChannels;
+      }
+    }
+  } catch {
+    cursor = 0;
+  }
+
+  // 2. Select 40 channels with circular wrap-around
+  const batch: { channel: any; originalIndex: number }[] = [];
+  for (let i = 0; i < BATCH_SIZE; i++) {
+    const idx = (cursor + i) % totalChannels;
+    batch.push({
+      channel: channelsSeed[idx],
+      originalIndex: idx,
+    });
+  }
+
+  // 3. Concurrently fetch live RSS and archived videos (40 subrequests max)
+  const batchResults = await Promise.allSettled(
+    batch.map(async ({ channel }) => {
+      const [rssResult, existingArchive] = await Promise.allSettled([
+        fetchYouTubeRss(channel.sourceType || 'channel', channel.sourceId),
+        env.CHANNELS_ARCHIVE!.get(channel.sourceId),
+      ]);
+
+      const liveVideos: VideoItem[] =
+        rssResult.status === 'fulfilled' && Array.isArray(rssResult.value)
+          ? rssResult.value
+          : [];
+
+      let archivedVideos: VideoItem[] = [];
+      if (existingArchive.status === 'fulfilled' && existingArchive.value) {
+        try {
+          const parsed = JSON.parse(existingArchive.value);
+          if (Array.isArray(parsed)) {
+            archivedVideos = parsed;
+          }
+        } catch {
+          // Ignore JSON parse error
+        }
+      }
+
+      // Merge and deduplicate by videoId
+      const combined = [...liveVideos, ...archivedVideos];
+      const seen = new Set<string>();
+      const deduped: VideoItem[] = [];
+      for (const item of combined) {
+        if (item && item.videoId && !seen.has(item.videoId)) {
+          seen.add(item.videoId);
+          deduped.push(item);
+        }
+      }
+
+      // Sort newest first
+      deduped.sort(
+        (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+      );
+
+      const finalVideos = deduped.slice(0, 200);
+
+      // Save updated channel archive back to KV under channel.sourceId
+      if (finalVideos.length > 0) {
+        await env.CHANNELS_ARCHIVE!.put(channel.sourceId, JSON.stringify(finalVideos)).catch(() => {});
+      }
+
+      return {
+        channel,
+        videos: finalVideos,
+      };
+    })
+  );
+
+  // 4. Retrieve current full list from KV (_channels_latest_merged)
+  let fullMergedList: any[] = [];
+  try {
+    const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+    if (rawMerged) {
+      const parsed = JSON.parse(rawMerged);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        fullMergedList = parsed;
+      }
+    }
+  } catch {}
+
+  // If not yet initialized, seed full structure from channelsSeed
+  if (fullMergedList.length === 0) {
+    fullMergedList = channelsSeed.map((ch: any) => ({
+      ...ch,
+      videos: [],
+      videoCount: 0,
+    }));
+  }
+
+  // Update channels in fullMergedList in place
+  const updatedChannelNames: string[] = [];
+  for (const res of batchResults) {
+    if (res.status === 'fulfilled' && res.value) {
+      const { channel, videos } = res.value;
+      const targetIdx = fullMergedList.findIndex(
+        (ch: any) => ch.sourceId === channel.sourceId
+      );
+      const updatedChannelObj = {
+        ...channel,
+        videos,
+        videoCount: videos.length,
+      };
+
+      if (targetIdx >= 0) {
+        fullMergedList[targetIdx] = updatedChannelObj;
+      } else {
+        fullMergedList.push(updatedChannelObj);
+      }
+      updatedChannelNames.push(channel.title || channel.sourceId);
+    }
+  }
+
+  // Save updated full list back to KV
+  await env.CHANNELS_ARCHIVE.put('_channels_latest_merged', JSON.stringify(fullMergedList));
+
+  // 5. Update cursor for next cron run
+  const nextCursor = (cursor + BATCH_SIZE) % totalChannels;
+  await env.CHANNELS_ARCHIVE.put('_rss_refresh_cursor', nextCursor.toString());
+
+  return {
+    updatedCount: updatedChannelNames.length,
+    cursorBefore: cursor,
+    cursorAfter: nextCursor,
+    updatedChannels: updatedChannelNames,
+  };
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -119,19 +308,7 @@ export default {
           : `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(id)}`;
 
       try {
-        const rssResponse = await fetch(rssUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          },
-        });
-
-        if (!rssResponse.ok) {
-          throw new Error(`YouTube RSS returned status ${rssResponse.status}`);
-        }
-
-        const xmlText = await rssResponse.text();
-        const videos = parseYouTubeRss(xmlText);
+        const videos = await fetchYouTubeRss(type, id);
 
         // Cache response in env.CHANNELS_ARCHIVE for 1 hour (3600 seconds)
         if (env.CHANNELS_ARCHIVE) {
@@ -285,66 +462,78 @@ export default {
       }
     }
 
-    // 4. GET /api/channels-latest (Public merged channels endpoint)
+    // 4. GET /api/channels-latest (Public merged channels endpoint - direct from KV only, no live RSS)
     if (url.pathname === '/api/channels-latest' && request.method === 'GET') {
-      // Check merged cache first for sub-millisecond response
       if (env.CHANNELS_ARCHIVE) {
-        const cachedMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
-        if (cachedMerged) {
-          return new Response(cachedMerged, {
-            status: 200,
-            headers: corsHeaders,
-          });
+        try {
+          const cachedMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+          if (cachedMerged) {
+            return new Response(cachedMerged, {
+              status: 200,
+              headers: corsHeaders,
+            });
+          }
+        } catch {
+          // If error reading KV, fall through to empty array
         }
       }
 
-      // Merge seed channels + archived videos in env.CHANNELS_ARCHIVE
-      const mergedChannels = await Promise.all(
-        channelsSeed.map(async (channel: any) => {
-          let videos: VideoItem[] = [];
-          if (env.CHANNELS_ARCHIVE) {
-            try {
-              const raw = await env.CHANNELS_ARCHIVE.get(channel.sourceId);
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                  // Sort newest first
-                  parsed.sort(
-                    (a, b) =>
-                      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-                  );
-                  // Cap at 200 videos
-                  videos = parsed.slice(0, 200);
-                }
-              }
-            } catch {
-              // Ignore individual KV read errors
-            }
-          }
-
-          return {
-            ...channel,
-            videos,
-            videoCount: videos.length,
-          };
-        })
-      );
-
-      const responseBody = JSON.stringify(mergedChannels);
-
-      // Cache merged result for 10 minutes in KV
-      if (env.CHANNELS_ARCHIVE) {
-        env.CHANNELS_ARCHIVE.put('_channels_latest_merged', responseBody, {
-          expirationTtl: 600,
-        }).catch(() => {});
-      }
-
-      return new Response(responseBody, {
+      // If key doesn't exist or KV is empty, return empty array (not an error)
+      return new Response(JSON.stringify([]), {
         status: 200,
         headers: corsHeaders,
       });
     }
 
+    // 5. POST/GET /api/admin/trigger-refresh (Manual trigger for testing the cron batch)
+    if (
+      url.pathname === '/api/admin/trigger-refresh' &&
+      (request.method === 'POST' || request.method === 'GET')
+    ) {
+      const adminKeyHeader =
+        request.headers.get('X-Admin-Key') ||
+        request.headers.get('x-admin-key') ||
+        url.searchParams.get('key') ||
+        '';
+      if (env.ADMIN_KEY && adminKeyHeader !== env.ADMIN_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing X-Admin-Key' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      try {
+        const result = await refreshChannelsBatch(env);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: `تم تحديث دفعة من ${result.updatedCount} قناة بنجاح.`,
+            ...result,
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : 'Error during batch refresh',
+          }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+    }
+
     return new Response('Not Found', { status: 404, headers: corsHeaders });
+  },
+
+  /**
+   * Cron Trigger handler: Runs periodically (e.g. every 15 minutes)
+   * to refresh the next batch of 40 channels safely under the 50 subrequests limit.
+   */
+  async scheduled(controller: any, env: Env, ctx?: any): Promise<void> {
+    try {
+      await refreshChannelsBatch(env);
+    } catch (err) {
+      console.error('Scheduled cron execution error:', err);
+    }
   },
 };
