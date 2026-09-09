@@ -17,3 +17,20 @@
 - **Scheduled Cron Batches**: The worker uses `scheduled()` and `refreshChannelsBatch` with a cursor (`_rss_refresh_cursor`) to update 40 channels every 15 minutes (`*/15 * * * *` in `wrangler.toml`). Do not revert or dismantle this pattern.
 - **Channels Seed**: `channels_seed.json` contains the curated list of 196 channels. Do not replace it with mock data or older truncated lists.
 - **Do Not Generate Bun Lockfiles**: Strictly forbidden from generating, committing, or recreating `bun.lock` or `bun.lockb` anywhere in the project.
+
+## 4. Infinite Loop Fix — LOCKED (DO NOT REVERT)
+1. **Filesystem is Truth**: Never restore older versions of `src/App.tsx` or `src/components/ChannelsCountCard.tsx` from chat history, memory, or internal snapshots.
+2. **Stable callbacks required in App.tsx**:
+   - `handleChannelsLoaded` MUST be defined with `useCallback((data) => setChannelsData(data), [])`
+   - `handleBackfillSuccess` MUST be defined with `useCallback(() => setChannelsRefreshTrigger(prev => prev + 1), [])`
+   - NEVER pass inline arrow functions as props:
+     - FORBIDDEN: `onChannelsLoaded={(data) => setChannelsData(data)}`
+     - FORBIDDEN: `onBackfillSuccess={() => setChannelsRefreshTrigger(...)}`
+3. **ChannelsCountCard stability**:
+   - MUST import and use `useRef`
+   - MUST keep `onChannelsLoaded` in `onChannelsLoadedRef`
+   - `fetchChannelsLatest` MUST be `useCallback` with an **empty dependency array** `[]`
+   - Notify parent via `onChannelsLoadedRef.current?.(data)` only
+4. When editing either file for any other feature, preserve the patterns above exactly.
+5. Do not regenerate these two files from memory in a way that reintroduces inline callbacks or unstable `useCallback` dependencies.
+
