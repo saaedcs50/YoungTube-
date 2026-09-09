@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { WORKER_URL } from '../config';
 import { Tv, RefreshCw, CheckCircle2, AlertTriangle, Film, Layers } from 'lucide-react';
 
@@ -26,6 +26,12 @@ export default function ChannelsCountCard({
   const [error, setError] = useState<string | null>(null);
   const [lastChecked, setLastChecked] = useState<string>('');
 
+  // Keep callback in a ref so fetch identity stays stable even if parent passes a new function
+  const onChannelsLoadedRef = useRef(onChannelsLoaded);
+  useEffect(() => {
+    onChannelsLoadedRef.current = onChannelsLoaded;
+  }, [onChannelsLoaded]);
+
   const fetchChannelsLatest = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -46,10 +52,10 @@ export default function ChannelsCountCard({
       const data = await response.json();
       if (Array.isArray(data)) {
         setChannels(data);
-        onChannelsLoaded?.(data);
+        onChannelsLoadedRef.current?.(data);
       } else {
         setChannels([]);
-        onChannelsLoaded?.([]);
+        onChannelsLoadedRef.current?.([]);
       }
       setLastChecked(new Date().toLocaleTimeString('ar-EG'));
     } catch (err) {
@@ -60,7 +66,7 @@ export default function ChannelsCountCard({
     } finally {
       setLoading(false);
     }
-  }, [onChannelsLoaded]);
+  }, []); // stable — no dependency on onChannelsLoaded
 
   useEffect(() => {
     fetchChannelsLatest();

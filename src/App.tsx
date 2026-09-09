@@ -68,6 +68,16 @@ export default function App() {
   const [channelsRefreshTrigger, setChannelsRefreshTrigger] = useState(0);
   const [channelsData, setChannelsData] = useState<any[] | null>(null);
 
+  // Stable callback — prevents infinite re-fetch loop in ChannelsCountCard
+  const handleChannelsLoaded = useCallback((data: any[]) => {
+    setChannelsData(data);
+  }, []);
+
+  // Stable callback for admin backfill refresh
+  const handleBackfillSuccess = useCallback(() => {
+    setChannelsRefreshTrigger((prev) => prev + 1);
+  }, []);
+
   // Parent Dashboard & PIN Lock State
   const [showPinModal, setShowPinModal] = useState(false);
   const [isDashboardUnlocked, setIsDashboardUnlocked] = useState(false);
@@ -835,7 +845,7 @@ export default function App() {
               {/* Card 4: Channels Count Card (Stage 5) */}
               <ChannelsCountCard
                 refreshTrigger={channelsRefreshTrigger}
-                onChannelsLoaded={(data) => setChannelsData(data)}
+                onChannelsLoaded={handleChannelsLoaded}
               />
 
               {/* Card 5: Filtering Result Card (Part 2) */}
@@ -847,9 +857,7 @@ export default function App() {
 
             {/* Stage 5: Temporary Admin Tool for Backfilling Channels */}
             <TempAdminTool
-              onBackfillSuccess={() => {
-                setChannelsRefreshTrigger((prev) => prev + 1);
-              }}
+              onBackfillSuccess={handleBackfillSuccess}
             />
           </>
         )}
