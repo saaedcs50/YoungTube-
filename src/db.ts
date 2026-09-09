@@ -40,11 +40,15 @@ interface FeedItem {
   videoDuration?: number;
   hasMusic?: boolean;
   fetchedAt: number;
+  hidden?: boolean; // manual per-video hide (used in Phase 7)
 }
 
 interface Interaction {
   videoId: string;
   channelId: string;
+  title: string;
+  thumbnail?: string;
+  parentRating?: 'liked' | 'disliked';
   watchTime: number;
   videoDuration: number;
   completed: boolean;
@@ -60,6 +64,15 @@ interface DownloadItem {
   size?: number;
 }
 
+interface DailySummary {
+  date: string;
+  totalSecondsWatched: number;
+  videosWatchedCount: number;
+  categoryBreakdown: Record<string, number>;
+  likedVideoIds: string[];
+  dislikedVideoIds: string[];
+}
+
 const db = new Dexie('KidsYouTubeDB') as Dexie & {
   settings: EntityTable<Settings, 'id'>;
   channels: EntityTable<Channel, 'id'>;
@@ -67,6 +80,7 @@ const db = new Dexie('KidsYouTubeDB') as Dexie & {
   feedCache: EntityTable<FeedItem, 'videoId'>;
   interactions: EntityTable<Interaction, 'videoId'>;
   downloads: EntityTable<DownloadItem, 'id'>;
+  dailySummaries: EntityTable<DailySummary, 'date'>;
 };
 
 db.version(1).stores({
@@ -76,7 +90,8 @@ db.version(1).stores({
   feedCache: 'videoId, channelId, fetchedAt',
   interactions: 'videoId, channelId',
   downloads: '++id',
+  dailySummaries: 'date',
 });
 
 export default db;
-export type { Settings, Channel, Usage, FeedItem, Interaction, DownloadItem };
+export type { Settings, Channel, Usage, FeedItem, Interaction, DownloadItem, DailySummary };

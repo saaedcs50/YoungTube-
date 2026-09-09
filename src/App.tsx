@@ -7,6 +7,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import Onboarding from './components/Onboarding';
 import PinLockModal from './components/PinLockModal';
 import ChannelsCountCard from './components/ChannelsCountCard';
+import FilteringResultCard from './components/FilteringResultCard';
 import TempAdminTool from './components/TempAdminTool';
 import {
   Database,
@@ -65,6 +66,7 @@ export default function App() {
 
   // Stage 5 Refresh trigger for channels count card
   const [channelsRefreshTrigger, setChannelsRefreshTrigger] = useState(0);
+  const [channelsData, setChannelsData] = useState<any[] | null>(null);
 
   // Parent Dashboard & PIN Lock State
   const [showPinModal, setShowPinModal] = useState(false);
@@ -831,7 +833,16 @@ export default function App() {
               </div>
 
               {/* Card 4: Channels Count Card (Stage 5) */}
-              <ChannelsCountCard refreshTrigger={channelsRefreshTrigger} />
+              <ChannelsCountCard
+                refreshTrigger={channelsRefreshTrigger}
+                onChannelsLoaded={(data) => setChannelsData(data)}
+              />
+
+              {/* Card 5: Filtering Result Card (Part 2) */}
+              <FilteringResultCard
+                channels={channelsData}
+                refreshTrigger={channelsRefreshTrigger}
+              />
             </div>
 
             {/* Stage 5: Temporary Admin Tool for Backfilling Channels */}

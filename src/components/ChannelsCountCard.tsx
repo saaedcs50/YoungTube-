@@ -14,9 +14,13 @@ interface ChannelData {
 
 interface ChannelsCountCardProps {
   refreshTrigger?: number;
+  onChannelsLoaded?: (channels: ChannelData[]) => void;
 }
 
-export default function ChannelsCountCard({ refreshTrigger = 0 }: ChannelsCountCardProps) {
+export default function ChannelsCountCard({
+  refreshTrigger = 0,
+  onChannelsLoaded,
+}: ChannelsCountCardProps) {
   const [loading, setLoading] = useState(true);
   const [channels, setChannels] = useState<ChannelData[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +46,10 @@ export default function ChannelsCountCard({ refreshTrigger = 0 }: ChannelsCountC
       const data = await response.json();
       if (Array.isArray(data)) {
         setChannels(data);
+        onChannelsLoaded?.(data);
       } else {
         setChannels([]);
+        onChannelsLoaded?.([]);
       }
       setLastChecked(new Date().toLocaleTimeString('ar-EG'));
     } catch (err) {
@@ -54,7 +60,7 @@ export default function ChannelsCountCard({ refreshTrigger = 0 }: ChannelsCountC
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onChannelsLoaded]);
 
   useEffect(() => {
     fetchChannelsLatest();

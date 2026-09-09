@@ -16,3 +16,4 @@
 - **/api/channels-latest**: Must read directly and instantly from `env.CHANNELS_ARCHIVE` (`_channels_latest_merged`). It must **NEVER** perform live RSS fetches for all channels in a single request. If key is missing, return `[]`.
 - **Scheduled Cron Batches**: The worker uses `scheduled()` and `refreshChannelsBatch` with a cursor (`_rss_refresh_cursor`) to update 40 channels every 15 minutes (`*/15 * * * *` in `wrangler.toml`). Do not revert or dismantle this pattern.
 - **Channels Seed**: `channels_seed.json` contains the curated list of 196 channels. Do not replace it with mock data or older truncated lists.
+- **Do Not Generate Bun Lockfiles**: Strictly forbidden from generating, committing, or recreating `bun.lock` or `bun.lockb` anywhere in the project.
