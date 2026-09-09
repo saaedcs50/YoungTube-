@@ -175,6 +175,17 @@ export default function FilteringResultCard({
                   {result.breakdown.blacklistExcluded}
                 </span>
               </div>
+              {result.breakdown.hiddenExcluded > 0 && (
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="flex items-center gap-1 text-rose-500">
+                    <ShieldAlert className="w-3 h-3 text-rose-400" />
+                    مستبعد يدوياً (فيديوهات مخفية):
+                  </span>
+                  <span className="font-bold text-rose-700 font-mono">
+                    {result.breakdown.hiddenExcluded}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-[10px]">
                 <span className="flex items-center gap-1 text-slate-500">
                   <VolumeX className="w-3 h-3 text-emerald-600" />

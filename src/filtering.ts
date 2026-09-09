@@ -7,6 +7,7 @@ export interface FilteringResult {
   breakdown: {
     shortsExcluded: number;
     blacklistExcluded: number;
+    hiddenExcluded: number;
     hasMusicCount: number;
     noMusicCount: number;
   };
@@ -35,9 +36,14 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     .map((w) => w.trim().toLowerCase())
     .filter((w) => w.length > 0);
 
+  // Check previously hidden videos in feedCache
+  const existingHidden = await db.feedCache.filter((item) => item.hidden === true).toArray();
+  const hiddenIds = new Set(existingHidden.map((item) => item.videoId));
+
   let totalBefore = 0;
   let shortsExcluded = 0;
   let blacklistExcluded = 0;
+  let hiddenExcluded = 0;
   let hasMusicCount = 0;
   let noMusicCount = 0;
 
@@ -53,6 +59,12 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
 
       totalBefore++;
       const titleLower = video.title.toLowerCase();
+
+      // 0. Manual Hidden check: if previously marked hidden by user -> exclude
+      if (hiddenIds.has(video.videoId)) {
+        hiddenExcluded++;
+        continue;
+      }
 
       // 1. Shorts heuristic: if title contains "#shorts" or "shorts" (case-insensitive) -> exclude
       if (titleLower.includes('#shorts') || titleLower.includes('shorts')) {
@@ -105,6 +117,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     breakdown: {
       shortsExcluded,
       blacklistExcluded,
+      hiddenExcluded,
       hasMusicCount,
       noMusicCount,
     },

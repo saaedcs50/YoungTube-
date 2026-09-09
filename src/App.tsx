@@ -9,6 +9,7 @@ import PinLockModal from './components/PinLockModal';
 import ChannelsCountCard from './components/ChannelsCountCard';
 import FilteringResultCard from './components/FilteringResultCard';
 import TempAdminTool from './components/TempAdminTool';
+import PlayerTestCard from './components/PlayerTestCard';
 import {
   Database,
   Cloud,
@@ -75,6 +76,12 @@ export default function App() {
 
   // Stable callback for admin backfill refresh
   const handleBackfillSuccess = useCallback(() => {
+    setChannelsRefreshTrigger((prev) => prev + 1);
+  }, []);
+
+  // Stable callback when a video is marked hidden in player test
+  const handleVideoHidden = useCallback(() => {
+    // Optionally trigger filtering card refresh
     setChannelsRefreshTrigger((prev) => prev + 1);
   }, []);
 
@@ -853,6 +860,13 @@ export default function App() {
                 channels={channelsData}
                 refreshTrigger={channelsRefreshTrigger}
               />
+
+              {/* Card 6: Player Test Card (Phase 7: Player) */}
+              <div className="md:col-span-2 lg:col-span-3">
+                <PlayerTestCard
+                  onVideoHidden={handleVideoHidden}
+                />
+              </div>
             </div>
 
             {/* Stage 5: Temporary Admin Tool for Backfilling Channels */}
