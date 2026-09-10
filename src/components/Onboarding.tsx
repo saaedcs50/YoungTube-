@@ -71,6 +71,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         securityQuestion: finalQuestion,
         securityAnswerHash,
         blacklistWords: [],
+        scheduleWindow: { start: '00:00', end: '23:59' },
+        sessionLimitMinutes: 60,
         pinAttempts: 0,
         preloadedListVersion: 1,
       });

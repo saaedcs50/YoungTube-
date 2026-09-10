@@ -10,6 +10,9 @@ import ChannelsCountCard from './components/ChannelsCountCard';
 import FilteringResultCard from './components/FilteringResultCard';
 import TempAdminTool from './components/TempAdminTool';
 import PlayerTestCard from './components/PlayerTestCard';
+import { useSessionTimer } from './hooks/useSessionTimer';
+import SessionEndScreen from './components/SessionEndScreen';
+import TimerTestCard from './components/TimerTestCard';
 import {
   Database,
   Cloud,
@@ -31,6 +34,8 @@ import {
   HelpCircle,
   Wifi,
   WifiOff,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 
 interface TestResult {
@@ -93,6 +98,13 @@ export default function App() {
   // Blacklist words in Dashboard
   const [newWord, setNewWord] = useState('');
 
+  // Phase 8: Session Timer Hook & Timer Settings States
+  const sessionTimer = useSessionTimer();
+  const [timerLimitInput, setTimerLimitInput] = useState<number>(60);
+  const [scheduleStartInput, setScheduleStartInput] = useState<string>('00:00');
+  const [scheduleEndInput, setScheduleEndInput] = useState<string>('23:59');
+  const [timerSettingsSaved, setTimerSettingsSaved] = useState(false);
+
   // Check if main settings record exists
   const checkMainSettings = useCallback(async () => {
     try {
@@ -101,13 +113,48 @@ export default function App() {
         setShowOnboarding(true);
         setMainSettings(null);
       } else {
+        // Ensure scheduleWindow and sessionLimitMinutes defaults if missing
+        if (!record.scheduleWindow || typeof record.sessionLimitMinutes !== 'number') {
+          const updatedRecord: Settings = {
+            ...record,
+            scheduleWindow: record.scheduleWindow || { start: '00:00', end: '23:59' },
+            sessionLimitMinutes: record.sessionLimitMinutes ?? 60,
+          };
+          await db.settings.put(updatedRecord);
+          setMainSettings(updatedRecord);
+          setTimerLimitInput(updatedRecord.sessionLimitMinutes ?? 60);
+          setScheduleStartInput(updatedRecord.scheduleWindow?.start || '00:00');
+          setScheduleEndInput(updatedRecord.scheduleWindow?.end || '23:59');
+        } else {
+          setMainSettings(record);
+          setTimerLimitInput(record.sessionLimitMinutes ?? 60);
+          setScheduleStartInput(record.scheduleWindow?.start || '00:00');
+          setScheduleEndInput(record.scheduleWindow?.end || '23:59');
+        }
         setShowOnboarding(false);
-        setMainSettings(record);
       }
     } catch {
       // Fallback
     }
   }, []);
+
+  const handleSaveTimerSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mainSettings) return;
+    const updated = {
+      ...mainSettings,
+      sessionLimitMinutes: Number(timerLimitInput) || 60,
+      scheduleWindow: {
+        start: scheduleStartInput || '00:00',
+        end: scheduleEndInput || '23:59',
+      },
+    };
+    await db.settings.put(updated);
+    setMainSettings(updated);
+    await sessionTimer.refreshSettings();
+    setTimerSettingsSaved(true);
+    setTimeout(() => setTimerSettingsSaved(false), 2000);
+  };
 
   const runDatabaseTest = useCallback(async () => {
     setDbResult({ loading: true });
@@ -279,6 +326,9 @@ export default function App() {
     }
   };
 
+  // Phase 8: Session end determination (limit reached or outside schedule window)
+  const isSessionEnded = sessionTimer.isLimitReached || !sessionTimer.isWithinScheduleWindow;
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between p-4 sm:p-8 font-sans">
       {/* Onboarding Modal */}
@@ -298,8 +348,18 @@ export default function App() {
         onUnlockSuccess={handleUnlockSuccess}
       />
 
-      {/* App Header */}
-      <header className="max-w-5xl w-full mx-auto flex items-center justify-between py-4 border-b border-slate-200">
+      {/* Phase 8: Full-Screen Session Takeover when limit reached or outside schedule window */}
+      {isSessionEnded && viewMode !== 'dashboard' ? (
+        <SessionEndScreen
+          isLimitReached={sessionTimer.isLimitReached}
+          isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
+          onParentUnlock={handleOpenDashboard}
+          onResetForTesting={sessionTimer.resetTodayUsage}
+        />
+      ) : (
+        <>
+          {/* App Header */}
+          <header className="max-w-5xl w-full mx-auto flex items-center justify-between py-4 border-b border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-white shadow-sm shadow-sky-200">
             <ShieldCheck className="w-6 h-6" />
@@ -479,6 +539,95 @@ export default function App() {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Phase 8: Screen Time & Schedule Management Section */}
+              <div className="mt-6 pt-5 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-emerald-600" />
+                    <span>مواعيد التشغيل والحد اليومي (Screen Time & Schedule)</span>
+                  </h3>
+                  {timerSettingsSaved && (
+                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      تم حفظ الإعدادات بنجاح ✅
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mb-4">
+                  تحديد المدة اليومية القصوى المسموحة وساعات المشاهدة المصرح بها للطفل.
+                </p>
+
+                <form onSubmit={handleSaveTimerSettings} className="space-y-4 max-w-xl">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Session Limit Minutes */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700 block">
+                        الحد اليومي (بالدقائق)
+                      </label>
+                      <input
+                        id="session-limit-input"
+                        type="number"
+                        min="1"
+                        max="720"
+                        value={timerLimitInput}
+                        onChange={(e) => setTimerLimitInput(Math.max(1, Number(e.target.value) || 1))}
+                        className="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono"
+                      />
+                      <span className="text-[10px] text-slate-400">الافتراضي: 60 دقيقة</span>
+                    </div>
+
+                    {/* Window Start */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700 block">
+                        بداية الوقت المسموح
+                      </label>
+                      <input
+                        id="schedule-start-input"
+                        type="time"
+                        value={scheduleStartInput}
+                        onChange={(e) => setScheduleStartInput(e.target.value)}
+                        className="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono"
+                      />
+                      <span className="text-[10px] text-slate-400">مثل: 08:00</span>
+                    </div>
+
+                    {/* Window End */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700 block">
+                        نهاية الوقت المسموح
+                      </label>
+                      <input
+                        id="schedule-end-input"
+                        type="time"
+                        value={scheduleEndInput}
+                        onChange={(e) => setScheduleEndInput(e.target.value)}
+                        className="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono"
+                      />
+                      <span className="text-[10px] text-slate-400">مثل: 20:00</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      id="save-timer-settings-btn"
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>حفظ إعدادات الوقت</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={sessionTimer.resetTodayUsage}
+                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                      title="تصفير عداد اليوم للاختبار"
+                    >
+                      تصفير استهلاك اليوم (الحالي: {sessionTimer.secondsUsedToday} ثانية)
+                    </button>
+                  </div>
+                </form>
               </div>
 
               {/* Developer / Testing Helper */}
@@ -867,6 +1016,19 @@ export default function App() {
                   onVideoHidden={handleVideoHidden}
                 />
               </div>
+
+              {/* Card 7: Timer Test Card (Phase 8: Timers) */}
+              <div className="md:col-span-2 lg:col-span-3">
+                <TimerTestCard
+                  secondsUsedToday={sessionTimer.secondsUsedToday}
+                  sessionLimitMinutes={sessionTimer.sessionLimitMinutes}
+                  isLimitReached={sessionTimer.isLimitReached}
+                  isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
+                  scheduleWindow={sessionTimer.scheduleWindow}
+                  onResetToday={sessionTimer.resetTodayUsage}
+                  onSimulateLimit={sessionTimer.simulateLimitReached}
+                />
+              </div>
             </div>
 
             {/* Stage 5: Temporary Admin Tool for Backfilling Channels */}
@@ -879,8 +1041,10 @@ export default function App() {
 
       {/* Footer */}
       <footer className="max-w-5xl w-full mx-auto text-center py-4 border-t border-slate-200 text-xs text-slate-400">
-        يوتيوب الأطفال PWA — المرحلة 5: معالجة البيانات وأرشيف القنوات (Cloudflare Worker & KV)
+        يوتيوب الأطفال PWA — المرحلة 8: عداد وقت الشاشة وجدول المشاهدة
       </footer>
+        </>
+      )}
 
       <OfflineIndicator />
     </div>

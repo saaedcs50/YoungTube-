@@ -94,4 +94,6 @@ db.version(1).stores({
 });
 
 export default db;
+export const DEFAULT_SCHEDULE_WINDOW = { start: '00:00', end: '23:59' };
+export const DEFAULT_SESSION_LIMIT_MINUTES = 60;
 export type { Settings, Channel, Usage, FeedItem, Interaction, DownloadItem, DailySummary };
