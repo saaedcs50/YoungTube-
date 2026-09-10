@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import db from '../db';
 import { sha256 } from '../crypto';
 import { KeyRound, HelpCircle, Sparkles, ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import AdBlockNotice from './AdBlockNotice';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -15,7 +16,7 @@ const COMMON_SECURITY_QUESTIONS = [
 ];
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [selectedQuestion, setSelectedQuestion] = useState(COMMON_SECURITY_QUESTIONS[0]);
@@ -23,6 +24,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [securityAnswer, setSecurityAnswer] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSettingsSaved, setIsSettingsSaved] = useState(false);
 
   // Step 1: Validate PIN
   const handlePinNext = (e: React.FormEvent) => {
@@ -55,33 +57,53 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setStep(3);
   };
 
-  // Step 3: Complete and save to DB
-  const handleFinish = async () => {
+  // Helper to persist settings
+  const saveSettingsToDb = async () => {
+    const pinHash = await sha256(pin);
+    const securityAnswerHash = await sha256(securityAnswer.trim().toLowerCase());
+    const finalQuestion = customQuestion.trim() || selectedQuestion;
+
+    await db.settings.put({
+      id: 'main',
+      pinHash,
+      securityQuestion: finalQuestion,
+      securityAnswerHash,
+      blacklistWords: [],
+      scheduleWindow: { start: '00:00', end: '23:59' },
+      sessionLimitMinutes: 60,
+      pinAttempts: 0,
+      preloadedListVersion: 1,
+    });
+    setIsSettingsSaved(true);
+  };
+
+  // Step 3 -> Step 4: Save settings and advance to Ad-blocking notice
+  const handleAdvanceToStep4 = async () => {
     setIsSubmitting(true);
     setError(null);
     try {
-      const pinHash = await sha256(pin);
-      const securityAnswerHash = await sha256(securityAnswer.trim().toLowerCase());
-      const finalQuestion = customQuestion.trim() || selectedQuestion;
-
-      // Save the single fixed 'main' settings record
-      await db.settings.put({
-        id: 'main',
-        pinHash,
-        securityQuestion: finalQuestion,
-        securityAnswerHash,
-        blacklistWords: [],
-        scheduleWindow: { start: '00:00', end: '23:59' },
-        sessionLimitMinutes: 60,
-        pinAttempts: 0,
-        preloadedListVersion: 1,
-      });
-
-      onComplete();
+      await saveSettingsToDb();
+      setStep(4);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ الإعدادات.');
+    } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Step 4 Completion (Skip or Done)
+  const handleFinalFinish = async () => {
+    if (!isSettingsSaved) {
+      setIsSubmitting(true);
+      try {
+        await saveSettingsToDb();
+      } catch (err) {
+        console.error('Error saving settings on final finish:', err);
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+    onComplete();
   };
 
   return (
@@ -94,13 +116,23 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         <div className="bg-gradient-to-l from-sky-600 to-indigo-700 p-6 text-white text-right">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold px-3 py-1 rounded-full bg-white/20 text-white">
-              الخطوة {step} من 3
+              الخطوة {step} من 4
             </span>
-            <span className="text-xs text-sky-100">تهيئة أمان الوالدين</span>
+            <span className="text-xs text-sky-100">
+              {step <= 2
+                ? 'تهيئة أمان الوالدين'
+                : step === 3
+                ? 'رؤية المحتوى الهادف'
+                : 'حجب الإعلانات بجهازك'}
+            </span>
           </div>
-          <h2 className="text-xl font-bold mt-2">مرحباً بك في يوتيوب الأطفال</h2>
+          <h2 className="text-xl font-bold mt-2">
+            {step === 4 ? 'حماية إضافية للطفل' : 'مرحباً بك في يوتيوب الأطفال'}
+          </h2>
           <p className="text-xs text-sky-100 mt-1">
-            لنقم بإعداد قفل الوالدين لضمان تحكم آمن وسري بالكامل.
+            {step === 4
+              ? 'إرشادات مجانية وفعالة لحجب إعلانات يوتيوب على مستوى الجهاز.'
+              : 'لنقم بإعداد قفل الوالدين لضمان تحكم آمن وسري بالكامل.'}
           </p>
         </div>
 
@@ -293,17 +325,27 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   <span>رجوع</span>
                 </button>
                 <button
-                  id="onboarding-complete-btn"
+                  id="onboarding-step3-btn"
                   type="button"
-                  onClick={handleFinish}
+                  onClick={handleAdvanceToStep4}
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
                 >
-                  <span>{isSubmitting ? 'جاري الحفظ...' : 'إتمام وتفعيل القفل'}</span>
-                  <Check className="w-4 h-4" />
+                  <span>{isSubmitting ? 'جاري الحفظ...' : 'التالي (حجب الإعلانات)'}</span>
+                  <ArrowLeft className="w-4 h-4" />
                 </button>
               </div>
             </div>
+          )}
+
+          {/* STEP 4: Ad-blocking DNS Notice (Phase 9) */}
+          {step === 4 && (
+            <AdBlockNotice
+              mode="onboarding"
+              onSkip={handleFinalFinish}
+              onFinish={handleFinalFinish}
+              onBack={() => setStep(3)}
+            />
           )}
         </div>
       </div>

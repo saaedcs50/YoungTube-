@@ -13,6 +13,7 @@ import PlayerTestCard from './components/PlayerTestCard';
 import { useSessionTimer } from './hooks/useSessionTimer';
 import SessionEndScreen from './components/SessionEndScreen';
 import TimerTestCard from './components/TimerTestCard';
+import AdBlockNotice from './components/AdBlockNotice';
 import {
   Database,
   Cloud,
@@ -94,6 +95,7 @@ export default function App() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [isDashboardUnlocked, setIsDashboardUnlocked] = useState(false);
   const [viewMode, setViewMode] = useState<'status' | 'dashboard'>('status');
+  const [showAdBlockModal, setShowAdBlockModal] = useState(false);
 
   // Blacklist words in Dashboard
   const [newWord, setNewWord] = useState('');
@@ -347,6 +349,14 @@ export default function App() {
         onClose={() => setShowPinModal(false)}
         onUnlockSuccess={handleUnlockSuccess}
       />
+
+      {/* Phase 9: AdBlock Notice Modal */}
+      {showAdBlockModal && (
+        <AdBlockNotice
+          mode="modal"
+          onClose={() => setShowAdBlockModal(false)}
+        />
+      )}
 
       {/* Phase 8: Full-Screen Session Takeover when limit reached or outside schedule window */}
       {isSessionEnded && viewMode !== 'dashboard' ? (
@@ -628,6 +638,29 @@ export default function App() {
                     </button>
                   </div>
                 </form>
+              </div>
+
+              {/* Phase 9: Ad-blocking DNS Notice Permanent Row */}
+              <div className="mt-6 pt-5 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-sky-50/70 border border-sky-200">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-sky-600" />
+                      <span>حجب إعلانات يوتيوب (Private DNS)</span>
+                    </h3>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      حجب غالبية الإعلانات مجاناً على مستوى الجهاز بالكامل (أندرويد و iOS) بدون تطبيقات إضافية.
+                    </p>
+                  </div>
+                  <button
+                    id="open-adblock-notice-btn"
+                    type="button"
+                    onClick={() => setShowAdBlockModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shrink-0 transition flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    <span>عرض إرشادات ورمز QR</span>
+                  </button>
+                </div>
               </div>
 
               {/* Developer / Testing Helper */}
@@ -1041,7 +1074,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="max-w-5xl w-full mx-auto text-center py-4 border-t border-slate-200 text-xs text-slate-400">
-        يوتيوب الأطفال PWA — المرحلة 8: عداد وقت الشاشة وجدول المشاهدة
+        يوتيوب الأطفال PWA — المرحلة 9: إرشادات حجب الإعلانات (Ad-blocking DNS Notice)
       </footer>
         </>
       )}
