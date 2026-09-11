@@ -19,13 +19,11 @@ export default function EndScreenSuggestions({
   const fetchSuggestions = async () => {
     setLoading(true);
     try {
-      // Query up to 5 non-hidden videos from db.feedCache, excluding current video
       const items = await db.feedCache
         .filter((item) => !item.hidden && item.videoId !== excludeVideoId)
         .toArray();
 
-      // Shuffle or pick up to 5 items
-      const shuffled = items.sort(() => Math.random() - 0.5).slice(0, 5);
+      const shuffled = items.sort(() => Math.random() - 0.5).slice(0, 6);
       setSuggestions(shuffled);
     } catch (err) {
       console.error('Failed to load suggestions from db.feedCache:', err);
@@ -41,17 +39,19 @@ export default function EndScreenSuggestions({
   return (
     <div
       id="custom-end-screen-overlay"
-      className={`relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-900/95 text-white flex flex-col justify-between p-4 sm:p-5 shadow-inner border border-slate-700 z-30 select-none ${className}`}
+      className={`w-full min-h-0 flex flex-col bg-zinc-950 text-white select-none ${className}`}
     >
-      {/* Header bar */}
-      <div className="flex items-center justify-between border-b border-slate-700/80 pb-2.5">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
-            <Sparkles className="w-4 h-4" />
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-3.5 sm:px-5 border-b border-white/10">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+            <Sparkles className="w-5 h-5" />
           </div>
-          <div>
-            <h3 className="text-xs sm:text-sm font-bold text-white">فيديوهات مقترحة تالية</h3>
-            <span className="text-[10px] text-slate-400">مقترحات آمنة ونظيفة من الذاكرة المحلية (Dexie)</span>
+          <div className="min-w-0 text-right">
+            <h3 className="text-sm sm:text-base font-bold text-white">ماذا بعد؟</h3>
+            <span className="text-[11px] sm:text-xs text-white/50 block truncate">
+              مقترحات آمنة من قائمتك فقط
+            </span>
           </div>
         </div>
 
@@ -59,61 +59,66 @@ export default function EndScreenSuggestions({
           id="refresh-suggestions-btn"
           onClick={fetchSuggestions}
           disabled={loading}
-          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+          className="p-2 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition cursor-pointer shrink-0"
           title="تحديث المقترحات"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {/* Suggestions Cards Grid */}
-      <div className="grow my-auto flex items-center justify-center py-2">
+      {/* Scrollable suggestions — large cards, real room to see content */}
+      <div className="grow min-h-0 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5">
         {loading ? (
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
-            جاري تحضير المقترحات الآمنة...
+          <div className="flex items-center justify-center gap-2 text-sm text-white/50 py-16">
+            <RefreshCw className="w-5 h-5 animate-spin text-sky-400" />
+            جاري تحضير المقترحات...
           </div>
         ) : suggestions.length === 0 ? (
-          <div className="text-center space-y-1">
-            <Film className="w-8 h-8 text-slate-600 mx-auto" />
-            <p className="text-xs text-slate-400">لا توجد مقترحات إضافية في الذاكرة حالياً</p>
+          <div className="text-center space-y-2 py-16">
+            <Film className="w-10 h-10 text-white/20 mx-auto" />
+            <p className="text-sm text-white/50">لا توجد مقترحات إضافية حالياً</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 w-full max-h-[80%] overflow-y-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 max-w-3xl mx-auto">
             {suggestions.map((video) => {
-              const thumbnail = `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`;
+              const thumbnail = `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`;
               return (
                 <button
                   key={video.videoId}
                   id={`suggestion-card-${video.videoId}`}
                   type="button"
                   onClick={() => onPickVideo(video.videoId)}
-                  className="group relative flex flex-col bg-slate-800/90 hover:bg-slate-700/90 rounded-xl overflow-hidden border border-slate-700 hover:border-sky-500/50 transition duration-200 text-right cursor-pointer shadow-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="group flex flex-row sm:flex-col bg-zinc-900 hover:bg-zinc-800 active:scale-[0.99] overflow-hidden border border-white/10 hover:border-sky-500/40 transition text-right cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500 rounded-none"
                 >
-                  <div className="relative aspect-video w-full bg-slate-950 overflow-hidden">
+                  {/* Thumbnail — large, sharp */}
+                  <div className="relative w-[42%] sm:w-full shrink-0 aspect-video bg-black overflow-hidden">
                     <img
                       src={thumbnail}
                       alt={video.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-300"
                       referrerPolicy="no-referrer"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 flex items-center justify-center transition">
-                      <div className="w-8 h-8 rounded-full bg-sky-600/90 text-white flex items-center justify-center shadow-md group-hover:scale-110 transition">
-                        <Play className="w-4 h-4 fill-white translate-x-0.5" />
+                    <div className="absolute inset-0 bg-black/25 group-hover:bg-black/10 flex items-center justify-center transition">
+                      <div className="w-11 h-11 rounded-full bg-white text-zinc-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition">
+                        <Play className="w-5 h-5 fill-current translate-x-0.5" />
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-2 flex flex-col justify-between grow">
-                    <p className="text-[11px] font-medium text-slate-200 line-clamp-2 leading-snug group-hover:text-white transition">
+                  {/* Meta */}
+                  <div className="flex-1 min-w-0 p-3 sm:p-3.5 flex flex-col justify-center gap-1.5">
+                    <p className="text-sm sm:text-[15px] font-bold text-white line-clamp-2 leading-snug group-hover:text-sky-100 transition">
                       {video.title}
                     </p>
                     {video.hasMusic === false && (
-                      <span className="mt-1 text-[9px] text-emerald-400 font-semibold">
-                        بدون موسيقى ✨
+                      <span className="text-[11px] text-emerald-400 font-semibold">
+                        بدون موسيقى
                       </span>
                     )}
+                    <span className="text-[11px] text-white/40 font-medium mt-auto pt-1">
+                      اضغط للمشاهدة
+                    </span>
                   </div>
                 </button>
               );
@@ -122,17 +127,17 @@ export default function EndScreenSuggestions({
         )}
       </div>
 
-      {/* Footer info badge */}
-      <div className="flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-700/60 pt-2">
-        <span className="flex items-center gap-1 text-emerald-400">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>تم استبدال شاشة مقترحات يوتيوب بمقترحاتك المفلترة فقط</span>
+      {/* Footer */}
+      <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-2.5 border-t border-white/10 text-[11px] text-white/45">
+        <span className="flex items-center gap-1.5 text-emerald-400/90">
+          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+          <span className="leading-tight">بدون مقترحات يوتيوب — قائمتك فقط</span>
         </span>
         <button
           onClick={() => onPickVideo(excludeVideoId)}
-          className="text-sky-400 hover:text-sky-300 underline font-medium cursor-pointer"
+          className="text-sky-400 hover:text-sky-300 font-semibold cursor-pointer shrink-0"
         >
-          إعادة تشغيل هذا الفيديو ↺
+          إعادة التشغيل ↺
         </button>
       </div>
     </div>

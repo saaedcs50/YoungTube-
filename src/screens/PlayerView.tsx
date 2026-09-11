@@ -4,7 +4,7 @@ import VideoPlayer from '../components/VideoPlayer';
 import EndScreenSuggestions from '../components/EndScreenSuggestions';
 import HideVideoButton from '../components/HideVideoButton';
 import channelsSeed from '../../channels_seed.json';
-import { ArrowRight, RotateCcw, Sparkles } from 'lucide-react';
+import { ArrowRight, RotateCcw } from 'lucide-react';
 
 interface PlayerViewProps {
   videoId: string;
@@ -21,13 +21,11 @@ export default function PlayerView({
   const [isEnded, setIsEnded] = useState(false);
   const [videoDetails, setVideoDetails] = useState<FeedItem | null>(null);
 
-  // Sync state if initial prop changes
   useEffect(() => {
     setCurrentVideoId(videoId);
     setIsEnded(false);
   }, [videoId]);
 
-  // Load video title and channel details from Dexie feedCache
   useEffect(() => {
     let isMounted = true;
     async function fetchDetails() {
@@ -46,7 +44,6 @@ export default function PlayerView({
     };
   }, [currentVideoId]);
 
-  // Find channel title from seed
   const channelTitle = React.useMemo(() => {
     if (!videoDetails?.channelId) return '';
     const seed = (channelsSeed as any[]).find(
@@ -71,91 +68,84 @@ export default function PlayerView({
   return (
     <div
       id="player-view-takeover"
-      className="fixed inset-0 z-50 bg-stone-950 text-white flex flex-col justify-between overflow-y-auto select-none font-sans"
+      className="fixed inset-0 z-50 bg-black text-white flex flex-col overflow-hidden select-none font-sans"
     >
-      {/* 1. Top Bar: Back Button + Small Unobtrusive Hide Button */}
-      <header className="flex items-center justify-between p-4 sm:p-6 z-20 max-w-6xl w-full mx-auto">
+      {/* Compact top bar — YouTube-style chrome */}
+      <header className="shrink-0 flex items-center justify-between gap-3 px-3 py-2.5 sm:px-4 bg-black/95 border-b border-white/10 z-20">
         <button
           id="player-back-btn"
           type="button"
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-stone-800/80 hover:bg-stone-800 active:scale-95 text-stone-200 hover:text-white text-xs sm:text-sm font-bold backdrop-blur-md border border-stone-700/60 transition cursor-pointer shadow-sm"
+          className="flex items-center gap-1.5 min-h-10 px-3 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white text-sm font-semibold transition cursor-pointer"
         >
           <ArrowRight className="w-4 h-4" />
-          <span>العودة للرئيسية</span>
+          <span>رجوع</span>
         </button>
 
-        <div className="flex items-center gap-3">
-          {/* Small, Unobtrusive Hide Video Button */}
+        <div className="flex items-center gap-2 min-w-0">
           <HideVideoButton
             videoId={currentVideoId}
-            onHidden={() => {
-              onVideoHidden?.();
-            }}
-            className="text-[11px] py-1.5 px-3 rounded-full bg-stone-900/80 hover:bg-stone-800 text-stone-400 hover:text-rose-300 border border-stone-800 transition"
+            onHidden={onVideoHidden}
+            className="!bg-white/10 !text-white !border-white/15 hover:!bg-white/15"
           />
         </div>
       </header>
 
-      {/* 2. Main Player Area: Full Screen / Centered Hero Video */}
-      <main className="grow flex flex-col items-center justify-center p-3 sm:p-6 max-w-5xl w-full mx-auto my-auto">
+      {/* Main column: full-bleed player OR full-height suggestions */}
+      <main className="grow min-h-0 flex flex-col overflow-y-auto">
         {isEnded ? (
-          <div className="w-full space-y-4">
-            {/* End Screen Suggestions Component (Phase 7) */}
+          <div className="grow min-h-0 flex flex-col w-full">
             <EndScreenSuggestions
               excludeVideoId={currentVideoId}
               onPickVideo={handlePickSuggestion}
-              className="w-full max-w-4xl mx-auto shadow-2xl"
+              className="grow"
             />
 
-            {/* Replay current video action */}
-            <div className="text-center">
+            <div className="shrink-0 py-3 px-4 text-center border-t border-white/10 bg-black">
               <button
                 id="replay-current-video-btn"
                 type="button"
                 onClick={handleReplay}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-stone-800/90 hover:bg-stone-700 text-stone-300 hover:text-white text-xs font-semibold border border-stone-700 transition cursor-pointer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white text-sm font-semibold transition cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                <span>إعادة مشاهدة الفيديو الحالي</span>
+                <RotateCcw className="w-4 h-4 text-amber-300" />
+                <span>إعادة مشاهدة الفيديو</span>
               </button>
             </div>
           </div>
         ) : (
-          <div className="w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl bg-black border border-stone-800">
-            <VideoPlayer
-              videoId={currentVideoId}
-              onEnded={handleVideoEnded}
-              className="w-full h-full rounded-2xl sm:rounded-3xl"
-            />
-          </div>
-        )}
+          <>
+            {/* Full-width, edge-to-edge, sharp corners — portrait YouTube style */}
+            <div
+              id="player-stage"
+              className="w-full bg-black shrink-0"
+            >
+              <div className="w-full aspect-video bg-black overflow-hidden rounded-none">
+                <VideoPlayer
+                  videoId={currentVideoId}
+                  onEnded={handleVideoEnded}
+                  className="w-full h-full !rounded-none !shadow-none"
+                />
+              </div>
+            </div>
 
-        {/* Video Info (Warm, Gentle, Non-intrusive) */}
-        {videoDetails && (
-          <div className="w-full max-w-5xl mt-3 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-right">
-            <div>
-              <h2 className="text-sm sm:text-base font-bold text-stone-200 line-clamp-1">
-                {videoDetails.title}
+            {/* Title / channel under the player */}
+            <div className="w-full px-3.5 py-3 sm:px-5 sm:py-4 space-y-1 text-right bg-black">
+              <h2 className="text-[15px] sm:text-base font-bold text-white leading-snug line-clamp-2">
+                {videoDetails?.title || 'جاري التحميل...'}
               </h2>
-              {channelTitle && (
-                <span className="text-xs text-stone-400 font-medium">
+              {channelTitle ? (
+                <p className="text-xs sm:text-sm text-white/60 font-medium">
                   {channelTitle}
-                </span>
-              )}
+                </p>
+              ) : null}
+              <p className="text-[11px] text-emerald-400/90 font-medium pt-0.5">
+                مشاهدة آمنة — بدون إعلانات أو خوارزميات
+              </p>
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-stone-400 shrink-0">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>مشاهدة آمنة</span>
-            </div>
-          </div>
+          </>
         )}
       </main>
-
-      {/* 3. Subtle Footer */}
-      <footer className="p-3 text-center text-[11px] text-stone-600">
-        مشغل آمن — يوتيوب الأطفال
-      </footer>
     </div>
   );
 }

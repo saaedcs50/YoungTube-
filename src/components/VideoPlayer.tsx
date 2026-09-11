@@ -167,14 +167,14 @@ export default function VideoPlayer({ videoId, onEnded, className = '' }: VideoP
   return (
     <div
       id="video-player-wrapper"
-      className={`relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 shadow-md ${className}`}
+      className={`relative w-full h-full min-h-0 aspect-video overflow-hidden bg-black rounded-none shadow-none ${className}`}
     >
-      {/* Player Mounting Container */}
-      <div ref={containerRef} className="w-full h-full" />
+      {/* Player Mounting Container — fills parent completely */}
+      <div ref={containerRef} className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full" />
 
       {/* Loading Overlay */}
       {loadingApi && (
-        <div className="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center text-white gap-2 pointer-events-none">
+        <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-white gap-2 pointer-events-none z-10">
           <Loader2 className="w-8 h-8 animate-spin text-sky-400" />
           <span className="text-xs font-medium text-slate-300">جاري تجهيز مشغل الفيديو الآمن...</span>
         </div>
@@ -182,7 +182,7 @@ export default function VideoPlayer({ videoId, onEnded, className = '' }: VideoP
 
       {/* Error Overlay */}
       {error && (
-        <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center text-white p-4 text-center gap-2">
+        <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center text-white p-4 text-center gap-2 z-10">
           <AlertTriangle className="w-8 h-8 text-amber-500" />
           <p className="text-xs text-amber-200">{error}</p>
         </div>
