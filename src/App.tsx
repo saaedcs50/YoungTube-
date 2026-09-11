@@ -105,6 +105,54 @@ export default function App() {
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [showAdBlockModal, setShowAdBlockModal] = useState(false);
 
+  // Player navigation: push history so Android/browser Back returns to feed (not exit app)
+  const openPlayer = useCallback((videoId: string) => {
+    setPlayingVideoId(videoId);
+    try {
+      const state = window.history.state;
+      // Avoid stacking duplicate player entries for the same open session
+      if (!state || state.ytPlayer !== true) {
+        window.history.pushState(
+          { ...(state || {}), ytPlayer: true, videoId },
+          '',
+          window.location.href
+        );
+      } else {
+        window.history.replaceState(
+          { ...(state || {}), ytPlayer: true, videoId },
+          '',
+          window.location.href
+        );
+      }
+    } catch {
+      // ignore history errors in locked-down webviews
+    }
+  }, []);
+
+  const closePlayer = useCallback(() => {
+    setPlayingVideoId(null);
+    try {
+      // If current history entry is our player marker, go back one step
+      if (window.history.state?.ytPlayer) {
+        window.history.back();
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Hardware / browser Back while player is open → feed, not app exit
+  useEffect(() => {
+    const onPopState = () => {
+      setPlayingVideoId((current) => {
+        if (current) return null;
+        return current;
+      });
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   // Blacklist words in Dashboard
   const [newWord, setNewWord] = useState('');
 
@@ -370,7 +418,7 @@ export default function App() {
       {playingVideoId && (
         <PlayerView
           videoId={playingVideoId}
-          onBack={() => setPlayingVideoId(null)}
+          onBack={closePlayer}
           onVideoHidden={handleVideoHidden}
         />
       )}
@@ -401,7 +449,7 @@ export default function App() {
         <>
           {/* VIEW 0: REAL KID-FACING UI (Default View) */}
           <KidHomeScreen
-            onPlayVideo={(videoId) => setPlayingVideoId(videoId)}
+            onPlayVideo={openPlayer}
             onOpenParentDashboard={handleOpenDashboard}
             refreshTrigger={channelsRefreshTrigger}
           />

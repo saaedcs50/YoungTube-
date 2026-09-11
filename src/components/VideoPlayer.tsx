@@ -847,10 +847,13 @@ export default function VideoPlayer({
             </div>
           )}
 
+          {/* Force LTR: fill + handle must move the same direction (start → end) */}
           <div
             ref={progressTrackRef}
             id="player-progress-track"
+            dir="ltr"
             className="relative h-8 flex items-center cursor-pointer touch-none"
+            style={{ direction: 'ltr' }}
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -870,16 +873,25 @@ export default function VideoPlayer({
               window.addEventListener('pointerup', onUp);
             }}
           >
-            <div className="absolute inset-x-0 h-1 rounded-full bg-white/25 overflow-hidden">
+            <div
+              className="absolute inset-x-0 h-1 rounded-full bg-white/25 overflow-hidden"
+              style={{ direction: 'ltr' }}
+            >
               <div
                 className="h-full bg-red-500 rounded-full"
-                style={{ width: `${progressRatio * 100}%` }}
+                style={{
+                  width: `${progressRatio * 100}%`,
+                  marginInlineStart: 0,
+                  marginLeft: 0,
+                  float: 'left',
+                }}
               />
             </div>
             <div
-              className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-red-500 shadow ring-2 ring-white/30"
+              className="absolute top-1/2 w-3.5 h-3.5 rounded-full bg-red-500 shadow ring-2 ring-white/30 pointer-events-none"
               style={{
-                left: `clamp(0px, calc(${progressRatio * 100}% - 7px), calc(100% - 14px))`,
+                left: `${progressRatio * 100}%`,
+                transform: 'translate(-50%, -50%)',
               }}
             />
           </div>
