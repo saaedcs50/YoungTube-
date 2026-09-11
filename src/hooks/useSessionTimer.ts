@@ -44,6 +44,8 @@ export function useSessionTimer(): SessionTimerState {
 
   const secondsRef = useRef<number>(0);
   const lastWrittenSecondsRef = useRef<number>(0);
+  const lastUiSecondsRef = useRef<number>(0);
+  const sessionLimitMinutesRef = useRef<number>(60);
   const todayDateRef = useRef<string>(getTodayLocalDateStr());
   const isInitializedRef = useRef<boolean>(false);
 
@@ -53,6 +55,7 @@ export function useSessionTimer(): SessionTimerState {
       const main = await db.settings.get('main');
       if (main) {
         if (typeof main.sessionLimitMinutes === 'number') {
+          sessionLimitMinutesRef.current = main.sessionLimitMinutes;
           setSessionLimitMinutes(main.sessionLimitMinutes);
         }
         if (main.scheduleWindow?.start && main.scheduleWindow?.end) {
@@ -119,7 +122,8 @@ export function useSessionTimer(): SessionTimerState {
   useEffect(() => {
     // Check schedule window initially & update
     const checkSchedule = () => {
-      setIsWithinScheduleWindow(isTimeInWindow(scheduleWindow.start, scheduleWindow.end));
+      const next = isTimeInWindow(scheduleWindow.start, scheduleWindow.end);
+      setIsWithinScheduleWindow((prev) => (prev === next ? prev : next));
     };
     checkSchedule();
 
@@ -144,10 +148,23 @@ export function useSessionTimer(): SessionTimerState {
         return;
       }
 
-      // Increment seconds by 1
+      // Increment seconds by 1 (ref is source of truth)
       secondsRef.current += 1;
       const currentSeconds = secondsRef.current;
-      setSecondsUsedToday(currentSeconds);
+
+      // Avoid re-rendering the whole app every second — update React state
+      // every 5s, or immediately when the session limit is crossed.
+      const limitSeconds = sessionLimitMinutesRef.current * 60;
+      const crossedLimit =
+        currentSeconds >= limitSeconds &&
+        lastWrittenSecondsRef.current < limitSeconds;
+      if (
+        crossedLimit ||
+        currentSeconds - lastUiSecondsRef.current >= 5
+      ) {
+        lastUiSecondsRef.current = currentSeconds;
+        setSecondsUsedToday(currentSeconds);
+      }
 
       // Debounce DB write: flush once every 5 seconds
       if (currentSeconds - lastWrittenSecondsRef.current >= 5) {

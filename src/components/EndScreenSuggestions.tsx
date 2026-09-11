@@ -50,7 +50,7 @@ export default function EndScreenSuggestions({
           <div className="min-w-0 text-right">
             <h3 className="text-sm sm:text-base font-bold text-white">ماذا بعد؟</h3>
             <span className="text-[11px] sm:text-xs text-white/50 block truncate">
-              مقترحات آمنة من قائمتك فقط
+              بدون ترشيحات يوتيوب — قائمتك الآمنة فقط
             </span>
           </div>
         </div>

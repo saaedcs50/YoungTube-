@@ -1,1 +1,8 @@
 @import "tailwindcss";
+
+
+/* Phase 6 — player options panel */
+@keyframes slideInRight {
+  from { transform: translateX(12px); opacity: 0.6; }
+  to { transform: translateX(0); opacity: 1; }
+}
