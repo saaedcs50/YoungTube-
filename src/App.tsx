@@ -14,6 +14,8 @@ import { useSessionTimer } from './hooks/useSessionTimer';
 import SessionEndScreen from './components/SessionEndScreen';
 import TimerTestCard from './components/TimerTestCard';
 import AdBlockNotice from './components/AdBlockNotice';
+import KidHomeScreen from './screens/KidHomeScreen';
+import PlayerView from './screens/PlayerView';
 import {
   Database,
   Cloud,
@@ -91,10 +93,16 @@ export default function App() {
     setChannelsRefreshTrigger((prev) => prev + 1);
   }, []);
 
+  // Check if ?dev=1 is requested in URL
+  const isDevModeParam = typeof window !== 'undefined' &&
+    (new URLSearchParams(window.location.search).get('dev') === '1' || window.location.hash.includes('dev=1'));
+
   // Parent Dashboard & PIN Lock State
   const [showPinModal, setShowPinModal] = useState(false);
   const [isDashboardUnlocked, setIsDashboardUnlocked] = useState(false);
-  const [viewMode, setViewMode] = useState<'status' | 'dashboard'>('status');
+  // Default is 'kids' (real kid-facing interface)
+  const [viewMode, setViewMode] = useState<'kids' | 'dashboard' | 'dev'>(isDevModeParam ? 'dev' : 'kids');
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [showAdBlockModal, setShowAdBlockModal] = useState(false);
 
   // Blacklist words in Dashboard
@@ -295,7 +303,7 @@ export default function App() {
 
   const handleLockDashboard = () => {
     setIsDashboardUnlocked(false);
-    setViewMode('status');
+    setViewMode('kids');
   };
 
   // Blacklist words handlers
@@ -323,7 +331,7 @@ export default function App() {
     if (window.confirm('هل تريد إعادة تعيين إعدادات main واختبار شاشة Onboarding مجدداً؟')) {
       await db.settings.delete('main');
       setIsDashboardUnlocked(false);
-      setViewMode('status');
+      setViewMode('kids');
       checkMainSettings();
     }
   };
@@ -332,7 +340,7 @@ export default function App() {
   const isSessionEnded = sessionTimer.isLimitReached || !sessionTimer.isWithinScheduleWindow;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between p-4 sm:p-8 font-sans">
+    <div className={`min-h-screen font-sans ${viewMode === 'kids' ? 'bg-[#FAF8F5]' : 'bg-slate-50 text-slate-800 flex flex-col justify-between p-4 sm:p-8'}`}>
       {/* Onboarding Modal */}
       {showOnboarding && (
         <Onboarding
@@ -358,6 +366,29 @@ export default function App() {
         />
       )}
 
+      {/* Phase 9.5: Full-Screen Player View Takeover */}
+      {playingVideoId && (
+        <PlayerView
+          videoId={playingVideoId}
+          onBack={() => setPlayingVideoId(null)}
+          onVideoHidden={handleVideoHidden}
+        />
+      )}
+
+      {/* Background Channels & Filtering Sync (Preserves stable callbacks & Dexie updates when not in dev mode) */}
+      {viewMode !== 'dev' && (
+        <div className="hidden" aria-hidden="true">
+          <ChannelsCountCard
+            refreshTrigger={channelsRefreshTrigger}
+            onChannelsLoaded={handleChannelsLoaded}
+          />
+          <FilteringResultCard
+            channels={channelsData}
+            refreshTrigger={channelsRefreshTrigger}
+          />
+        </div>
+      )}
+
       {/* Phase 8: Full-Screen Session Takeover when limit reached or outside schedule window */}
       {isSessionEnded && viewMode !== 'dashboard' ? (
         <SessionEndScreen
@@ -366,66 +397,77 @@ export default function App() {
           onParentUnlock={handleOpenDashboard}
           onResetForTesting={sessionTimer.resetTodayUsage}
         />
+      ) : viewMode === 'kids' ? (
+        <>
+          {/* VIEW 0: REAL KID-FACING UI (Default View) */}
+          <KidHomeScreen
+            onPlayVideo={(videoId) => setPlayingVideoId(videoId)}
+            onOpenParentDashboard={handleOpenDashboard}
+            refreshTrigger={channelsRefreshTrigger}
+          />
+
+          {/* If ?dev=1 was present in URL, provide quick dev switch floating badge */}
+          {isDevModeParam && (
+            <div className="fixed bottom-3 left-3 z-30">
+              <button
+                type="button"
+                onClick={() => setViewMode('dev')}
+                className="px-3 py-1.5 rounded-full bg-stone-900/80 hover:bg-stone-900 text-amber-300 text-xs font-mono shadow-md backdrop-blur-xs transition cursor-pointer"
+                title="لوحة المطور وفحص الأنظمة (?dev=1)"
+              >
+                ⚙️ لوحة الفحص (?dev=1)
+              </button>
+            </div>
+          )}
+        </>
       ) : (
         <>
-          {/* App Header */}
+          {/* App Header for Parent Dashboard / Dev Mode */}
           <header className="max-w-5xl w-full mx-auto flex items-center justify-between py-4 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-white shadow-sm shadow-sky-200">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">يوتيوب الأطفال</h1>
-            <p className="text-xs text-slate-500">
-              {viewMode === 'dashboard'
-                ? 'لوحة تحكم الوالدين (الداشبورد)'
-                : 'المرحلة 4 — أمان الوالدين وقفل PIN'}
-            </p>
-          </div>
-        </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-600 flex items-center justify-center text-white shadow-sm shadow-amber-200">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-slate-900">يوتيوب الأطفال</h1>
+                <p className="text-xs text-slate-500">
+                  {viewMode === 'dashboard'
+                    ? 'لوحة تحكم الوالدين (الداشبورد)'
+                    : 'لوحة فحص النظام والمطور (?dev=1)'}
+                </p>
+              </div>
+            </div>
 
-        <div className="flex items-center gap-2">
-          {viewMode === 'dashboard' ? (
-            <button
-              id="lock-dashboard-btn"
-              onClick={handleLockDashboard}
-              className="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>قفل الداشبورد</span>
-            </button>
-          ) : (
-            <button
-              id="open-dashboard-btn"
-              onClick={handleOpenDashboard}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-xs ${
-                isDashboardUnlocked
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                  : 'bg-sky-600 hover:bg-sky-700 text-white'
-              }`}
-            >
-              {isDashboardUnlocked ? (
-                <>
-                  <Unlock className="w-3.5 h-3.5" />
-                  <span>فتح لوحة التحكم (مفتوحة)</span>
-                </>
-              ) : (
-                <>
+            <div className="flex items-center gap-2">
+              <button
+                id="back-to-kids-header-btn"
+                type="button"
+                onClick={() => setViewMode('kids')}
+                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>شاشة الأطفال</span>
+              </button>
+
+              {viewMode === 'dashboard' ? (
+                <button
+                  id="lock-dashboard-btn"
+                  onClick={handleLockDashboard}
+                  className="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                >
                   <Lock className="w-3.5 h-3.5" />
-                  <span>لوحة تحكم الوالدين</span>
-                </>
-              )}
-            </button>
-          )}
+                  <span>قفل الداشبورد</span>
+                </button>
+              ) : null}
 
-          <PWAInstallButton />
-        </div>
-      </header>
+              <PWAInstallButton />
+            </div>
+          </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-5xl w-full mx-auto my-8 space-y-6">
-        {/* VIEW 1: PARENT DASHBOARD */}
-        {viewMode === 'dashboard' ? (
+          {/* Main Content Area */}
+          <main className="max-w-5xl w-full mx-auto my-8 space-y-6">
+            {/* VIEW 1: PARENT DASHBOARD */}
+            {viewMode === 'dashboard' ? (
           <div id="parent-dashboard-view" className="space-y-6">
             <div className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
@@ -445,14 +487,22 @@ export default function App() {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setViewMode('status')}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition"
+                    onClick={() => setViewMode('kids')}
+                    className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition cursor-pointer"
                   >
-                    عرض شاشة الفحوصات
+                    العودة لشاشة الأطفال
                   </button>
+                  {isDevModeParam && (
+                    <button
+                      onClick={() => setViewMode('dev')}
+                      className="px-3 py-1.5 rounded-xl border border-amber-300 text-amber-800 hover:bg-amber-50 text-xs font-semibold transition cursor-pointer"
+                    >
+                      أدوات المطور (?dev=1)
+                    </button>
+                  )}
                   <button
                     onClick={handleLockDashboard}
-                    className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold flex items-center gap-1 transition"
+                    className="px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
                   >
                     <Lock className="w-3 h-3" />
                     <span>قفل الآن</span>
@@ -677,8 +727,37 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* VIEW 2: STATUS & CHECKS DASHBOARD */
+          /* VIEW 2: STATUS & CHECKS DASHBOARD (Dev mode ?dev=1) */
           <>
+            {/* Dev Mode Banner */}
+            <div
+              id="dev-mode-banner"
+              className="rounded-2xl border border-amber-300 bg-amber-50/80 p-4 sm:p-5 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-amber-950">
+                    وضع المطور والتشخيص (?dev=1)
+                  </h2>
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    هذه الواجهة مخصصة لفحص واختبار الأنظمة وقواعد البيانات والمشغل.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                id="back-to-kids-btn"
+                type="button"
+                onClick={() => setViewMode('kids')}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+              >
+                العودة لواجهة الأطفال الرئيسية ✨
+              </button>
+            </div>
+
             {/* Parent Onboarding & Settings Banner */}
             <div
               id="settings-main-banner"
