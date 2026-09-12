@@ -21,3 +21,5 @@ export const KID_CATEGORIES: KidCategory[] = [
   { id: 'reading', label: 'قراءة وكتب', emoji: '📚', description: 'قراءة كتب وقصص مصورة' },
   { id: 'cooking', label: 'طبخ الصغار', emoji: '🍳', description: 'وصفات لذيذة وسهلة' },
 ];
+
+export const CURATION_CATEGORIES: KidCategory[] = KID_CATEGORIES.filter(c => c.id !== 'all');

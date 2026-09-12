@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import db from '../db';
+import channelsSeed from '../../channels_seed.json';
 import PinLockModal from './PinLockModal';
 import { Flag, Ban, Check, Loader2 } from 'lucide-react';
 
@@ -78,15 +79,34 @@ const PlayerParentActions = forwardRef<PlayerParentActionsHandle, PlayerParentAc
     }
     setBusy('block');
     try {
-      // Disable all matching channel rows
       const rows = await db.channels.where('sourceId').equals(channelId).toArray();
-      for (const row of rows) {
-        if (row.id != null) {
-          await db.channels.update(row.id, {
-            enabled: false,
-            status: 'disabled',
-            autoDisabled: false,
-          });
+      if (rows.length === 0) {
+        // Seed channels often have no Dexie row until curation runs — upsert a disabled row
+        // so KidHome keeps treating the channel as blocked after the next archive sync.
+        const seed = (channelsSeed as any[]).find((c) => c.sourceId === channelId);
+        const cats = seed?.categories || seed?.category || [];
+        await db.channels.add({
+          sourceType: (seed?.sourceType === 'playlist' ? 'playlist' : 'channel') as
+            | 'channel'
+            | 'playlist',
+          sourceId: channelId,
+          title: channelTitle || seed?.title || seed?.originalName || channelId,
+          thumbnail: seed?.thumbnail,
+          category: Array.isArray(cats) ? cats : [cats],
+          isPreloaded: Boolean(seed),
+          enabled: false,
+          status: 'disabled',
+          autoDisabled: false,
+        });
+      } else {
+        for (const row of rows) {
+          if (row.id != null) {
+            await db.channels.update(row.id, {
+              enabled: false,
+              status: 'disabled',
+              autoDisabled: false,
+            });
+          }
         }
       }
 

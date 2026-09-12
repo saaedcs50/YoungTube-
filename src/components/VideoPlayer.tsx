@@ -1,4 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
 import {
   Play,
   Pause,
@@ -17,6 +24,8 @@ import {
   Flag,
   Ban,
 } from 'lucide-react';
+import type { useGoogleCast } from '../hooks/useGoogleCast';
+import { castService } from '../services/castService';
 
 declare global {
   interface Window {
@@ -31,7 +40,17 @@ declare global {
   }
 }
 
-interface VideoPlayerProps {
+export interface VideoPlayerHandle {
+  togglePlay: () => void;
+  play: () => void;
+  pause: () => void;
+  stop: () => void;
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+}
+
+export interface VideoPlayerProps {
   videoId: string;
   onEnded: () => void;
   className?: string;
@@ -43,7 +62,30 @@ interface VideoPlayerProps {
   /** Phase 5 — parent safety tools */
   onRequestReport?: () => void;
   onRequestBlockChannel?: () => void;
+  /** Mini-Player mode: hides all full player overlay controls and click shields */
+  isMinimized?: boolean;
+  /** Playback state change callback */
+  onPlayStateChange?: (isPlaying: boolean) => void;
+  /** Google Cast integration passed down from parent PlayerView */
+  cast?: ReturnType<typeof useGoogleCast>;
 }
+
+const DEFAULT_CAST_STATE: ReturnType<typeof useGoogleCast> = {
+  isSdkLoaded: false,
+  isAvailable: false,
+  isConnected: false,
+  isConnecting: false,
+  castState: 'NO_DEVICES_AVAILABLE',
+  deviceName: null,
+  currentTime: 0,
+  duration: 0,
+  isPaused: false,
+  requestSession: async () => false,
+  endSession: async () => {},
+  loadVideo: () => {},
+  playOrPause: () => {},
+  seek: () => {},
+};
 
 let ytApiPromise: Promise<void> | null = null;
 
@@ -100,53 +142,6 @@ function unlockOrientation() {
   } catch {
     // ignore
   }
-}
-
-let castLoaderPromise: Promise<boolean> | null = null;
-
-function loadCastFramework(): Promise<boolean> {
-  if (typeof window === 'undefined') return Promise.resolve(false);
-  if (window.cast?.framework) return Promise.resolve(true);
-
-  if (!castLoaderPromise) {
-    castLoaderPromise = new Promise((resolve) => {
-      const previous = window.__onGCastApiAvailable;
-      window.__onGCastApiAvailable = (isAvailable: boolean) => {
-        if (typeof previous === 'function') previous(isAvailable);
-        if (!isAvailable) {
-          resolve(false);
-          return;
-        }
-        try {
-          const ctx = window.cast.framework.CastContext.getInstance();
-          ctx.setOptions({
-            receiverApplicationId:
-              window.chrome?.cast?.media?.DEFAULT_MEDIA_RECEIVER_APP_ID ||
-              'CC1AD845',
-            autoJoinPolicy:
-              window.chrome?.cast?.AutoJoinPolicy?.ORIGIN_SCOPED ||
-              'origin_scoped',
-          });
-          resolve(true);
-        } catch {
-          resolve(false);
-        }
-      };
-
-      if (!document.querySelector('script[src*="cast_sender.js"]')) {
-        const s = document.createElement('script');
-        s.src =
-          'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
-        s.async = true;
-        s.onerror = () => resolve(false);
-        document.head.appendChild(s);
-      }
-
-      setTimeout(() => resolve(!!window.cast?.framework), 5000);
-    });
-  }
-
-  return castLoaderPromise;
 }
 
 const QUALITY_LABELS: Record<string, string> = {
@@ -206,21 +201,32 @@ function trackLabel(t: any, index: number): string {
 /**
  * Phase 1–3 player: Kids chrome + transparent options overlay.
  */
-export default function VideoPlayer({
-  videoId,
-  onEnded,
-  className = '',
-  title,
-  channelTitle,
-  autoplay = false,
-  onAutoplayChange,
-  onRequestReport,
-  onRequestBlockChannel,
-}: VideoPlayerProps) {
+const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer(
+  {
+    videoId,
+    onEnded,
+    className = '',
+    title,
+    channelTitle,
+    autoplay = false,
+    onAutoplayChange,
+    onRequestReport,
+    onRequestBlockChannel,
+    isMinimized = false,
+    onPlayStateChange,
+    cast: castProp,
+  },
+  ref
+) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
   const progressTrackRef = useRef<HTMLDivElement>(null);
+  const progressFillRef = useRef<HTMLDivElement>(null);
+  const progressHandleRef = useRef<HTMLDivElement>(null);
+  const timeTextRef = useRef<HTMLSpanElement>(null);
+  const currentTimeRef = useRef(0);
+  const durationRef = useRef(0);
 
   const [loadingApi, setLoadingApi] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -241,9 +247,7 @@ export default function VideoPlayer({
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
 
-  type CastUiState = 'idle' | 'unavailable' | 'connecting' | 'connected' | 'error';
-  const [castState, setCastState] = useState<CastUiState>('idle');
-  const [castMessage, setCastMessage] = useState<string | null>(null);
+  const cast = castProp || DEFAULT_CAST_STATE;
 
   const onEndedRef = useRef(onEnded);
   const loopEnabledRef = useRef(loopEnabled);
@@ -257,6 +261,26 @@ export default function VideoPlayer({
     loopEnabledRef.current = loopEnabled;
   }, [loopEnabled]);
 
+  // Subscribe to remote Cast video end event
+  useEffect(() => {
+    const unsub = castService.onVideoEnd(() => {
+      onEndedRef.current?.();
+    });
+    return unsub;
+  }, []);
+
+  // When cast connects or changes, pause local player
+  useEffect(() => {
+    if (cast.isConnected) {
+      try {
+        playerRef.current?.pauseVideo?.();
+        setIsPlaying(false);
+      } catch {
+        // ignore
+      }
+    }
+  }, [cast.isConnected]);
+
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const optionsOpenRef = useRef(optionsOpen);
   useEffect(() => {
@@ -267,7 +291,28 @@ export default function VideoPlayer({
     }
   }, [optionsOpen]);
 
+  const updateProgressDom = useCallback((curr: number, dur: number) => {
+    currentTimeRef.current = curr;
+    if (dur > 0) durationRef.current = dur;
+
+    const currentDur = dur > 0 ? dur : durationRef.current;
+    const ratio = currentDur > 0 ? Math.min(1, Math.max(0, curr / currentDur)) : 0;
+    const pct = (ratio * 100).toFixed(2);
+
+    if (progressFillRef.current) {
+      progressFillRef.current.style.width = `${pct}%`;
+    }
+    if (progressHandleRef.current) {
+      progressHandleRef.current.style.left = `${pct}%`;
+    }
+    if (timeTextRef.current) {
+      timeTextRef.current.innerHTML = `${formatTime(curr)}<span class="text-white/45"> / ${formatTime(currentDur)}</span>`;
+    }
+  }, []);
+
   const bumpControls = useCallback(() => {
+    setCurrentTime(currentTimeRef.current);
+    setDuration(durationRef.current);
     setShowControls(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     controlsTimeoutRef.current = setTimeout(() => {
@@ -394,6 +439,11 @@ export default function VideoPlayer({
   const togglePlay = useCallback(
     (e?: React.MouseEvent | React.SyntheticEvent) => {
       e?.stopPropagation();
+      if (cast.isConnected) {
+        cast.playOrPause();
+        bumpControls();
+        return;
+      }
       const player = playerRef.current;
       if (!player) return;
       try {
@@ -411,24 +461,33 @@ export default function VideoPlayer({
         // ignore
       }
     },
-    [bumpControls]
+    [cast, bumpControls]
   );
 
   const seekToRatio = useCallback(
     (ratio: number) => {
+      const currentDur = cast.isConnected
+        ? (cast.duration || durationRef.current || duration)
+        : (playerRef.current?.getDuration?.() || durationRef.current || duration);
+      if (!currentDur || !Number.isFinite(currentDur)) return;
+      const t = Math.max(0, Math.min(1, ratio)) * currentDur;
+      currentTimeRef.current = t;
+      setCurrentTime(t);
+      updateProgressDom(t, currentDur);
+
+      if (cast.isConnected) {
+        cast.seek(t);
+        return;
+      }
       const player = playerRef.current;
       if (!player) return;
       try {
-        const dur = player.getDuration?.() || duration;
-        if (!dur || !Number.isFinite(dur)) return;
-        const t = Math.max(0, Math.min(1, ratio)) * dur;
         player.seekTo(t, true);
-        setCurrentTime(t);
       } catch {
         // ignore
       }
     },
-    [duration]
+    [cast, duration, updateProgressDom]
   );
 
   const onProgressPointer = useCallback(
@@ -487,19 +546,27 @@ export default function VideoPlayer({
   useEffect(() => {
     if (!isPlaying || isSeeking) return;
     const id = window.setInterval(() => {
+      if (cast.isConnected) {
+        const curr = castService.state.currentTime || 0;
+        const dur = castService.state.duration || durationRef.current || 0;
+        updateProgressDom(curr, dur);
+        return;
+      }
       const player = playerRef.current;
       if (!player) return;
       try {
         const t = player.getCurrentTime?.();
         const d = player.getDuration?.();
-        if (typeof t === 'number' && Number.isFinite(t)) setCurrentTime(t);
-        if (typeof d === 'number' && Number.isFinite(d) && d > 0) setDuration(d);
+        if (typeof t === 'number' && Number.isFinite(t)) {
+          const dur = typeof d === 'number' && Number.isFinite(d) && d > 0 ? d : durationRef.current;
+          updateProgressDom(t, dur);
+        }
       } catch {
         // ignore
       }
     }, 500);
     return () => clearInterval(id);
-  }, [isPlaying, isSeeking]);
+  }, [isPlaying, isSeeking, cast.isConnected, updateProgressDom]);
 
   useEffect(() => {
     const onFsChange = () => {
@@ -516,67 +583,46 @@ export default function VideoPlayer({
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const ok = await loadCastFramework();
-      if (cancelled) return;
-      setCastState(ok ? 'idle' : 'unavailable');
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const handleCastClick = useCallback(
     async (e?: React.MouseEvent) => {
       e?.stopPropagation();
-      setCastMessage(null);
       bumpControls();
-      const ok = await loadCastFramework();
-      if (!ok || !window.cast?.framework) {
-        setCastState('unavailable');
-        setCastMessage('البث غير متاح على هذا الجهاز/المتصفح.');
+      if (cast.isConnected) {
+        await cast.endSession();
         return;
       }
-      const ctx = window.cast.framework.CastContext.getInstance();
-      const existing = ctx.getCurrentSession?.();
-      if (existing) {
-        try {
-          await existing.endSession(true);
-        } catch {
-          // ignore
-        }
-        setCastState('idle');
-        setCastMessage('تم إيقاف البث');
-        return;
-      }
-      setCastState('connecting');
-      try {
-        await ctx.requestSession();
-        setCastState('connected');
-        setCastMessage('تم الاتصال بجهاز البث');
-        try {
-          playerRef.current?.pauseVideo?.();
-          setIsPlaying(false);
-        } catch {
-          // ignore
-        }
-      } catch {
-        setCastState('idle');
+      const ok = await cast.requestSession();
+      if (ok) {
+        cast.loadVideo(videoId, title, currentTimeRef.current);
       }
     },
-    [bumpControls]
+    [cast, videoId, title, bumpControls]
   );
+
+  // Cleanup player on component unmount
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      unlockOrientation();
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch {
+          // ignore
+        }
+        playerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;
 
-    async function initPlayer() {
+    async function initOrUpdatePlayer() {
       if (!videoId) return;
-      setLoadingApi(true);
+
+      // Reset state for new video
       setError(null);
-      setIsPlaying(false);
       setShowControls(true);
       setOptionsOpen(false);
       setOptionsTab('main');
@@ -588,6 +634,36 @@ export default function VideoPlayer({
       setAudioTracks([]);
       setCurrentAudioId(null);
       setCaptionsOn(false);
+
+      currentTimeRef.current = 0;
+      durationRef.current = 0;
+      updateProgressDom(0, 0);
+
+      // If player already exists and container is intact, reuse the existing player instance
+      if (playerRef.current && typeof playerRef.current.loadVideoById === 'function' && containerRef.current) {
+        setLoadingApi(false);
+        try {
+          if (cast.isConnected) {
+            cast.loadVideo(videoId, title, 0);
+          } else {
+            playerRef.current.loadVideoById(videoId);
+            setIsPlaying(true);
+          }
+          bumpControls();
+          setTimeout(() => {
+            if (!isCancelled) refreshAudioTracks();
+          }, 1000);
+          setTimeout(() => {
+            if (!isCancelled) refreshAudioTracks();
+          }, 3000);
+          return;
+        } catch (err) {
+          console.warn('loadVideoById failed, re-creating player:', err);
+        }
+      }
+
+      setLoadingApi(true);
+      setIsPlaying(false);
 
       try {
         await loadYouTubeIframeApi();
@@ -631,7 +707,11 @@ export default function VideoPlayer({
               setLoadingApi(false);
               try {
                 const d = event.target.getDuration?.();
-                if (typeof d === 'number' && d > 0) setDuration(d);
+                if (typeof d === 'number' && d > 0) {
+                  durationRef.current = d;
+                  setDuration(d);
+                  updateProgressDom(0, d);
+                }
                 event.target.playVideo();
                 setIsPlaying(true);
                 bumpControls();
@@ -652,7 +732,9 @@ export default function VideoPlayer({
                     event.target.seekTo(0, true);
                     event.target.playVideo();
                     setIsPlaying(true);
+                    currentTimeRef.current = 0;
                     setCurrentTime(0);
+                    updateProgressDom(0, durationRef.current);
                   } catch {
                     onEndedRef.current?.();
                   }
@@ -687,7 +769,10 @@ export default function VideoPlayer({
                 }
                 try {
                   const d = event.target.getDuration?.();
-                  if (typeof d === 'number' && d > 0) setDuration(d);
+                  if (typeof d === 'number' && d > 0) {
+                    durationRef.current = d;
+                    setDuration(d);
+                  }
                 } catch {
                   // ignore
                 }
@@ -714,29 +799,79 @@ export default function VideoPlayer({
       }
     }
 
-    initPlayer();
+    initOrUpdatePlayer();
 
     return () => {
       isCancelled = true;
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-      unlockOrientation();
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch {
-          // ignore
-        }
-        playerRef.current = null;
-      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  const progressRatio =
-    duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
+  const activeIsPlaying = cast.isConnected ? !cast.isPaused : isPlaying;
+
+  useEffect(() => {
+    onPlayStateChange?.(activeIsPlaying);
+  }, [activeIsPlaying, onPlayStateChange]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      togglePlay: () => {
+        togglePlay();
+      },
+      play: () => {
+        if (cast.isConnected) {
+          cast.play();
+        } else {
+          try {
+            playerRef.current?.playVideo?.();
+            setIsPlaying(true);
+          } catch {
+            // ignore
+          }
+        }
+      },
+      pause: () => {
+        if (cast.isConnected) {
+          cast.pause();
+        } else {
+          try {
+            playerRef.current?.pauseVideo?.();
+            setIsPlaying(false);
+          } catch {
+            // ignore
+          }
+        }
+      },
+      stop: () => {
+        if (cast.isConnected) {
+          cast.endSession();
+        }
+        try {
+          playerRef.current?.stopVideo?.();
+          setIsPlaying(false);
+        } catch {
+          // ignore
+        }
+      },
+      get isPlaying() {
+        return cast.isConnected ? !cast.isPaused : isPlaying;
+      },
+      get currentTime() {
+        return cast.isConnected ? cast.currentTime : currentTimeRef.current;
+      },
+      get duration() {
+        return cast.isConnected ? (cast.duration || durationRef.current) : (durationRef.current || duration);
+      },
+    }),
+    [cast, isPlaying, duration, togglePlay]
+  );
 
   const openOptions = (e?: React.MouseEvent) => {
     e?.stopPropagation();
+    setCurrentTime(currentTimeRef.current);
+    setDuration(durationRef.current);
     setOptionsTab('main');
     setOptionsOpen(true);
     setShowControls(true);
@@ -753,11 +888,12 @@ export default function VideoPlayer({
       ref={wrapperRef}
       id="video-player-wrapper"
       className={`relative w-full h-full min-h-0 aspect-video overflow-hidden bg-black rounded-none shadow-none ${
-        isFullscreen
+        isFullscreen && !isMinimized
           ? '!aspect-auto !fixed !inset-0 !z-[100] !w-screen !h-screen'
           : ''
       } ${className}`}
       onClick={() => {
+        if (isMinimized) return;
         if (optionsOpen) {
           closeOptions();
           return;
@@ -769,6 +905,32 @@ export default function VideoPlayer({
         ref={containerRef}
         className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full"
       />
+
+      {/* Full Player Overlays - Hidden completely in Mini-Player mode */}
+      {!isMinimized && (
+        <>
+          {/* Google Cast Connected TV Overlay */}
+          {cast.isConnected && (
+        <div
+          id="video-player-casting-overlay"
+          className="absolute inset-0 z-25 bg-slate-950/95 flex flex-col items-center justify-center text-center p-4 text-white select-none pointer-events-none"
+        >
+          <div className="w-16 h-16 rounded-3xl bg-sky-500/20 border border-sky-400/30 text-sky-400 flex items-center justify-center mb-3 shadow-lg ring-4 ring-sky-500/10 animate-pulse">
+            <Cast className="w-8 h-8" />
+          </div>
+          <h3 className="text-base sm:text-lg font-bold text-white mb-1">
+            بيشتغل على التلفزيون 📺
+          </h3>
+          {cast.deviceName && (
+            <p className="text-xs sm:text-sm text-sky-300 font-medium">
+              متصل بـ: {cast.deviceName}
+            </p>
+          )}
+          <p className="text-[11px] text-white/50 mt-2 max-w-xs">
+            يمكنك استخدام أزرار التحكم بالأسفل للتشغيل والإيقاف والتقديم والتأخير.
+          </p>
+        </div>
+      )}
 
       {/* Phase 4 — anti-YouTube outbound click shields */}
       {!optionsOpen && (
@@ -816,11 +978,11 @@ export default function VideoPlayer({
         id="safe-play-toggle"
         className="absolute inset-0 z-10 flex items-center justify-center bg-transparent border-0 cursor-pointer"
         onClick={togglePlay}
-        aria-label={isPlaying ? 'إيقاف' : 'تشغيل'}
+        aria-label={activeIsPlaying ? 'إيقاف' : 'تشغيل'}
       >
         {showControls && !loadingApi && !error && !optionsOpen && (
           <span className="w-[4.5rem] h-[4.5rem] rounded-full bg-black/55 text-white flex items-center justify-center backdrop-blur-sm shadow-lg pointer-events-none ring-2 ring-white/20">
-            {isPlaying ? (
+            {activeIsPlaying ? (
               <Pause className="w-8 h-8 fill-current" />
             ) : (
               <Play className="w-8 h-8 fill-current translate-x-0.5" />
@@ -860,6 +1022,8 @@ export default function VideoPlayer({
               isSeekingRef.current = true;
               setIsSeeking(true);
               setShowControls(true);
+              setCurrentTime(currentTimeRef.current);
+              setDuration(durationRef.current);
               onProgressPointer(e.clientX);
               const onMove = (ev: PointerEvent) => onProgressPointer(ev.clientX);
               const onUp = () => {
@@ -878,9 +1042,9 @@ export default function VideoPlayer({
               style={{ direction: 'ltr' }}
             >
               <div
+                ref={progressFillRef}
                 className="h-full bg-red-500 rounded-full"
                 style={{
-                  width: `${progressRatio * 100}%`,
                   marginInlineStart: 0,
                   marginLeft: 0,
                   float: 'left',
@@ -888,19 +1052,19 @@ export default function VideoPlayer({
               />
             </div>
             <div
-              className="absolute top-1/2 w-3.5 h-3.5 rounded-full bg-red-500 shadow ring-2 ring-white/30 pointer-events-none"
+              ref={progressHandleRef}
+              className="absolute top-1/2 left-0 w-3.5 h-3.5 rounded-full bg-red-500 shadow ring-2 ring-white/30 pointer-events-none"
               style={{
-                left: `${progressRatio * 100}%`,
                 transform: 'translate(-50%, -50%)',
               }}
             />
           </div>
 
           <div className="flex items-center justify-between gap-2 mt-0.5">
-            <span className="text-[11px] font-semibold text-white/90 tabular-nums min-w-[3.5rem]">
-              {formatTime(currentTime)}
-              <span className="text-white/45"> / {formatTime(duration)}</span>
-            </span>
+            <span
+              ref={timeTextRef}
+              className="text-[11px] font-semibold text-white/90 tabular-nums min-w-[3.5rem]"
+            />
 
             <div className="flex items-center gap-1.5">
               <button
@@ -915,18 +1079,22 @@ export default function VideoPlayer({
               >
                 <Repeat className="w-4 h-4" />
               </button>
-              <button
-                type="button"
-                onClick={handleCastClick}
-                className={`flex items-center justify-center w-11 h-11 rounded-full border cursor-pointer ${
-                  castState === 'connected'
-                    ? 'bg-sky-500/90 text-white border-sky-400'
-                    : 'bg-white/10 text-white border-white/15'
-                }`}
-                title="Cast"
-              >
-                <Cast className="w-4 h-4" />
-              </button>
+              {cast.isAvailable && (
+                <button
+                  type="button"
+                  id="video-cast-btn"
+                  onClick={handleCastClick}
+                  className={`flex items-center justify-center w-11 h-11 rounded-full border cursor-pointer transition active:scale-95 ${
+                    cast.isConnected
+                      ? 'bg-sky-500 text-white border-sky-400 shadow-md ring-2 ring-sky-400/40'
+                      : 'bg-white/10 text-white border-white/15 hover:bg-white/20'
+                  }`}
+                  title={cast.isConnected ? 'قطع الاتصال بالبث' : 'بث على التلفزيون'}
+                  aria-label="Google Cast"
+                >
+                  <Cast className={`w-4 h-4 ${cast.isConnecting ? 'animate-pulse' : ''}`} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={openOptions}
@@ -1178,17 +1346,7 @@ export default function VideoPlayer({
           </div>
         </div>
       )}
-
-      {castMessage && (
-        <div
-          className="absolute top-3 inset-x-3 z-[55] px-3 py-2 rounded-xl bg-zinc-900/95 border border-white/10 text-[11px] text-white/90 text-center"
-          onClick={(e) => {
-            e.stopPropagation();
-            setCastMessage(null);
-          }}
-        >
-          {castMessage}
-        </div>
+        </>
       )}
 
       {loadingApi && (
@@ -1206,4 +1364,6 @@ export default function VideoPlayer({
       )}
     </div>
   );
-}
+});
+
+export default VideoPlayer;

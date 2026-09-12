@@ -1,4 +1,5 @@
 import db, { FeedItem } from './db';
+import { WORKER_URL } from './config';
 
 export interface FilteringResult {
   totalBefore: number;
@@ -25,6 +26,71 @@ export interface ChannelItem {
   [key: string]: any;
 }
 
+const PUT_CHUNK = 300;
+/** Do not prune existing cache against a clearly partial incoming list. */
+const PRUNE_SAFE_INCOMING = 50;
+/** Keep only the newest N passing videos per channel in Dexie (kid feed never needs 200). */
+const KEEP_PER_CHANNEL = 30;
+
+let archiveSyncPromise: Promise<boolean> | null = null;
+
+function videoRecencyMs(publishedAt: string | undefined, fetchedAt: number): number {
+  if (publishedAt) {
+    const parsed = Date.parse(String(publishedAt));
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return fetchedAt || 0;
+}
+
+/**
+ * Shorts detector: "#shorts" or the standalone token "shorts" / "شورتس".
+ * Does NOT match titles that merely contain those letters (e.g. "short story").
+ */
+export function isLikelyShortsTitle(title: string): boolean {
+  if (!title) return false;
+  const t = title.toLowerCase();
+  if (t.includes('#shorts') || t.includes('#short')) return true;
+  if (title.includes('شورتس')) return true;
+  return /(?:^|[^a-z0-9])shorts(?:$|[^a-z0-9])/i.test(title);
+}
+
+/**
+ * Fetch the Worker KV archive once per successful session and write filtered rows into Dexie.
+ * Empty KV (`[]`) and network failures do NOT lock the session — callers can retry.
+ */
+export async function ensureChannelsArchiveSynced(): Promise<boolean> {
+  if (archiveSyncPromise) return archiveSyncPromise;
+
+  archiveSyncPromise = (async () => {
+    try {
+      let response: Response;
+      try {
+        response = await fetch(`${WORKER_URL}/api/channels-latest`);
+      } catch {
+        response = await fetch('/api/channels-latest');
+      }
+      if (!response.ok) {
+        archiveSyncPromise = null;
+        return false;
+      }
+      const data = await response.json();
+      // Empty array means KV is not populated yet — not a success. Allow retry.
+      if (!Array.isArray(data) || data.length === 0) {
+        archiveSyncPromise = null;
+        return false;
+      }
+      await filterAndCacheVideos(data);
+      return true;
+    } catch (err) {
+      console.warn('ensureChannelsArchiveSynced failed:', err);
+      archiveSyncPromise = null;
+      return false;
+    }
+  })();
+
+  return archiveSyncPromise;
+}
+
 /**
  * All client-side filtering logic:
  * Sensitive family data (blacklist words) never leaves the browser.
@@ -36,9 +102,23 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     .map((w) => w.trim().toLowerCase())
     .filter((w) => w.length > 0);
 
-  // Check previously hidden videos in feedCache
-  const existingHidden = await db.feedCache.filter((item) => item.hidden === true).toArray();
-  const hiddenIds = new Set(existingHidden.map((item) => item.videoId));
+  // 1. Single query for all existing feedCache items to batch reconciliation in memory
+  const allExisting = await db.feedCache.toArray();
+  const hiddenIds = new Set(
+    allExisting.filter((item) => item.hidden === true).map((item) => item.videoId)
+  );
+
+  // 2. Group allExisting by channelId in memory
+  const existingByChannel = new Map<string, FeedItem[]>();
+  for (const item of allExisting) {
+    if (!item.channelId) continue;
+    const list = existingByChannel.get(item.channelId);
+    if (list) {
+      list.push(item);
+    } else {
+      existingByChannel.set(item.channelId, [item]);
+    }
+  }
 
   let totalBefore = 0;
   let shortsExcluded = 0;
@@ -48,11 +128,16 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
   let noMusicCount = 0;
 
   const passedFeedItems: FeedItem[] = [];
+  const allStaleIdsToDelete: string[] = [];
+  const now = Date.now();
 
   for (const channel of channels) {
-    if (!channel || !Array.isArray(channel.videos)) continue;
+    if (!channel || !Array.isArray(channel.videos) || channel.videos.length === 0) continue;
 
     const channelId = channel.sourceId || '';
+    if (!channelId) continue;
+
+    const channelPassedItems: FeedItem[] = [];
 
     for (const video of channel.videos) {
       if (!video || !video.videoId || !video.title) continue;
@@ -66,8 +151,8 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
         continue;
       }
 
-      // 1. Shorts heuristic: if title contains "#shorts" or "shorts" (case-insensitive) -> exclude
-      if (titleLower.includes('#shorts') || titleLower.includes('shorts')) {
+      // 1. Shorts heuristic: token / hashtag only (not "short story")
+      if (isLikelyShortsTitle(video.title)) {
         shortsExcluded++;
         continue;
       }
@@ -91,20 +176,60 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
         noMusicCount++;
       }
 
-      passedFeedItems.push({
+      const item: FeedItem = {
         videoId: video.videoId,
         channelId,
         title: video.title,
         hasMusic,
-        fetchedAt: Date.now(),
+        fetchedAt: now,
+        publishedAt: video.publishedAt,
         hidden: false,
-      });
+      };
+
+      channelPassedItems.push(item);
+    }
+
+    // Keep only the newest N for this channel so Dexie never holds 200 rows/channel
+    channelPassedItems.sort(
+      (a, b) =>
+        videoRecencyMs(b.publishedAt, b.fetchedAt) - videoRecencyMs(a.publishedAt, a.fetchedAt)
+    );
+    const kept = channelPassedItems.slice(0, KEEP_PER_CHANNEL);
+    passedFeedItems.push(...kept);
+
+    // Reconcile feedCache for this channel in memory.
+    // Skip prune when incoming list is a clearly partial RSS snapshot vs a larger local cache.
+    const existingForChannel = existingByChannel.get(channelId) || [];
+    const incomingCount = channel.videos.length;
+    const existingCount = existingForChannel.length;
+    const keptIds = new Set(kept.map((item) => item.videoId));
+    const shouldPrune =
+      incomingCount >= existingCount ||
+      incomingCount >= PRUNE_SAFE_INCOMING ||
+      existingCount > KEEP_PER_CHANNEL;
+
+    if (shouldPrune) {
+      for (const item of existingForChannel) {
+        if (item.hidden === true) continue;
+        if (!keptIds.has(item.videoId)) {
+          allStaleIdsToDelete.push(item.videoId);
+        }
+      }
     }
   }
 
-  // Store passed videos in Dexie feedCache
+  // 3. Single bulk delete for all stale IDs across all channels
+  if (allStaleIdsToDelete.length > 0) {
+    for (let i = 0; i < allStaleIdsToDelete.length; i += PUT_CHUNK) {
+      await db.feedCache.bulkDelete(allStaleIdsToDelete.slice(i, i + PUT_CHUNK));
+    }
+  }
+
+  // 4. Store passed videos in Dexie feedCache (chunked to keep the UI thread breathing)
   if (passedFeedItems.length > 0) {
-    await db.feedCache.bulkPut(passedFeedItems);
+    for (let i = 0; i < passedFeedItems.length; i += PUT_CHUNK) {
+      await db.feedCache.bulkPut(passedFeedItems.slice(i, i + PUT_CHUNK));
+    }
   }
 
   const totalAfterFilter = passedFeedItems.length;

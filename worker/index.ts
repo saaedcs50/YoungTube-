@@ -92,9 +92,9 @@ async function fetchYouTubeRss(sourceType: 'channel' | 'playlist' | string, sour
 }
 
 /**
- * Processes a batch of 40 channels from channels_seed.json:
+ * Processes a batch of 12 channels from channels_seed.json:
  * - Reads cursor from KV (_rss_refresh_cursor)
- * - Fetches live RSS for 40 channels only (safely under the 50 subrequests limit)
+ * - Fetches live RSS for 12 channels only (safely under the 50 subrequests limit)
  * - Merges with archived videos in KV
  * - Deduplicates by videoId, sorts by publishedAt descending, caps at 200 videos
  * - Updates each channel in place in the full list stored at _channels_latest_merged
@@ -107,7 +107,7 @@ export async function refreshChannelsBatch(env: Env): Promise<{
   updatedChannels: string[];
 }> {
   const totalChannels = channelsSeed.length;
-  const BATCH_SIZE = 40;
+  const BATCH_SIZE = 12;
 
   if (!env.CHANNELS_ARCHIVE) {
     return {
@@ -132,7 +132,7 @@ export async function refreshChannelsBatch(env: Env): Promise<{
     cursor = 0;
   }
 
-  // 2. Select 40 channels with circular wrap-around
+  // 2. Select 12 channels with circular wrap-around
   const batch: { channel: any; originalIndex: number }[] = [];
   for (let i = 0; i < BATCH_SIZE; i++) {
     const idx = (cursor + i) % totalChannels;
@@ -142,7 +142,7 @@ export async function refreshChannelsBatch(env: Env): Promise<{
     });
   }
 
-  // 3. Concurrently fetch live RSS and archived videos (40 subrequests max)
+  // 3. Concurrently fetch live RSS and archived videos (bounded under the 50 subrequest cap)
   const batchResults = await Promise.allSettled(
     batch.map(async ({ channel }) => {
       const [rssResult, existingArchive] = await Promise.allSettled([
@@ -520,13 +520,20 @@ export default {
 
     // 4. GET /api/channels-latest (Public merged channels endpoint - direct from KV only, no live RSS)
     if (url.pathname === '/api/channels-latest' && request.method === 'GET') {
+      const noStoreHeaders = {
+        ...corsHeaders,
+        'Cache-Control': 'no-store, max-age=0',
+      };
       if (env.CHANNELS_ARCHIVE) {
         try {
           const cachedMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
           if (cachedMerged) {
             return new Response(cachedMerged, {
               status: 200,
-              headers: corsHeaders,
+              headers: {
+                ...noStoreHeaders,
+                'Cache-Control': 'public, max-age=60',
+              },
             });
           }
         } catch {
@@ -537,7 +544,7 @@ export default {
       // If key doesn't exist or KV is empty, return empty array (not an error)
       return new Response(JSON.stringify([]), {
         status: 200,
-        headers: corsHeaders,
+        headers: noStoreHeaders,
       });
     }
 

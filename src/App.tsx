@@ -11,11 +11,15 @@ import FilteringResultCard from './components/FilteringResultCard';
 import TempAdminTool from './components/TempAdminTool';
 import PlayerTestCard from './components/PlayerTestCard';
 import { useSessionTimer } from './hooks/useSessionTimer';
+import { ensureChannelsArchiveSynced } from './filtering';
 import SessionEndScreen from './components/SessionEndScreen';
 import TimerTestCard from './components/TimerTestCard';
 import AdBlockNotice from './components/AdBlockNotice';
 import KidHomeScreen from './screens/KidHomeScreen';
 import PlayerView from './screens/PlayerView';
+import { ChildProfileSection } from './components/ChildProfileSection';
+import { ChannelCurationByCategory } from './components/ChannelCurationByCategory';
+import { FilteringTab } from './components/FilteringTab';
 import {
   Database,
   Cloud,
@@ -39,6 +43,10 @@ import {
   WifiOff,
   Clock,
   Sparkles,
+  User,
+  FolderKanban,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 interface TestResult {
@@ -87,10 +95,11 @@ export default function App() {
     setChannelsRefreshTrigger((prev) => prev + 1);
   }, []);
 
-  // Stable callback when a video is marked hidden in player test
-  const handleVideoHidden = useCallback(() => {
-    // Optionally trigger filtering card refresh
-    setChannelsRefreshTrigger((prev) => prev + 1);
+  // Hide a single video: drop it locally. Do NOT refetch the Worker archive.
+  const handleVideoHidden = useCallback((videoId?: string) => {
+    if (videoId) {
+      setSuppressedVideoIds((prev) => (prev.includes(videoId) ? prev : [...prev, videoId]));
+    }
   }, []);
 
   // Check if ?dev=1 is requested in URL
@@ -104,6 +113,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'kids' | 'dashboard' | 'dev'>(isDevModeParam ? 'dev' : 'kids');
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [showAdBlockModal, setShowAdBlockModal] = useState(false);
+  const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
 
   // Player navigation: push history so Android/browser Back returns to feed (not exit app)
   const openPlayer = useCallback((videoId: string) => {
@@ -130,38 +140,44 @@ export default function App() {
   }, []);
 
   const closePlayer = useCallback(() => {
-    setPlayingVideoId(null);
     try {
       // If current history entry is our player marker, go back one step
+      // The popstate handler is the single place that clears playingVideoId
       if (window.history.state?.ytPlayer) {
         window.history.back();
+        return;
       }
     } catch {
       // ignore
     }
+    setPlayingVideoId(null);
   }, []);
 
   // Hardware / browser Back while player is open → feed, not app exit
   useEffect(() => {
-    const onPopState = () => {
-      setPlayingVideoId((current) => {
-        if (current) return null;
-        return current;
-      });
+    const onPopState = (e: PopStateEvent) => {
+      const state = e.state ?? window.history.state;
+      if (!state?.ytPlayer) {
+        setPlayingVideoId(null);
+      } else if (state.videoId) {
+        setPlayingVideoId(state.videoId);
+      }
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  // Blacklist words in Dashboard
-  const [newWord, setNewWord] = useState('');
-
-  // Phase 8: Session Timer Hook & Timer Settings States
-  const sessionTimer = useSessionTimer();
+  // Phase 8: Session Timer — count watch time only, not feed browsing
+  const sessionTimer = useSessionTimer(!!playingVideoId && viewMode === 'kids');
   const [timerLimitInput, setTimerLimitInput] = useState<number>(60);
   const [scheduleStartInput, setScheduleStartInput] = useState<string>('00:00');
   const [scheduleEndInput, setScheduleEndInput] = useState<string>('23:59');
   const [timerSettingsSaved, setTimerSettingsSaved] = useState(false);
+
+  // Setup Screen Part A & B: Collapsible Dashboard Sections
+  const [isChildProfileOpen, setIsChildProfileOpen] = useState(true);
+  const [isChannelCurationOpen, setIsChannelCurationOpen] = useState(true);
+  const [isFilteringOpen, setIsFilteringOpen] = useState(true);
 
   // Check if main settings record exists
   const checkMainSettings = useCallback(async () => {
@@ -317,11 +333,15 @@ export default function App() {
 
   useEffect(() => {
     checkMainSettings();
+    // Persist storage on all modes (protects Dexie). Skip diagnostic Worker/DB tests in kids mode.
+    void runStoragePersistenceTest();
+  }, [checkMainSettings, runStoragePersistenceTest]);
+
+  useEffect(() => {
+    if (viewMode !== 'dev' && !isDevModeParam) return;
     runDatabaseTest();
     runWorkerTest();
-    runStoragePersistenceTest();
 
-    // Listen to online / offline events to immediately re-check worker cache status
     const handleConnectivityChange = () => {
       runWorkerTest();
     };
@@ -331,7 +351,36 @@ export default function App() {
       window.removeEventListener('online', handleConnectivityChange);
       window.removeEventListener('offline', handleConnectivityChange);
     };
-  }, [checkMainSettings, runDatabaseTest, runWorkerTest, runStoragePersistenceTest]);
+  }, [viewMode, isDevModeParam, runDatabaseTest, runWorkerTest]);
+
+  // Dashboard first-run: populate Dexie without mounting the giant archive cards into React state
+  useEffect(() => {
+    if (viewMode !== 'dashboard') return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const delays = [0, 15_000, 45_000];
+    let attempt = 0;
+
+    const run = async () => {
+      const ok = await ensureChannelsArchiveSynced();
+      if (cancelled || ok) return;
+      attempt += 1;
+      if (attempt < delays.length) {
+        timer = window.setTimeout(() => {
+          void run();
+        }, delays[attempt]);
+      }
+    };
+
+    timer = window.setTimeout(() => {
+      void run();
+    }, delays[0]);
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [viewMode]);
 
   // Open Dashboard handler
   const handleOpenDashboard = () => {
@@ -354,24 +403,20 @@ export default function App() {
     setViewMode('kids');
   };
 
-  // Blacklist words handlers
-  const handleAddBlacklistWord = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newWord.trim() || !mainSettings) return;
-    const word = newWord.trim();
-    if (mainSettings.blacklistWords.includes(word)) return;
-
-    const updatedWords = [...mainSettings.blacklistWords, word];
-    await db.settings.update('main', { blacklistWords: updatedWords });
-    setMainSettings({ ...mainSettings, blacklistWords: updatedWords });
-    setNewWord('');
-  };
-
-  const handleRemoveBlacklistWord = async (wordToRemove: string) => {
-    if (!mainSettings) return;
-    const updatedWords = mainSettings.blacklistWords.filter((w) => w !== wordToRemove);
-    await db.settings.update('main', { blacklistWords: updatedWords });
-    setMainSettings({ ...mainSettings, blacklistWords: updatedWords });
+  // Finish first-run setup & navigate to KidHomeScreen
+  const handleFinishFirstSetup = async () => {
+    try {
+      await db.settings.update('main', { hasCompletedFirstSetup: true });
+      if (mainSettings) {
+        setMainSettings({ ...mainSettings, hasCompletedFirstSetup: true });
+      }
+      setIsDashboardUnlocked(false);
+      setViewMode('kids');
+    } catch (err) {
+      console.error('Failed to finish first setup:', err);
+      setIsDashboardUnlocked(false);
+      setViewMode('kids');
+    }
   };
 
   // Reset Onboarding (for testing purposes)
@@ -387,14 +432,37 @@ export default function App() {
   // Phase 8: Session end determination (limit reached or outside schedule window)
   const isSessionEnded = sessionTimer.isLimitReached || !sessionTimer.isWithinScheduleWindow;
 
+  // Force-close open player if session ends while child is watching.
+  // replaceState (not history.back) so the next Android Back does not exit the PWA.
+  useEffect(() => {
+    if (isSessionEnded && viewMode !== 'dashboard' && playingVideoId) {
+      setPlayingVideoId(null);
+      try {
+        const state = window.history.state;
+        if (state?.ytPlayer) {
+          window.history.replaceState(
+            { ...(state || {}), ytPlayer: false },
+            '',
+            window.location.href
+          );
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [isSessionEnded, viewMode, playingVideoId]);
+
   return (
     <div className={`min-h-screen font-sans ${viewMode === 'kids' ? 'bg-[#FAF8F5]' : 'bg-slate-50 text-slate-800 flex flex-col justify-between p-4 sm:p-8'}`}>
       {/* Onboarding Modal */}
       {showOnboarding && (
         <Onboarding
-          onComplete={() => {
+          onComplete={async () => {
             setShowOnboarding(false);
-            checkMainSettings();
+            await checkMainSettings();
+            // First-run flow: land directly on Dashboard with first-run guidance banner
+            setIsDashboardUnlocked(true);
+            setViewMode('dashboard');
           }}
         />
       )}
@@ -414,8 +482,8 @@ export default function App() {
         />
       )}
 
-      {/* Phase 9.5: Full-Screen Player View Takeover */}
-      {playingVideoId && (
+      {/* Phase 9.5: Full-Screen Player View Takeover (closed if session ends) */}
+      {!isSessionEnded && playingVideoId && (
         <PlayerView
           videoId={playingVideoId}
           onBack={closePlayer}
@@ -423,19 +491,9 @@ export default function App() {
         />
       )}
 
-      {/* Background Channels & Filtering Sync (Preserves stable callbacks & Dexie updates when not in dev mode) */}
-      {viewMode !== 'dev' && (
-        <div className="hidden" aria-hidden="true">
-          <ChannelsCountCard
-            refreshTrigger={channelsRefreshTrigger}
-            onChannelsLoaded={handleChannelsLoaded}
-          />
-          <FilteringResultCard
-            channels={channelsData}
-            refreshTrigger={channelsRefreshTrigger}
-          />
-        </div>
-      )}
+      {/* Background archive sync lives in ensureChannelsArchiveSynced (kids + dashboard).
+          Do not mount hidden ChannelsCountCard/FilteringResultCard here — they put the
+          full Worker payload into React state and double-fetch in some modes. */}
 
       {/* Phase 8: Full-Screen Session Takeover when limit reached or outside schedule window */}
       {isSessionEnded && viewMode !== 'dashboard' ? (
@@ -452,6 +510,7 @@ export default function App() {
             onPlayVideo={openPlayer}
             onOpenParentDashboard={handleOpenDashboard}
             refreshTrigger={channelsRefreshTrigger}
+            suppressedVideoIds={suppressedVideoIds}
           />
 
           {/* If ?dev=1 was present in URL, provide quick dev switch floating badge */}
@@ -517,6 +576,38 @@ export default function App() {
             {/* VIEW 1: PARENT DASHBOARD */}
             {viewMode === 'dashboard' ? (
           <div id="parent-dashboard-view" className="space-y-6">
+            {/* First-Run Welcome / Guidance Banner */}
+            {!mainSettings?.hasCompletedFirstSetup && (
+              <div
+                id="first-run-setup-banner"
+                className="p-5 sm:p-6 rounded-3xl bg-gradient-to-l from-amber-500 to-orange-500 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+              >
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold">
+                      قبل ما تبدأ، راجع القنوات والاهتمامات دي
+                    </h2>
+                    <p className="text-xs text-white/90 mt-0.5 max-w-xl leading-relaxed">
+                      ألقِ نظرة سريعة على ملف الطفل، واهتماماته المفضلة، والقنوات وتصنيفاتها لضمان تجربة آمنة وممتعة 100%. عند الانتهاء اضغط زر البدء بالأسفل.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  id="first-run-top-start-btn"
+                  type="button"
+                  onClick={handleFinishFirstSetup}
+                  className="px-5 py-2.5 rounded-2xl bg-white hover:bg-amber-50 text-amber-900 text-xs sm:text-sm font-bold shadow-sm transition shrink-0 flex items-center gap-2 cursor-pointer"
+                >
+                  <span>ابدأ استخدام الطفل</span>
+                  <span>→</span>
+                </button>
+              </div>
+            )}
+
             <div className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
                 <div className="flex items-center gap-3">
@@ -589,63 +680,8 @@ export default function App() {
                     <span>{mainSettings?.blacklistWords?.length || 0} كلمات مسجلة</span>
                   </div>
                   <span className="text-[11px] text-slate-500 block">
-                    فلترة فورية لعناوين الفيديوهات
+                    مُدارة عبر قسم الفلترة والحجب بالأسفل
                   </span>
-                </div>
-              </div>
-
-              {/* Blacklist Management Section */}
-              <div className="mt-6 pt-5 border-t border-slate-100">
-                <h3 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-amber-600" />
-                  <span>إدارة الكلمات المحظورة (Blacklist Words)</span>
-                </h3>
-                <p className="text-xs text-slate-500 mb-4">
-                  أي فيديو يحتوي عنوانه على هذه الكلمات سيتم حجبه تلقائياً عن طفلك.
-                </p>
-
-                <form onSubmit={handleAddBlacklistWord} className="flex gap-2 max-w-md mb-4">
-                  <input
-                    id="new-blacklist-word-input"
-                    type="text"
-                    value={newWord}
-                    onChange={(e) => setNewWord(e.target.value)}
-                    placeholder="أضف كلمة لحظره..."
-                    className="grow p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
-                  />
-                  <button
-                    id="add-blacklist-word-btn"
-                    type="submit"
-                    disabled={!newWord.trim()}
-                    className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>إضافة</span>
-                  </button>
-                </form>
-
-                <div className="flex flex-wrap gap-2">
-                  {mainSettings?.blacklistWords && mainSettings.blacklistWords.length > 0 ? (
-                    mainSettings.blacklistWords.map((word, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200"
-                      >
-                        <span>{word}</span>
-                        <button
-                          onClick={() => handleRemoveBlacklistWord(word)}
-                          className="text-slate-400 hover:text-red-500 transition"
-                          title="حذف الكلمة"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))
-                  ) : (
-                    <div className="text-xs text-slate-400 italic">
-                      لا توجد كلمات محظورة حالياً. يمكنك إضافة كلمات مثل: رعب، تحدي، مقالب...
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -773,6 +809,155 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            {/* Setup Screen Part A: Child Profile & Interests */}
+            <div id="child-profile-card" className="rounded-3xl border border-amber-200 bg-white p-6 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setIsChildProfileOpen(!isChildProfileOpen)}
+                className="w-full flex items-center justify-between text-right cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      ملف الطفل والاهتمامات (Child Profile & Interests)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      تخصيص الاسم، العمر، والاهتمامات الإيجابية والسلبية للطفل
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-slate-400">
+                  <span className="text-xs font-medium hidden sm:inline">
+                    {isChildProfileOpen ? 'طي القسم' : 'توسيع القسم'}
+                  </span>
+                  {isChildProfileOpen ? (
+                    <ChevronUp className="w-5 h-5" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5" />
+                  )}
+                </div>
+              </button>
+
+              {isChildProfileOpen && (
+                <div className="mt-6 pt-5 border-t border-slate-100">
+                  <ChildProfileSection onSaved={checkMainSettings} />
+                </div>
+              )}
+            </div>
+
+            {/* Setup Screen Part A: Channel Curation & YouTube Search */}
+            <div id="channel-curation-card" className="rounded-3xl border border-sky-200 bg-white p-6 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setIsChannelCurationOpen(!isChannelCurationOpen)}
+                className="w-full flex items-center justify-between text-right cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                    <FolderKanban className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      تنظيم وتصنيف القنوات والبحث (Channel Curation & Search)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      البحث بمفتاح YouTube الخاص بالعائلة، تنظيم القنوات حسب الأقسام، وتفعيل أو تعطيل أي قناة
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-slate-400">
+                  <span className="text-xs font-medium hidden sm:inline">
+                    {isChannelCurationOpen ? 'طي القسم' : 'توسيع القسم'}
+                  </span>
+                  {isChannelCurationOpen ? (
+                    <ChevronUp className="w-5 h-5" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5" />
+                  )}
+                </div>
+              </button>
+
+              {isChannelCurationOpen && (
+                <div className="mt-6 pt-5 border-t border-slate-100">
+                  <ChannelCurationByCategory
+                    onChannelChanged={() => setChannelsRefreshTrigger((prev) => prev + 1)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Setup Screen Part B: Filtering Tab (Blocked Channels, Hidden Videos, Blacklist Words) */}
+            <div id="filtering-tab-card" className="rounded-3xl border border-rose-200 bg-white p-6 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setIsFilteringOpen(!isFilteringOpen)}
+                className="w-full flex items-center justify-between text-right cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      إدارة الفلترة والحجب (Filtering & Blocklist)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      الكلمات المحظورة، القنوات الموقوفة، والفيديوهات المخفية يدوياً
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-slate-400">
+                  <span className="text-xs font-medium hidden sm:inline">
+                    {isFilteringOpen ? 'طي القسم' : 'توسيع القسم'}
+                  </span>
+                  {isFilteringOpen ? (
+                    <ChevronUp className="w-5 h-5" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5" />
+                  )}
+                </div>
+              </button>
+
+              {isFilteringOpen && (
+                <div className="mt-6 pt-5 border-t border-slate-100">
+                  <FilteringTab
+                    onFilterChanged={() => {
+                      checkMainSettings();
+                      setChannelsRefreshTrigger((prev) => prev + 1);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Prominent Bottom Button for First-Run Setup */}
+            {!mainSettings?.hasCompletedFirstSetup && (
+              <div id="first-run-bottom-action" className="p-6 rounded-3xl bg-amber-50 border-2 border-amber-300 text-center space-y-3 shadow-xs">
+                <div className="space-y-1">
+                  <h4 className="text-base font-bold text-amber-950">
+                    هل انتهيت من ضبط الإعدادات والقنوات؟
+                  </h4>
+                  <p className="text-xs text-amber-800">
+                    يمكنك العودة إلى هنا في أي وقت لاحقاً بإدخال رمز الـ PIN عبر أيقونة القفل.
+                  </p>
+                </div>
+                <button
+                  id="first-run-bottom-start-btn"
+                  type="button"
+                  onClick={handleFinishFirstSetup}
+                  className="px-8 py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-sm sm:text-base font-bold shadow-md hover:shadow-lg transition cursor-pointer inline-flex items-center gap-2"
+                >
+                  <span>ابدأ استخدام الطفل →</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           /* VIEW 2: STATUS & CHECKS DASHBOARD (Dev mode ?dev=1) */

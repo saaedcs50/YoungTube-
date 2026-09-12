@@ -33,6 +33,34 @@ export default function FilteringResultCard({
   const [musicVideosCount, setMusicVideosCount] = useState<number | null>(null);
   const [loadingMusicCount, setLoadingMusicCount] = useState(false);
 
+  // Load initial hideMusicVideos setting from db.settings
+  useEffect(() => {
+    let isMounted = true;
+    async function loadSetting() {
+      try {
+        const settings = await db.settings.get('main');
+        if (isMounted && settings) {
+          const isHide = settings.hideMusicVideos === true;
+          setHideMusic(isHide);
+          if (isHide) {
+            setLoadingMusicCount(true);
+            const count = await getVideosWithMusicCount();
+            if (isMounted) {
+              setMusicVideosCount(count);
+              setLoadingMusicCount(false);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load hideMusicVideos setting:', err);
+      }
+    }
+    loadSetting();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Run filtering whenever channels data changes or refreshTrigger triggers
   const runFilter = useCallback(async () => {
     if (!channels || channels.length === 0) {
@@ -65,6 +93,21 @@ export default function FilteringResultCard({
   const handleMusicToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setHideMusic(checked);
+
+    try {
+      const currentSettings = await db.settings.get('main');
+      if (currentSettings) {
+        await db.settings.update('main', { hideMusicVideos: checked });
+      } else {
+        await db.settings.put({
+          id: 'main',
+          blacklistWords: [],
+          hideMusicVideos: checked,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to save hideMusicVideos setting to db.settings:', err);
+    }
 
     if (checked) {
       setLoadingMusicCount(true);

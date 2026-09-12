@@ -19,9 +19,15 @@ export default function EndScreenSuggestions({
   const fetchSuggestions = async () => {
     setLoading(true);
     try {
-      const items = await db.feedCache
-        .filter((item) => !item.hidden && item.videoId !== excludeVideoId)
-        .toArray();
+      const settings = await db.settings.get('main');
+      const hideMusicVideos = settings?.hideMusicVideos === true;
+      const recent = await db.feedCache.orderBy('fetchedAt').reverse().limit(80).toArray();
+      const items = recent.filter(
+        (item) =>
+          !item.hidden &&
+          item.videoId !== excludeVideoId &&
+          (!hideMusicVideos || item.hasMusic !== true)
+      );
 
       const shuffled = items.sort(() => Math.random() - 0.5).slice(0, 6);
       setSuggestions(shuffled);

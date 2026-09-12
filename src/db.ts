@@ -10,6 +10,13 @@ interface Settings {
   sessionLimitMinutes?: number;
   preloadedListVersion?: number;
   pinAttempts?: number;
+  childName?: string;
+  childAge?: number;
+  positiveInterests?: string[];  // category ids from src/categories.ts
+  negativeInterests?: string[];  // category ids from src/categories.ts
+  familyYoutubeApiKey?: string;  // stored locally only, never sent to our own Worker
+  hasCompletedFirstSetup?: boolean;
+  hideMusicVideos?: boolean;
 }
 
 interface Channel {
@@ -40,6 +47,7 @@ interface FeedItem {
   videoDuration?: number;
   hasMusic?: boolean;
   fetchedAt: number;
+  publishedAt?: string;
   hidden?: boolean; // manual per-video hide (used in Phase 7)
 }
 
@@ -88,6 +96,17 @@ db.version(1).stores({
   channels: '++id, sourceId, *category',
   usage: 'date',
   feedCache: 'videoId, channelId, fetchedAt',
+  interactions: 'videoId, channelId',
+  downloads: '++id',
+  dailySummaries: 'date',
+});
+
+// Additive index only — existing rows keep working. publishedAt helps recency sorts.
+db.version(2).stores({
+  settings: 'id',
+  channels: '++id, sourceId, *category',
+  usage: 'date',
+  feedCache: 'videoId, channelId, fetchedAt, publishedAt',
   interactions: 'videoId, channelId',
   downloads: '++id',
   dailySummaries: 'date',

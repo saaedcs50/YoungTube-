@@ -33,7 +33,7 @@ export interface SessionTimerState {
   refreshSettings: () => Promise<void>;
 }
 
-export function useSessionTimer(): SessionTimerState {
+export function useSessionTimer(isCounting: boolean = true): SessionTimerState {
   const [secondsUsedToday, setSecondsUsedToday] = useState<number>(0);
   const [sessionLimitMinutes, setSessionLimitMinutes] = useState<number>(60);
   const [scheduleWindow, setScheduleWindow] = useState<{ start: string; end: string }>({
@@ -48,6 +48,8 @@ export function useSessionTimer(): SessionTimerState {
   const sessionLimitMinutesRef = useRef<number>(60);
   const todayDateRef = useRef<string>(getTodayLocalDateStr());
   const isInitializedRef = useRef<boolean>(false);
+  const countingRef = useRef<boolean>(isCounting);
+  countingRef.current = isCounting;
 
   // Load settings (limit + schedule window)
   const refreshSettings = useCallback(async () => {
@@ -85,6 +87,7 @@ export function useSessionTimer(): SessionTimerState {
           // Use stored cumulative value as starting point (do NOT reset to 0)
           secondsRef.current = usageRecord.secondsUsedToday;
           lastWrittenSecondsRef.current = usageRecord.secondsUsedToday;
+          lastUiSecondsRef.current = usageRecord.secondsUsedToday;
           setSecondsUsedToday(usageRecord.secondsUsedToday);
         } else {
           // Initialize with 0
@@ -136,15 +139,20 @@ export function useSessionTimer(): SessionTimerState {
       // Check schedule window every second
       checkSchedule();
 
-      // Check if day rolled over
+      // Check if day rolled over (even while browsing, so the daily limit resets)
       const currentToday = getTodayLocalDateStr();
       if (currentToday !== todayDateRef.current) {
-        // Day changed mid-session
         todayDateRef.current = currentToday;
         secondsRef.current = 0;
         lastWrittenSecondsRef.current = 0;
+        lastUiSecondsRef.current = 0;
         setSecondsUsedToday(0);
         db.usage.put({ date: currentToday, secondsUsedToday: 0 });
+        return;
+      }
+
+      // Count only while a video is actually playing (not while browsing the feed)
+      if (!countingRef.current) {
         return;
       }
 
