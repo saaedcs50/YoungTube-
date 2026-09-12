@@ -868,8 +868,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function Vid
     [cast, isPlaying, duration, togglePlay]
   );
 
-  const openOptions = (e?: React.MouseEvent) => {
-    e?.stopPropagation();
+  const openOptions = () => {
     setCurrentTime(currentTimeRef.current);
     setDuration(durationRef.current);
     setOptionsTab('main');
@@ -892,13 +891,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function Vid
           ? '!aspect-auto !fixed !inset-0 !z-[100] !w-screen !h-screen'
           : ''
       } ${className}`}
-      onClick={() => {
+      onClick={(e) => {
         if (isMinimized) return;
         if (optionsOpen) {
           closeOptions();
           return;
         }
-        bumpControls();
+        if (e.target === e.currentTarget) {
+          bumpControls();
+        }
       }}
     >
       <div
@@ -932,47 +933,52 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function Vid
         </div>
       )}
 
-      {/* Phase 4 — anti-YouTube outbound click shields */}
+      {/* Phase 4 — anti-YouTube outbound click shields: blocks iframe clicks without eating child clicks */}
       {!optionsOpen && (
         <>
           {/* Top: channel title / avatar links */}
           <div
-            className="absolute top-0 inset-x-0 h-14 z-20"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute top-0 inset-x-0 h-14 z-20 pointer-events-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) bumpControls();
+            }}
             aria-hidden
           />
           {/* Bottom strip: cards / logo / watch on YouTube */}
           <div
-            className="absolute bottom-0 inset-x-0 h-[4.5rem] z-20"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute bottom-0 inset-x-0 h-[4.5rem] z-20 pointer-events-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) bumpControls();
+            }}
             aria-hidden
           />
           {/* Corners — YouTube logo typically bottom-right */}
           <div
-            className="absolute bottom-0 right-0 w-32 h-24 z-30"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute bottom-0 right-0 w-32 h-24 z-30 pointer-events-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) bumpControls();
+            }}
             aria-hidden
           />
           <div
-            className="absolute bottom-0 left-0 w-32 h-24 z-30"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute bottom-0 left-0 w-32 h-24 z-30 pointer-events-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) bumpControls();
+            }}
             aria-hidden
           />
           {/* Top-right overflow menu / share if drawn by embed */}
           <div
-            className="absolute top-0 right-0 w-24 h-16 z-30"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute top-0 right-0 w-24 h-16 z-30 pointer-events-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) bumpControls();
+            }}
             aria-hidden
           />
         </>
       )}
 
-      {/* Center play/pause */}
+      {/* Center play/pause background tap zone */}
       <button
         type="button"
         id="safe-play-toggle"
@@ -995,8 +1001,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function Vid
       {showControls && !loadingApi && !error && (
         <div
           className="absolute bottom-0 inset-x-0 z-40 px-3 pt-8 pb-2.5 bg-gradient-to-t from-black/90 via-black/50 to-transparent"
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              bumpControls();
+            }
+          }}
         >
           {(title || channelTitle) && isFullscreen && (
             <div className="mb-2 text-right px-0.5">
@@ -1009,16 +1018,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function Vid
             </div>
           )}
 
-          {/* Force LTR: fill + handle must move the same direction (start → end) */}
+          {/* Force LTR: fill + handle must move the same direction (start → end) with 44px hit-target */}
           <div
             ref={progressTrackRef}
             id="player-progress-track"
             dir="ltr"
-            className="relative h-8 flex items-center cursor-pointer touch-none"
+            className="relative h-11 flex items-center cursor-pointer touch-none select-none group"
             style={{ direction: 'ltr' }}
             onPointerDown={(e) => {
               e.preventDefault();
-              e.stopPropagation();
               isSeekingRef.current = true;
               setIsSeeking(true);
               setShowControls(true);
@@ -1038,7 +1046,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function Vid
             }}
           >
             <div
-              className="absolute inset-x-0 h-1 rounded-full bg-white/25 overflow-hidden"
+              className="absolute inset-x-0 h-1.5 group-hover:h-2 rounded-full bg-white/25 overflow-hidden transition-all pointer-events-none"
               style={{ direction: 'ltr' }}
             >
               <div
@@ -1053,7 +1061,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function Vid
             </div>
             <div
               ref={progressHandleRef}
-              className="absolute top-1/2 left-0 w-3.5 h-3.5 rounded-full bg-red-500 shadow ring-2 ring-white/30 pointer-events-none"
+              className="absolute top-1/2 left-0 w-3.5 h-3.5 rounded-full bg-red-500 shadow ring-2 ring-white/30 pointer-events-none transition-transform scale-90 group-hover:scale-110"
               style={{
                 transform: 'translate(-50%, -50%)',
               }}
@@ -1126,18 +1134,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function Vid
           id="video-options-overlay"
           className="absolute inset-0 z-[90] flex justify-end"
           onClick={(e) => {
-            e.stopPropagation();
-            closeOptions();
+            if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('options-backdrop')) {
+              closeOptions();
+            }
           }}
         >
           {/* dimmed transparent backdrop */}
-          <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
+          <div className="options-backdrop absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
           {/* side panel */}
           <div
             className="relative z-10 h-full w-[min(100%,20rem)] bg-black/70 backdrop-blur-md border-l border-white/10 flex flex-col text-white shadow-2xl animate-[slideInRight_0.2s_ease-out]"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <button
