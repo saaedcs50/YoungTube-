@@ -16,6 +16,7 @@ import TimerTestCard from './components/TimerTestCard';
 import AdBlockNotice from './components/AdBlockNotice';
 import KidHomeScreen from './screens/KidHomeScreen';
 import { ChildProfileSection } from './components/ChildProfileSection';
+import { TasteShiftCard } from './components/TasteShiftCard';
 import { ChannelCurationByCategory } from './components/ChannelCurationByCategory';
 import { FilteringTab } from './components/FilteringTab';
 import {
@@ -764,6 +765,9 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* Taste Shift Feature Card */}
+            <TasteShiftCard onSaved={checkMainSettings} />
 
             {/* Setup Screen Part A: Channel Curation & YouTube Search */}
             <div id="channel-curation-card" className="rounded-3xl border border-sky-200 bg-white p-6 shadow-xs">

@@ -17,6 +17,15 @@ interface Settings {
   familyYoutubeApiKey?: string;  // stored locally only, never sent to our own Worker
   hasCompletedFirstSetup?: boolean;
   hideMusicVideos?: boolean;
+  tasteShift?: {
+    enabled: boolean;
+    targetCategories: string[];
+    startDate: string;       // ISO date, set once when first enabled
+    weeklyStepPercent: number;
+    capPercent: number;
+    activeCategoryThisWeek?: string;
+    choiceWeekNumber?: number;
+  };
 }
 
 interface Channel {
@@ -57,6 +66,7 @@ interface Interaction {
   title: string;
   thumbnail?: string;
   parentRating?: 'liked' | 'disliked';
+  childReaction?: 'liked' | 'disliked';
   watchTime: number;
   videoDuration: number;
   completed: boolean;

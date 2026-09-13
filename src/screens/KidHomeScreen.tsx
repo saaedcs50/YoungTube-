@@ -3,6 +3,7 @@ import db, { FeedItem, Channel } from '../db';
 import channelsSeed from '../../channels_seed.json';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { ensureChannelsArchiveSynced } from '../filtering';
+import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
 import {
   Play,
   Lock,
@@ -163,6 +164,32 @@ export default function KidHomeScreen({
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
+  // Taste Shift feature state
+  const [tasteShiftConfig, setTasteShiftConfig] = useState<{
+    enabled: boolean;
+    targetCategories: string[];
+    activeCategoryThisWeek?: string;
+    choiceWeekNumber?: number;
+    currentWeek: number;
+  } | null>(null);
+
+  const tasteTargetSet = useMemo(() => {
+    if (
+      !tasteShiftConfig?.enabled ||
+      !tasteShiftConfig.activeCategoryThisWeek
+    ) {
+      return null;
+    }
+    return new Set([tasteShiftConfig.activeCategoryThisWeek]);
+  }, [tasteShiftConfig]);
+
+  // Child-choice card visibility: enabled and child hasn't chosen for currentWeek
+  const showWeeklyChoiceCard = Boolean(
+    tasteShiftConfig?.enabled &&
+      tasteShiftConfig.targetCategories?.length > 0 &&
+      tasteShiftConfig.currentWeek !== tasteShiftConfig.choiceWeekNumber
+  );
+
   // 200ms debounce on search input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -252,15 +279,115 @@ export default function KidHomeScreen({
         }
       }
 
-      // Keep existing card order when refreshing; only shuffle a first/empty grid
-      setVideos((prev) => {
-        if (prev.length === 0) return shuffleVideos(availableVideos);
-        const nextIds = new Set(availableVideos.map((v) => v.videoId));
-        const kept = prev.filter((v) => nextIds.has(v.videoId));
-        const keptIds = new Set(kept.map((v) => v.videoId));
-        const added = availableVideos.filter((v) => !keptIds.has(v.videoId));
-        return added.length > 0 ? [...kept, ...shuffleVideos(added)] : kept;
-      });
+      // Taste Shift Feed Composition Logic
+      const tasteShift = settings?.tasteShift;
+      if (!tasteShift?.enabled || !tasteShift.targetCategories || tasteShift.targetCategories.length === 0) {
+        setTasteShiftConfig(null);
+        // Keep existing card order when refreshing; only shuffle a first/empty grid
+        setVideos((prev) => {
+          if (prev.length === 0) return shuffleVideos(availableVideos);
+          const nextIds = new Set(availableVideos.map((v) => v.videoId));
+          const kept = prev.filter((v) => nextIds.has(v.videoId));
+          const keptIds = new Set(kept.map((v) => v.videoId));
+          const added = availableVideos.filter((v) => !keptIds.has(v.videoId));
+          return added.length > 0 ? [...kept, ...shuffleVideos(added)] : kept;
+        });
+      } else {
+        // 2. Compute currentTargetShare using the same formula as the Dashboard card
+        const startDate = tasteShift.startDate || '';
+        const capPercent = tasteShift.capPercent ?? 40;
+        const weeklyStepPercent = tasteShift.weeklyStepPercent ?? 10;
+
+        const parseTime = startDate ? Date.parse(startDate) : Date.now();
+        const validTime = Number.isNaN(parseTime) ? Date.now() : parseTime;
+        const diffMs = Math.max(0, Date.now() - validTime);
+        const currentWeek = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+        const currentTargetShare = Math.min(capPercent, weeklyStepPercent * (currentWeek + 1));
+
+        // Check if child has chosen for currentWeek
+        const hasChosenThisWeek =
+          tasteShift.choiceWeekNumber === currentWeek &&
+          Boolean(tasteShift.activeCategoryThisWeek);
+
+        const activeCategory = hasChosenThisWeek
+          ? tasteShift.activeCategoryThisWeek
+          : undefined;
+
+        setTasteShiftConfig({
+          enabled: true,
+          targetCategories: tasteShift.targetCategories,
+          activeCategoryThisWeek: activeCategory,
+          choiceWeekNumber: tasteShift.choiceWeekNumber,
+          currentWeek,
+        });
+
+        if (!activeCategory) {
+          // If activeCategoryThisWeek is not set yet (child hasn't chosen this week),
+          // targetPool should be empty and the feed behaves as if Taste Shift were off for this render
+          // (no badge, no shifted composition) until a choice is made
+          setVideos((prev) => {
+            if (prev.length === 0) return shuffleVideos(availableVideos);
+            const nextIds = new Set(availableVideos.map((v) => v.videoId));
+            const kept = prev.filter((v) => nextIds.has(v.videoId));
+            const keptIds = new Set(kept.map((v) => v.videoId));
+            const added = availableVideos.filter((v) => !keptIds.has(v.videoId));
+            return added.length > 0 ? [...kept, ...shuffleVideos(added)] : kept;
+          });
+        } else {
+          // Build category lookup map for channels
+          const channelCatLookup = new Map<string, string[]>();
+          for (const ch of channelsSeed as any[]) {
+            if (ch.sourceId) {
+              const cats: string[] = ch.categories || ch.category || [];
+              channelCatLookup.set(ch.sourceId, Array.isArray(cats) ? cats : [cats]);
+            }
+          }
+          for (const ch of storedChannels) {
+            if (ch.sourceId) {
+              const cats = ch.category;
+              if (Array.isArray(cats) && cats.length > 0) {
+                channelCatLookup.set(ch.sourceId, cats);
+              }
+            }
+          }
+
+          // 3. Split availableVideos into targetPool (using [activeCategory]) and restPool
+          const targetSet = new Set([activeCategory]);
+          const targetPool: FeedItem[] = [];
+          const restPool: FeedItem[] = [];
+
+          for (const video of availableVideos) {
+            const directCats = (video as any).categories || (video as any).category;
+            const cats: string[] = directCats
+              ? (Array.isArray(directCats) ? directCats : [directCats])
+              : (channelCatLookup.get(video.channelId) || []);
+            const intersects = cats.some((cat) => targetSet.has(cat));
+            if (intersects) {
+              targetPool.push(video);
+            } else {
+              restPool.push(video);
+            }
+          }
+
+          // 4. targetCount = Math.round(availableVideos.length * currentTargetShare / 100)
+          const targetCount = Math.round((availableVideos.length * currentTargetShare) / 100);
+
+          // 5. Shuffle targetPool and restPool independently, take min(targetCount, targetPool.length)
+          // from targetPool and fill the rest from restPool, concatenate, then do one final shuffle
+          // on the combined result before rendering.
+          const shuffledTarget = shuffleVideos(targetPool);
+          const shuffledRest = shuffleVideos(restPool);
+
+          const takeTargetCount = Math.min(targetCount, shuffledTarget.length);
+          const takeRestCount = availableVideos.length - takeTargetCount;
+
+          const chosenTarget = shuffledTarget.slice(0, takeTargetCount);
+          const chosenRest = shuffledRest.slice(0, takeRestCount);
+
+          const combined = shuffleVideos([...chosenTarget, ...chosenRest]);
+          setVideos(combined);
+        }
+      }
     } catch (err) {
       console.error('Failed to query db in KidHomeScreen:', err);
       setVideos((prev) => (prev.length > 0 ? prev : shuffleVideos(STARTER_VIDEOS)));
@@ -495,10 +622,29 @@ export default function KidHomeScreen({
           )
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-6">
+            {showWeeklyChoiceCard && tasteShiftConfig && (
+              <WeeklyChoiceCard
+                targetCategories={tasteShiftConfig.targetCategories}
+                currentWeek={tasteShiftConfig.currentWeek}
+                onChoiceMade={() => loadVideos(true)}
+              />
+            )}
             {filteredVideos.map((video) => {
               const channelInfo = channelMap.get(video.channelId);
               const channelTitle = channelInfo?.title || 'قناة أطفال';
               const thumbnailUrl = `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`;
+
+              const videoCats =
+                channelInfo?.categories ||
+                (video as any).categories ||
+                (video as any).category ||
+                [];
+              const isTasteShiftTarget = Boolean(
+                tasteTargetSet &&
+                  (Array.isArray(videoCats) ? videoCats : [videoCats]).some((cat: string) =>
+                    tasteTargetSet.has(cat)
+                  )
+              );
 
               return (
                 <div
@@ -519,6 +665,16 @@ export default function KidHomeScreen({
                         (e.target as HTMLImageElement).src = `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`;
                       }}
                     />
+
+                    {/* Taste Shift "✨ جديد" Badge */}
+                    {isTasteShiftTarget && (
+                      <div
+                        id={`taste-shift-badge-${video.videoId}`}
+                        className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-lg bg-white/90 text-stone-800 text-[10px] font-bold shadow-xs backdrop-blur-xs border border-white/60 pointer-events-none z-10"
+                      >
+                        ✨ جديد
+                      </div>
+                    )}
 
                     {/* Warm Play Badge Overlay (Warm Amber / Cream - No Red) */}
                     <div className="absolute inset-0 bg-stone-900/10 group-hover:bg-stone-900/25 flex items-center justify-center transition">
