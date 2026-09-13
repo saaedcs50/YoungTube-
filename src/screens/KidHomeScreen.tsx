@@ -10,6 +10,7 @@ import {
   resolveEffectiveShare,
   isCategoryInCooldown,
   getOrInitCategoryState,
+  bridgeInterleave,
 } from '../tasteShiftEngine';
 import { logImpressedBatch } from '../tasteShiftStorage';
 import type { TasteShiftConfig } from '../tasteShiftTypes';
@@ -382,7 +383,8 @@ export default function KidHomeScreen({
             const takeRestCount = availableVideos.length - takeTargetCount;
             const chosenTarget = shuffledTarget.slice(0, takeTargetCount);
             const chosenRest = shuffledRest.slice(0, Math.max(0, takeRestCount));
-            const combined = shuffleVideos([...chosenTarget, ...chosenRest]);
+            // Phase C: 2 familiar + 1 new (no full reshuffle — keeps the bridge pattern)
+            const combined = bridgeInterleave(chosenRest, chosenTarget, 2);
             setVideos(combined);
 
             // Log impressions for first batch of target cards (async, non-blocking)

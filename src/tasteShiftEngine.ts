@@ -155,3 +155,35 @@ export function rollWeekPerCategory(
   }
   return out;
 }
+
+/**
+ * Phase C — interest bridge: up to `familiarPerNovel` familiar items,
+ * then 1 novel item. Prevents a wall of new-category videos.
+ * Pools should already be shuffled by the caller.
+ */
+export function bridgeInterleave<T>(
+  familiar: T[],
+  novel: T[],
+  familiarPerNovel = 2
+): T[] {
+  const ratio = Math.max(1, Math.floor(familiarPerNovel));
+  const result: T[] = [];
+  let fi = 0;
+  let ni = 0;
+
+  while (fi < familiar.length || ni < novel.length) {
+    for (let k = 0; k < ratio && fi < familiar.length; k++) {
+      result.push(familiar[fi++]);
+    }
+    if (ni < novel.length) {
+      result.push(novel[ni++]);
+    }
+    // If novel is exhausted, dump the rest of familiar in one go
+    if (ni >= novel.length && fi < familiar.length) {
+      result.push(...familiar.slice(fi));
+      break;
+    }
+  }
+  return result;
+}
+
