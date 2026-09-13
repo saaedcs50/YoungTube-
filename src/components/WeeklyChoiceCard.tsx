@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import db from '../db';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { Sparkles } from 'lucide-react';
+import { logChosen } from '../tasteShiftStorage';
 
 interface WeeklyChoiceCardProps {
   targetCategories: string[];
@@ -53,6 +54,7 @@ export const WeeklyChoiceCard: React.FC<WeeklyChoiceCardProps> = ({
             choiceWeekNumber: currentWeek,
           },
         });
+        await logChosen(catId);
       }
       onChoiceMade();
     } catch (err) {

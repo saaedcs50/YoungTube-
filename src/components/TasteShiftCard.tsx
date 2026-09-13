@@ -38,6 +38,17 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
     distinctCount: number;
   } | null>(null);
 
+  const [categoryStats, setCategoryStats] = useState<
+    Array<{
+      id: string;
+      effectiveShare: number;
+      totalAccepted: number;
+      totalRejected: number;
+      totalShown: number;
+      cooldownUntil?: number;
+    }>
+  >([]);
+
   const isFirstLoad = useRef(true);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -54,6 +65,19 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
             setStartDate(settings.tasteShift.startDate || '');
             setWeeklyStepPercent(settings.tasteShift.weeklyStepPercent ?? 10);
             setCapPercent(settings.tasteShift.capPercent ?? 40);
+            const pc = settings.tasteShift.perCategory || {};
+            const stats = (settings.tasteShift.targetCategories || []).map((id) => {
+              const s = pc[id];
+              return {
+                id,
+                effectiveShare: s?.effectiveShare ?? 0,
+                totalAccepted: s?.totalAccepted ?? 0,
+                totalRejected: s?.totalRejected ?? 0,
+                totalShown: s?.totalShown ?? 0,
+                cooldownUntil: s?.cooldownUntil,
+              };
+            });
+            setCategoryStats(stats);
           }
         }
       } catch (err) {
@@ -185,9 +209,10 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
             startDate,
             weeklyStepPercent,
             capPercent,
-            // Preserve child's weekly selection so dashboard edits don't reset the feed mix
+            // Preserve child's weekly selection + adaptive stats
             activeCategoryThisWeek: prev?.activeCategoryThisWeek,
             choiceWeekNumber: prev?.choiceWeekNumber,
+            perCategory: prev?.perCategory,
           },
         });
         setSaveStatus('saved');
@@ -435,6 +460,46 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
             </div>
           </div>
         )}
+
+        {/* 7. Per-category adaptive stats (Phase B) */}
+        {categoryStats.length > 0 && (
+          <div
+            id="taste-shift-per-category-stats"
+            className="rounded-2xl bg-white border border-slate-200 p-4 space-y-2"
+          >
+            <div className="text-xs font-bold text-slate-900">إحصائيات الأقسام المستهدفة</div>
+            <div className="space-y-2">
+              {categoryStats.map((s) => {
+                const cat = curationCategories.find((c) => c.id === s.id);
+                const onCooldown = s.cooldownUntil && s.cooldownUntil > Date.now();
+                return (
+                  <div
+                    key={s.id}
+                    className="flex flex-wrap items-center justify-between gap-2 text-xs border border-slate-100 rounded-xl px-3 py-2 bg-slate-50/80"
+                  >
+                    <span className="font-semibold text-slate-800">
+                      {cat ? `${cat.emoji} ${cat.label}` : s.id}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                      <span className="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded-md font-bold">
+                        نسبة فعّالة {s.effectiveShare}%
+                      </span>
+                      <span className="text-emerald-700">✓ {s.totalAccepted}</span>
+                      <span className="text-rose-700">✗ {s.totalRejected}</span>
+                      <span className="text-slate-500">عُرض {s.totalShown}</span>
+                      {onCooldown && (
+                        <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-semibold">
+                          متوقف مؤقتًا
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

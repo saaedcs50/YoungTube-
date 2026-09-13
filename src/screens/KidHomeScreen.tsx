@@ -4,6 +4,15 @@ import channelsSeed from '../../channels_seed.json';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { ensureChannelsArchiveSynced } from '../filtering';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
+import { TasteReactionBar } from '../components/TasteReactionBar';
+import {
+  computeBaseShare,
+  resolveEffectiveShare,
+  isCategoryInCooldown,
+  getOrInitCategoryState,
+} from '../tasteShiftEngine';
+import { logImpressedBatch } from '../tasteShiftStorage';
+import type { TasteShiftConfig } from '../tasteShiftTypes';
 import {
   Play,
   Lock,
@@ -279,11 +288,10 @@ export default function KidHomeScreen({
         }
       }
 
-      // Taste Shift Feed Composition Logic
-      const tasteShift = settings?.tasteShift;
+      // Taste Shift Feed Composition Logic (Phase B: effectiveShare + cooldown)
+      const tasteShift = settings?.tasteShift as TasteShiftConfig | undefined;
       if (!tasteShift?.enabled || !tasteShift.targetCategories || tasteShift.targetCategories.length === 0) {
         setTasteShiftConfig(null);
-        // Keep existing card order when refreshing; only shuffle a first/empty grid
         setVideos((prev) => {
           if (prev.length === 0) return shuffleVideos(availableVideos);
           const nextIds = new Set(availableVideos.map((v) => v.videoId));
@@ -293,18 +301,12 @@ export default function KidHomeScreen({
           return added.length > 0 ? [...kept, ...shuffleVideos(added)] : kept;
         });
       } else {
-        // 2. Compute currentTargetShare using the same formula as the Dashboard card
-        const startDate = tasteShift.startDate || '';
-        const capPercent = tasteShift.capPercent ?? 40;
-        const weeklyStepPercent = tasteShift.weeklyStepPercent ?? 10;
+        const { currentWeek, baseShare } = computeBaseShare(
+          tasteShift.startDate,
+          tasteShift.weeklyStepPercent ?? 10,
+          tasteShift.capPercent ?? 40
+        );
 
-        const parseTime = startDate ? Date.parse(startDate) : Date.now();
-        const validTime = Number.isNaN(parseTime) ? Date.now() : parseTime;
-        const diffMs = Math.max(0, Date.now() - validTime);
-        const currentWeek = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
-        const currentTargetShare = Math.min(capPercent, weeklyStepPercent * (currentWeek + 1));
-
-        // Check if child has chosen for currentWeek
         const hasChosenThisWeek =
           tasteShift.choiceWeekNumber === currentWeek &&
           Boolean(tasteShift.activeCategoryThisWeek);
@@ -321,71 +323,76 @@ export default function KidHomeScreen({
           currentWeek,
         });
 
-        if (!activeCategory) {
-          // If activeCategoryThisWeek is not set yet (child hasn't chosen this week),
-          // targetPool should be empty and the feed behaves as if Taste Shift were off for this render
-          // (no badge, no shifted composition) until a choice is made
+        const keepOrder = (list: FeedItem[]) => {
           setVideos((prev) => {
-            if (prev.length === 0) return shuffleVideos(availableVideos);
-            const nextIds = new Set(availableVideos.map((v) => v.videoId));
+            if (prev.length === 0) return shuffleVideos(list);
+            const nextIds = new Set(list.map((v) => v.videoId));
             const kept = prev.filter((v) => nextIds.has(v.videoId));
             const keptIds = new Set(kept.map((v) => v.videoId));
-            const added = availableVideos.filter((v) => !keptIds.has(v.videoId));
+            const added = list.filter((v) => !keptIds.has(v.videoId));
             return added.length > 0 ? [...kept, ...shuffleVideos(added)] : kept;
           });
+        };
+
+        if (!activeCategory) {
+          keepOrder(availableVideos);
         } else {
-          // Build category lookup map for channels
-          const channelCatLookup = new Map<string, string[]>();
-          for (const ch of channelsSeed as any[]) {
-            if (ch.sourceId) {
-              const cats: string[] = ch.categories || ch.category || [];
-              channelCatLookup.set(ch.sourceId, Array.isArray(cats) ? cats : [cats]);
-            }
-          }
-          for (const ch of storedChannels) {
-            if (ch.sourceId) {
-              const cats = ch.category;
-              if (Array.isArray(cats) && cats.length > 0) {
-                channelCatLookup.set(ch.sourceId, cats);
+          const catState = getOrInitCategoryState(tasteShift, activeCategory, baseShare);
+          if (isCategoryInCooldown(catState)) {
+            // Hard reject cooldown: serve normal feed without target mix
+            keepOrder(availableVideos);
+          } else {
+            const share = resolveEffectiveShare(tasteShift, activeCategory);
+
+            const channelCatLookup = new Map<string, string[]>();
+            for (const ch of channelsSeed as any[]) {
+              if (ch.sourceId) {
+                const cats: string[] = ch.categories || ch.category || [];
+                channelCatLookup.set(ch.sourceId, Array.isArray(cats) ? cats : [cats]);
               }
             }
-          }
+            for (const ch of storedChannels) {
+              if (ch.sourceId) {
+                const cats = ch.category;
+                if (Array.isArray(cats) && cats.length > 0) {
+                  channelCatLookup.set(ch.sourceId, cats);
+                }
+              }
+            }
 
-          // 3. Split availableVideos into targetPool (using [activeCategory]) and restPool
-          const targetSet = new Set([activeCategory]);
-          const targetPool: FeedItem[] = [];
-          const restPool: FeedItem[] = [];
+            const targetSet = new Set([activeCategory]);
+            const targetPool: FeedItem[] = [];
+            const restPool: FeedItem[] = [];
 
-          for (const video of availableVideos) {
-            const directCats = (video as any).categories || (video as any).category;
-            const cats: string[] = directCats
-              ? (Array.isArray(directCats) ? directCats : [directCats])
-              : (channelCatLookup.get(video.channelId) || []);
-            const intersects = cats.some((cat) => targetSet.has(cat));
-            if (intersects) {
-              targetPool.push(video);
-            } else {
-              restPool.push(video);
+            for (const video of availableVideos) {
+              const directCats = (video as any).categories || (video as any).category;
+              const cats: string[] = directCats
+                ? Array.isArray(directCats)
+                  ? directCats
+                  : [directCats]
+                : channelCatLookup.get(video.channelId) || [];
+              if (cats.some((cat) => targetSet.has(cat))) targetPool.push(video);
+              else restPool.push(video);
+            }
+
+            const targetCount = Math.round((availableVideos.length * share) / 100);
+            const shuffledTarget = shuffleVideos(targetPool);
+            const shuffledRest = shuffleVideos(restPool);
+            const takeTargetCount = Math.min(targetCount, shuffledTarget.length);
+            const takeRestCount = availableVideos.length - takeTargetCount;
+            const chosenTarget = shuffledTarget.slice(0, takeTargetCount);
+            const chosenRest = shuffledRest.slice(0, Math.max(0, takeRestCount));
+            const combined = shuffleVideos([...chosenTarget, ...chosenRest]);
+            setVideos(combined);
+
+            // Log impressions for first batch of target cards (async, non-blocking)
+            if (chosenTarget.length > 0) {
+              void logImpressedBatch(
+                activeCategory,
+                chosenTarget.slice(0, 8).map((v) => v.videoId)
+              );
             }
           }
-
-          // 4. targetCount = Math.round(availableVideos.length * currentTargetShare / 100)
-          const targetCount = Math.round((availableVideos.length * currentTargetShare) / 100);
-
-          // 5. Shuffle targetPool and restPool independently, take min(targetCount, targetPool.length)
-          // from targetPool and fill the rest from restPool, concatenate, then do one final shuffle
-          // on the combined result before rendering.
-          const shuffledTarget = shuffleVideos(targetPool);
-          const shuffledRest = shuffleVideos(restPool);
-
-          const takeTargetCount = Math.min(targetCount, shuffledTarget.length);
-          const takeRestCount = availableVideos.length - takeTargetCount;
-
-          const chosenTarget = shuffledTarget.slice(0, takeTargetCount);
-          const chosenRest = shuffledRest.slice(0, takeRestCount);
-
-          const combined = shuffleVideos([...chosenTarget, ...chosenRest]);
-          setVideos(combined);
         }
       }
     } catch (err) {
@@ -710,6 +717,18 @@ export default function KidHomeScreen({
                         <Play className="w-3 h-3 fill-current" />
                       </span>
                     </div>
+                    {isTasteShiftTarget && tasteShiftConfig?.activeCategoryThisWeek && (
+                      <TasteReactionBar
+                        videoId={video.videoId}
+                        channelId={video.channelId}
+                        title={video.title}
+                        categoryId={tasteShiftConfig.activeCategoryThisWeek}
+                        onReacted={() => {
+                          // Soft refresh so effectiveShare updates on next mix
+                          void loadVideos(true);
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               );

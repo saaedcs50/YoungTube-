@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import type { PerCategoryState } from './tasteShiftTypes';
 
 interface Settings {
   id: string;
@@ -12,19 +13,20 @@ interface Settings {
   pinAttempts?: number;
   childName?: string;
   childAge?: number;
-  positiveInterests?: string[];  // category ids from src/categories.ts
-  negativeInterests?: string[];  // category ids from src/categories.ts
-  familyYoutubeApiKey?: string;  // stored locally only, never sent to our own Worker
+  positiveInterests?: string[];
+  negativeInterests?: string[];
+  familyYoutubeApiKey?: string;
   hasCompletedFirstSetup?: boolean;
   hideMusicVideos?: boolean;
   tasteShift?: {
     enabled: boolean;
     targetCategories: string[];
-    startDate: string;       // ISO date, set once when first enabled
+    startDate: string;
     weeklyStepPercent: number;
     capPercent: number;
     activeCategoryThisWeek?: string;
     choiceWeekNumber?: number;
+    perCategory?: Record<string, PerCategoryState>;
   };
 }
 
@@ -57,7 +59,7 @@ interface FeedItem {
   hasMusic?: boolean;
   fetchedAt: number;
   publishedAt?: string;
-  hidden?: boolean; // manual per-video hide (used in Phase 7)
+  hidden?: boolean;
 }
 
 interface Interaction {
@@ -98,6 +100,23 @@ interface CustomCategory {
   emoji: string;
 }
 
+interface TasteShiftEvent {
+  id?: number;
+  ts: number;
+  categoryId: string;
+  videoId?: string;
+  type:
+    | 'offered'
+    | 'chosen'
+    | 'impressed'
+    | 'opened'
+    | 'completed'
+    | 'skipped_early'
+    | 'liked'
+    | 'disliked';
+  meta?: { watchMs?: number; position?: number };
+}
+
 const db = new Dexie('KidsYouTubeDB') as Dexie & {
   settings: EntityTable<Settings, 'id'>;
   channels: EntityTable<Channel, 'id'>;
@@ -107,6 +126,7 @@ const db = new Dexie('KidsYouTubeDB') as Dexie & {
   downloads: EntityTable<DownloadItem, 'id'>;
   dailySummaries: EntityTable<DailySummary, 'date'>;
   customCategories: EntityTable<CustomCategory, 'id'>;
+  tasteShiftEvents: EntityTable<TasteShiftEvent, 'id'>;
 };
 
 db.version(1).stores({
@@ -119,7 +139,6 @@ db.version(1).stores({
   dailySummaries: 'date',
 });
 
-// Additive index only — existing rows keep working. publishedAt helps recency sorts.
 db.version(2).stores({
   settings: 'id',
   channels: '++id, sourceId, *category',
@@ -130,7 +149,6 @@ db.version(2).stores({
   dailySummaries: 'date',
 });
 
-// Additive schema for parent-created custom categories
 db.version(3).stores({
   settings: 'id',
   channels: '++id, sourceId, *category',
@@ -142,7 +160,30 @@ db.version(3).stores({
   customCategories: '++id, &categoryId',
 });
 
+// Phase B: explicit Taste Shift event log
+db.version(4).stores({
+  settings: 'id',
+  channels: '++id, sourceId, *category',
+  usage: 'date',
+  feedCache: 'videoId, channelId, fetchedAt, publishedAt',
+  interactions: 'videoId, channelId',
+  downloads: '++id',
+  dailySummaries: 'date',
+  customCategories: '++id, &categoryId',
+  tasteShiftEvents: '++id, ts, categoryId, type, videoId',
+});
+
 export default db;
 export const DEFAULT_SCHEDULE_WINDOW = { start: '00:00', end: '23:59' };
 export const DEFAULT_SESSION_LIMIT_MINUTES = 60;
-export type { Settings, Channel, Usage, FeedItem, Interaction, DownloadItem, DailySummary, CustomCategory };
+export type {
+  Settings,
+  Channel,
+  Usage,
+  FeedItem,
+  Interaction,
+  DownloadItem,
+  DailySummary,
+  CustomCategory,
+  TasteShiftEvent,
+};
