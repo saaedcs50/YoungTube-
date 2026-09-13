@@ -81,6 +81,13 @@ interface DailySummary {
   dislikedVideoIds: string[];
 }
 
+interface CustomCategory {
+  id?: number;
+  categoryId: string;
+  label: string;
+  emoji: string;
+}
+
 const db = new Dexie('KidsYouTubeDB') as Dexie & {
   settings: EntityTable<Settings, 'id'>;
   channels: EntityTable<Channel, 'id'>;
@@ -89,6 +96,7 @@ const db = new Dexie('KidsYouTubeDB') as Dexie & {
   interactions: EntityTable<Interaction, 'videoId'>;
   downloads: EntityTable<DownloadItem, 'id'>;
   dailySummaries: EntityTable<DailySummary, 'date'>;
+  customCategories: EntityTable<CustomCategory, 'id'>;
 };
 
 db.version(1).stores({
@@ -112,7 +120,19 @@ db.version(2).stores({
   dailySummaries: 'date',
 });
 
+// Additive schema for parent-created custom categories
+db.version(3).stores({
+  settings: 'id',
+  channels: '++id, sourceId, *category',
+  usage: 'date',
+  feedCache: 'videoId, channelId, fetchedAt, publishedAt',
+  interactions: 'videoId, channelId',
+  downloads: '++id',
+  dailySummaries: 'date',
+  customCategories: '++id, &categoryId',
+});
+
 export default db;
 export const DEFAULT_SCHEDULE_WINDOW = { start: '00:00', end: '23:59' };
 export const DEFAULT_SESSION_LIMIT_MINUTES = 60;
-export type { Settings, Channel, Usage, FeedItem, Interaction, DownloadItem, DailySummary };
+export type { Settings, Channel, Usage, FeedItem, Interaction, DownloadItem, DailySummary, CustomCategory };

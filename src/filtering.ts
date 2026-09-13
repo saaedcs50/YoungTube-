@@ -262,3 +262,77 @@ export async function getVideosWithMusicCount(): Promise<number> {
 export async function getTotalCachedVideosCount(): Promise<number> {
   return await db.feedCache.count();
 }
+
+export interface SingleChannelRssResult {
+  success: boolean;
+  count: number;
+  error?: string;
+  result?: FilteringResult;
+}
+
+/**
+ * Fetch videos from worker RSS proxy for a single channel or playlist,
+ * filter them against user settings/blacklist/Shorts/music, and write directly into feedCache.
+ */
+export async function syncSingleChannelRss(
+  sourceType: 'channel' | 'playlist',
+  sourceId: string,
+  title?: string
+): Promise<SingleChannelRssResult> {
+  try {
+    const url = `${WORKER_URL}/api/rss?type=${sourceType || 'channel'}&id=${encodeURIComponent(sourceId)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      return {
+        success: false,
+        count: 0,
+        error: `HTTP ${res.status}: تعذر جلب خلاصة RSS للقناة`,
+      };
+    }
+
+    const data = await res.json();
+    if (data && typeof data === 'object' && !Array.isArray(data) && data.error) {
+      return {
+        success: false,
+        count: 0,
+        error: String(data.error),
+      };
+    }
+
+    if (!Array.isArray(data)) {
+      return {
+        success: false,
+        count: 0,
+        error: 'تنسيق استجابة غير صالح من RSS',
+      };
+    }
+
+    const channelItem: ChannelItem = {
+      sourceId,
+      sourceType,
+      title: title || 'قناة أطفال مخصصة',
+      videos: data
+        .map((v: any) => ({
+          videoId: String(v.videoId || ''),
+          title: String(v.title || ''),
+          publishedAt: v.publishedAt ? String(v.publishedAt) : undefined,
+        }))
+        .filter((v: any) => v.videoId && v.title),
+    };
+
+    const filterResult = await filterAndCacheVideos([channelItem]);
+
+    return {
+      success: true,
+      count: filterResult.totalAfterFilter,
+      result: filterResult,
+    };
+  } catch (err: any) {
+    console.error('syncSingleChannelRss failed:', err);
+    return {
+      success: false,
+      count: 0,
+      error: err?.message || 'خطأ في الاتصال أثناء جلب RSS',
+    };
+  }
+}

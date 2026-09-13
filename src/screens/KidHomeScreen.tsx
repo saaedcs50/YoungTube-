@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import db, { FeedItem, Channel } from '../db';
 import channelsSeed from '../../channels_seed.json';
-import { KID_CATEGORIES } from '../categories';
+import { useAllCategories } from '../hooks/useAllCategories';
 import { ensureChannelsArchiveSynced } from '../filtering';
 import {
   Play,
@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 
 interface KidHomeScreenProps {
-  onPlayVideo: (videoId: string) => void;
   onOpenParentDashboard: () => void;
   refreshTrigger?: number;
   suppressedVideoIds?: string[];
@@ -151,11 +150,11 @@ async function loadBoundedFeed(
 }
 
 export default function KidHomeScreen({
-  onPlayVideo,
   onOpenParentDashboard,
   refreshTrigger = 0,
   suppressedVideoIds = [],
 }: KidHomeScreenProps) {
+  const { kidCategories } = useAllCategories();
   const [videos, setVideos] = useState<FeedItem[]>([]);
   const [dbChannelsList, setDbChannelsList] = useState<Channel[]>([]);
   const [childName, setChildName] = useState<string>('');
@@ -379,11 +378,11 @@ export default function KidHomeScreen({
         </div>
       </header>
 
-      {/* 2. Category Filter Chips (13 Categories + All) */}
+      {/* 2. Category Filter Chips (13 Built-in + Custom Categories + All) */}
       <section className="bg-[#FAF8F5] border-b border-stone-200/40 px-4 sm:px-8 py-3">
         <div className="max-w-7xl mx-auto space-y-3">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {KID_CATEGORIES.map((cat) => {
+            {kidCategories.map((cat) => {
               const isActive = selectedCategory === cat.id;
               return (
                 <button
@@ -505,15 +504,7 @@ export default function KidHomeScreen({
                 <div
                   key={video.videoId}
                   id={`video-card-${video.videoId}`}
-                  onClick={() => onPlayVideo(video.videoId)}
-                  className="group bg-white rounded-3xl overflow-hidden border border-stone-200/80 hover:border-amber-300/80 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col text-right focus:outline-none focus:ring-3 focus:ring-amber-400"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      onPlayVideo(video.videoId);
-                    }
-                  }}
+                  className="group bg-white rounded-3xl overflow-hidden border border-stone-200/80 hover:border-amber-300/80 hover:shadow-md transition-all duration-200 flex flex-col text-right"
                 >
                   {/* Thumbnail with 16:9 ratio and play badge */}
                   <div className="relative aspect-video w-full bg-stone-100 overflow-hidden">

@@ -9,14 +9,12 @@ import PinLockModal from './components/PinLockModal';
 import ChannelsCountCard from './components/ChannelsCountCard';
 import FilteringResultCard from './components/FilteringResultCard';
 import TempAdminTool from './components/TempAdminTool';
-import PlayerTestCard from './components/PlayerTestCard';
 import { useSessionTimer } from './hooks/useSessionTimer';
 import { ensureChannelsArchiveSynced } from './filtering';
 import SessionEndScreen from './components/SessionEndScreen';
 import TimerTestCard from './components/TimerTestCard';
 import AdBlockNotice from './components/AdBlockNotice';
 import KidHomeScreen from './screens/KidHomeScreen';
-import PlayerView from './screens/PlayerView';
 import { ChildProfileSection } from './components/ChildProfileSection';
 import { ChannelCurationByCategory } from './components/ChannelCurationByCategory';
 import { FilteringTab } from './components/FilteringTab';
@@ -111,64 +109,11 @@ export default function App() {
   const [isDashboardUnlocked, setIsDashboardUnlocked] = useState(false);
   // Default is 'kids' (real kid-facing interface)
   const [viewMode, setViewMode] = useState<'kids' | 'dashboard' | 'dev'>(isDevModeParam ? 'dev' : 'kids');
-  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [showAdBlockModal, setShowAdBlockModal] = useState(false);
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
 
-  // Player navigation: push history so Android/browser Back returns to feed (not exit app)
-  const openPlayer = useCallback((videoId: string) => {
-    setPlayingVideoId(videoId);
-    try {
-      const state = window.history.state;
-      // Avoid stacking duplicate player entries for the same open session
-      if (!state || state.ytPlayer !== true) {
-        window.history.pushState(
-          { ...(state || {}), ytPlayer: true, videoId },
-          '',
-          window.location.href
-        );
-      } else {
-        window.history.replaceState(
-          { ...(state || {}), ytPlayer: true, videoId },
-          '',
-          window.location.href
-        );
-      }
-    } catch {
-      // ignore history errors in locked-down webviews
-    }
-  }, []);
-
-  const closePlayer = useCallback(() => {
-    try {
-      // If current history entry is our player marker, go back one step
-      // The popstate handler is the single place that clears playingVideoId
-      if (window.history.state?.ytPlayer) {
-        window.history.back();
-        return;
-      }
-    } catch {
-      // ignore
-    }
-    setPlayingVideoId(null);
-  }, []);
-
-  // Hardware / browser Back while player is open → feed, not app exit
-  useEffect(() => {
-    const onPopState = (e: PopStateEvent) => {
-      const state = e.state ?? window.history.state;
-      if (!state?.ytPlayer) {
-        setPlayingVideoId(null);
-      } else if (state.videoId) {
-        setPlayingVideoId(state.videoId);
-      }
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, []);
-
-  // Phase 8: Session Timer — count watch time only, not feed browsing
-  const sessionTimer = useSessionTimer(!!playingVideoId && viewMode === 'kids');
+  // Phase 8: Session Timer
+  const sessionTimer = useSessionTimer(viewMode === 'kids');
   const [timerLimitInput, setTimerLimitInput] = useState<number>(60);
   const [scheduleStartInput, setScheduleStartInput] = useState<string>('00:00');
   const [scheduleEndInput, setScheduleEndInput] = useState<string>('23:59');
@@ -432,26 +377,6 @@ export default function App() {
   // Phase 8: Session end determination (limit reached or outside schedule window)
   const isSessionEnded = sessionTimer.isLimitReached || !sessionTimer.isWithinScheduleWindow;
 
-  // Force-close open player if session ends while child is watching.
-  // replaceState (not history.back) so the next Android Back does not exit the PWA.
-  useEffect(() => {
-    if (isSessionEnded && viewMode !== 'dashboard' && playingVideoId) {
-      setPlayingVideoId(null);
-      try {
-        const state = window.history.state;
-        if (state?.ytPlayer) {
-          window.history.replaceState(
-            { ...(state || {}), ytPlayer: false },
-            '',
-            window.location.href
-          );
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }, [isSessionEnded, viewMode, playingVideoId]);
-
   return (
     <div className={`min-h-screen font-sans ${viewMode === 'kids' ? 'bg-[#FAF8F5]' : 'bg-slate-50 text-slate-800 flex flex-col justify-between p-4 sm:p-8'}`}>
       {/* Onboarding Modal */}
@@ -482,15 +407,6 @@ export default function App() {
         />
       )}
 
-      {/* Phase 9.5: Full-Screen Player View Takeover (closed if session ends) */}
-      {!isSessionEnded && playingVideoId && (
-        <PlayerView
-          videoId={playingVideoId}
-          onBack={closePlayer}
-          onVideoHidden={handleVideoHidden}
-        />
-      )}
-
       {/* Background archive sync lives in ensureChannelsArchiveSynced (kids + dashboard).
           Do not mount hidden ChannelsCountCard/FilteringResultCard here — they put the
           full Worker payload into React state and double-fetch in some modes. */}
@@ -507,7 +423,6 @@ export default function App() {
         <>
           {/* VIEW 0: REAL KID-FACING UI (Default View) */}
           <KidHomeScreen
-            onPlayVideo={openPlayer}
             onOpenParentDashboard={handleOpenDashboard}
             refreshTrigger={channelsRefreshTrigger}
             suppressedVideoIds={suppressedVideoIds}
@@ -1354,13 +1269,6 @@ export default function App() {
                 channels={channelsData}
                 refreshTrigger={channelsRefreshTrigger}
               />
-
-              {/* Card 6: Player Test Card (Phase 7: Player) */}
-              <div className="md:col-span-2 lg:col-span-3">
-                <PlayerTestCard
-                  onVideoHidden={handleVideoHidden}
-                />
-              </div>
 
               {/* Card 7: Timer Test Card (Phase 8: Timers) */}
               <div className="md:col-span-2 lg:col-span-3">

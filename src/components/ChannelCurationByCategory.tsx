@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import db, { Channel } from '../db';
-import { CURATION_CATEGORIES, KidCategory } from '../categories';
+import { KidCategory } from '../categories';
+import { useAllCategories } from '../hooks/useAllCategories';
+import { syncSingleChannelRss } from '../filtering';
 import { YoutubeSearchBar } from './YoutubeSearchBar';
+import { CustomCategoryManager } from './CustomCategoryManager';
+import channelsSeed from '../../channels_seed.json';
 import {
   FolderKanban,
   ChevronDown,
@@ -14,6 +18,7 @@ import {
   Sparkles,
   HelpCircle,
   Layers,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ChannelCurationByCategoryProps {
@@ -23,18 +28,99 @@ interface ChannelCurationByCategoryProps {
 export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps> = ({
   onChannelChanged,
 }) => {
+  const { curationCategories } = useAllCategories();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [filterQuery, setFilterQuery] = useState<string>('');
   const [openCategories, setOpenCategories] = useState<Set<string>>(() => {
     // Start collapsed except the first category
-    return new Set([CURATION_CATEGORIES[0]?.id || 'stories']);
+    return new Set(['stories']);
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [refreshingSourceId, setRefreshingSourceId] = useState<string | null>(null);
+  const [refreshStatusMap, setRefreshStatusMap] = useState<
+    Record<string, { message?: string; error?: string }>
+  >({});
+
+  const handleRefreshCustomChannel = async (channel: Channel) => {
+    if (!channel.sourceId) return;
+    setRefreshingSourceId(channel.sourceId);
+    setRefreshStatusMap((prev) => ({ ...prev, [channel.sourceId]: {} }));
+
+    const res = await syncSingleChannelRss(
+      channel.sourceType || 'channel',
+      channel.sourceId,
+      channel.title
+    );
+
+    setRefreshingSourceId(null);
+    if (res.success) {
+      setRefreshStatusMap((prev) => ({
+        ...prev,
+        [channel.sourceId]: { message: `تم — ${res.count} فيديو جاهز` },
+      }));
+      onChannelChanged?.();
+    } else {
+      setRefreshStatusMap((prev) => ({
+        ...prev,
+        [channel.sourceId]: { error: res.error || 'فشل التحديث' },
+      }));
+    }
+  };
 
   const loadChannels = useCallback(async () => {
     try {
-      const all = await db.channels.toArray();
-      setChannels(all);
+      const dbList = await db.channels.toArray();
+      const dbMap = new Map<string, Channel>();
+      for (const ch of dbList) {
+        if (ch.sourceId) {
+          dbMap.set(ch.sourceId, ch);
+        }
+      }
+
+      const merged: Channel[] = [];
+      const processedSourceIds = new Set<string>();
+
+      // 1. Process all seed channels from channels_seed.json
+      for (const seed of channelsSeed as any[]) {
+        if (!seed.sourceId) continue;
+        processedSourceIds.add(seed.sourceId);
+
+        const dbOverride = dbMap.get(seed.sourceId);
+        const cats: string[] = seed.categories || seed.category || [];
+        const normalizedCats = Array.isArray(cats) ? cats : [cats];
+
+        if (dbOverride) {
+          merged.push({
+            ...dbOverride,
+            title: dbOverride.title || seed.title || seed.originalName || 'قناة أطفال',
+            category:
+              Array.isArray(dbOverride.category) && dbOverride.category.length > 0
+                ? dbOverride.category
+                : normalizedCats,
+            thumbnail: dbOverride.thumbnail || seed.thumbnail,
+            isPreloaded: true,
+          });
+        } else {
+          merged.push({
+            sourceType: (seed.sourceType as 'channel' | 'playlist') || 'channel',
+            sourceId: seed.sourceId,
+            title: seed.title || seed.originalName || 'قناة أطفال',
+            thumbnail: seed.thumbnail,
+            category: normalizedCats,
+            isPreloaded: true,
+            enabled: true,
+          });
+        }
+      }
+
+      // 2. Add custom parent-added channels that are in db.channels but not in channels_seed.json
+      for (const ch of dbList) {
+        if (ch.sourceId && !processedSourceIds.has(ch.sourceId)) {
+          merged.push(ch);
+        }
+      }
+
+      setChannels(merged);
     } catch (err) {
       console.error('Failed to load channels in ChannelCurationByCategory:', err);
     } finally {
@@ -52,16 +138,39 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
   }, [loadChannels, onChannelChanged]);
 
   const handleToggleEnabled = async (channel: Channel) => {
-    if (!channel.id) return;
     const nextState = !channel.enabled;
 
     // Optimistic local update
     setChannels((prev) =>
-      prev.map((c) => (c.id === channel.id ? { ...c, enabled: nextState } : c))
+      prev.map((c) => (c.sourceId === channel.sourceId ? { ...c, enabled: nextState } : c))
     );
 
     try {
-      await db.channels.update(channel.id, { enabled: nextState });
+      const existing = await db.channels.where('sourceId').equals(channel.sourceId).first();
+
+      if (existing && existing.id) {
+        if (nextState && channel.isPreloaded) {
+          // Revert to default seed enabled by deleting the override row
+          await db.channels.delete(existing.id);
+        } else {
+          await db.channels.update(existing.id, { enabled: nextState });
+        }
+      } else {
+        // Pure-seed channel with no Dexie row yet
+        if (!nextState) {
+          await db.channels.add({
+            sourceType: channel.sourceType || 'channel',
+            sourceId: channel.sourceId,
+            title: channel.title,
+            thumbnail: channel.thumbnail,
+            category: channel.category || [],
+            isPreloaded: true,
+            enabled: false,
+          });
+        }
+      }
+
+      await loadChannels();
       onChannelChanged?.();
     } catch (err) {
       console.error('Failed to update channel enabled state:', err);
@@ -83,7 +192,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
   };
 
   const expandAll = () => {
-    const allIds = new Set(CURATION_CATEGORIES.map((c) => c.id));
+    const allIds = new Set(curationCategories.map((c) => c.id));
     allIds.add('uncategorized');
     setOpenCategories(allIds);
   };
@@ -102,7 +211,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
   // Group channels by category
   const categorizedChannels = useMemo(() => {
     const map: Record<string, Channel[]> = {};
-    for (const cat of CURATION_CATEGORIES) {
+    for (const cat of curationCategories) {
       map[cat.id] = [];
     }
     const uncategorized: Channel[] = [];
@@ -112,19 +221,21 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
       if (cats.length === 0) {
         uncategorized.push(ch);
       } else {
+        let matched = false;
         for (const c of cats) {
           if (map[c]) {
             map[c].push(ch);
-          } else {
-            // Unrecognized category ID
-            uncategorized.push(ch);
+            matched = true;
           }
+        }
+        if (!matched) {
+          uncategorized.push(ch);
         }
       }
     }
 
     return { map, uncategorized };
-  }, [filteredChannels]);
+  }, [filteredChannels, curationCategories]);
 
   return (
     <div id="channel-curation-by-category" className="space-y-6">
@@ -149,6 +260,9 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
           </span>
         </div>
       </div>
+
+      {/* 0. Custom Category Creation & Management */}
+      <CustomCategoryManager onChanged={handleChannelAdded} />
 
       {/* 1. YouTube Search Bar Component at Top */}
       <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80">
@@ -194,7 +308,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
         </div>
       ) : (
         <div className="space-y-3">
-          {CURATION_CATEGORIES.map((cat: KidCategory) => {
+          {curationCategories.map((cat: KidCategory) => {
             const list = categorizedChannels.map[cat.id] || [];
             const isOpen = openCategories.has(cat.id);
             const enabledCount = list.filter((c) => c.enabled).length;
@@ -296,8 +410,39 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                               </div>
                             </div>
 
-                            {/* Toggle Switch */}
+                            {/* Actions & Toggle Switch */}
                             <div className="flex items-center gap-2 shrink-0">
+                              {/* Manual Refresh Button for Custom (Non-Seed) Channels */}
+                              {!channel.isPreloaded && (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    id={`refresh-channel-${channel.sourceId}`}
+                                    type="button"
+                                    onClick={() => handleRefreshCustomChannel(channel)}
+                                    disabled={refreshingSourceId === channel.sourceId}
+                                    className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                                    title="تحديث الفيديوهات من يوتيوب"
+                                  >
+                                    <RefreshCw
+                                      className={`w-3 h-3 ${
+                                        refreshingSourceId === channel.sourceId ? 'animate-spin text-sky-600' : ''
+                                      }`}
+                                    />
+                                    <span>تحديث الفيديوهات</span>
+                                  </button>
+                                  {refreshStatusMap[channel.sourceId]?.message && (
+                                    <span className="text-[10px] text-emerald-700 font-medium">
+                                      {refreshStatusMap[channel.sourceId].message}
+                                    </span>
+                                  )}
+                                  {refreshStatusMap[channel.sourceId]?.error && (
+                                    <span className="text-[10px] text-rose-600 font-medium">
+                                      {refreshStatusMap[channel.sourceId].error}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
                               <span
                                 className={`text-[11px] font-medium hidden sm:inline ${
                                   channel.enabled ? 'text-emerald-700' : 'text-slate-400'
@@ -307,7 +452,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                               </span>
 
                               <button
-                                id={`toggle-channel-${channel.id}-${cat.id}`}
+                                id={`toggle-channel-${channel.id || channel.sourceId}-${cat.id}`}
                                 type="button"
                                 role="switch"
                                 aria-checked={channel.enabled}
@@ -411,24 +556,56 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                           </div>
                         </div>
 
-                        {/* Toggle Switch */}
-                        <button
-                          id={`toggle-channel-${channel.id}-uncat`}
-                          type="button"
-                          role="switch"
-                          aria-checked={channel.enabled}
-                          onClick={() => handleToggleEnabled(channel)}
-                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                            channel.enabled ? 'bg-emerald-600' : 'bg-slate-300'
-                          }`}
-                        >
-                          <span
-                            aria-hidden="true"
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                              channel.enabled ? '-translate-x-5' : 'translate-x-0'
+                        {/* Actions & Toggle Switch */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!channel.isPreloaded && (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                id={`refresh-channel-${channel.sourceId}-uncat`}
+                                type="button"
+                                onClick={() => handleRefreshCustomChannel(channel)}
+                                disabled={refreshingSourceId === channel.sourceId}
+                                className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                                title="تحديث الفيديوهات من يوتيوب"
+                              >
+                                <RefreshCw
+                                  className={`w-3 h-3 ${
+                                    refreshingSourceId === channel.sourceId ? 'animate-spin text-sky-600' : ''
+                                  }`}
+                                />
+                                <span>تحديث الفيديوهات</span>
+                              </button>
+                              {refreshStatusMap[channel.sourceId]?.message && (
+                                <span className="text-[10px] text-emerald-700 font-medium">
+                                  {refreshStatusMap[channel.sourceId].message}
+                                </span>
+                              )}
+                              {refreshStatusMap[channel.sourceId]?.error && (
+                                <span className="text-[10px] text-rose-600 font-medium">
+                                  {refreshStatusMap[channel.sourceId].error}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          <button
+                            id={`toggle-channel-${channel.id || channel.sourceId}-uncat`}
+                            type="button"
+                            role="switch"
+                            aria-checked={channel.enabled}
+                            onClick={() => handleToggleEnabled(channel)}
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                              channel.enabled ? 'bg-emerald-600' : 'bg-slate-300'
                             }`}
-                          />
-                        </button>
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                channel.enabled ? '-translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

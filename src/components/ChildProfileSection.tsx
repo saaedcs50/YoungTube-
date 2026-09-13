@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import db from '../db';
-import { CURATION_CATEGORIES } from '../categories';
+import { useAllCategories } from '../hooks/useAllCategories';
 import { User, Heart, ShieldX, Check, Sparkles } from 'lucide-react';
 
 interface ChildProfileSectionProps {
@@ -8,6 +8,7 @@ interface ChildProfileSectionProps {
 }
 
 export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSaved }) => {
+  const { curationCategories } = useAllCategories();
   const [childName, setChildName] = useState<string>('');
   const [childAge, setChildAge] = useState<number | ''>('');
   const [positiveInterests, setPositiveInterests] = useState<string[]>([]);
@@ -196,7 +197,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
         </p>
 
         <div className="flex flex-wrap gap-2 pt-1">
-          {CURATION_CATEGORIES.map((cat) => {
+          {curationCategories.map((cat) => {
             const isSelected = positiveInterests.includes(cat.id);
             return (
               <button
@@ -235,7 +236,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
         </p>
 
         <div className="flex flex-wrap gap-2 pt-1">
-          {CURATION_CATEGORIES.map((cat) => {
+          {curationCategories.map((cat) => {
             const isSelected = negativeInterests.includes(cat.id);
             return (
               <button

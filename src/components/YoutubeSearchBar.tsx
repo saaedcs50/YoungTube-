@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import db, { Channel } from '../db';
-import { CURATION_CATEGORIES } from '../categories';
+import { useAllCategories } from '../hooks/useAllCategories';
+import { syncSingleChannelRss } from '../filtering';
 import {
   Search,
   KeyRound,
@@ -36,6 +37,7 @@ function decodeHtmlEntities(str: string): string {
 }
 
 export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdded }) => {
+  const { curationCategories } = useAllCategories();
   const [apiKey, setApiKey] = useState<string>('');
   const [tempKeyInput, setTempKeyInput] = useState<string>('');
   const [isEditingKey, setIsEditingKey] = useState<boolean>(false);
@@ -48,6 +50,9 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
 
   // State to track added channels by sourceId: maps sourceId -> db.channels id and assigned categories
   const [addedChannels, setAddedChannels] = useState<Record<string, { dbId: number; category: string[] }>>({});
+  const [syncStatusMap, setSyncStatusMap] = useState<
+    Record<string, { loading: boolean; message?: string; error?: string }>
+  >({});
 
   // Load API key & pre-existing channels on mount
   useEffect(() => {
@@ -203,6 +208,30 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
       }));
 
       onChannelAdded?.();
+
+      // Immediately sync videos into feedCache via worker RSS proxy
+      setSyncStatusMap((prev) => ({
+        ...prev,
+        [item.sourceId]: { loading: true, message: 'جاري جلب الفيديوهات...' },
+      }));
+
+      const rssRes = await syncSingleChannelRss(item.sourceType, item.sourceId, item.title);
+
+      if (rssRes.success) {
+        setSyncStatusMap((prev) => ({
+          ...prev,
+          [item.sourceId]: { loading: false, message: `تم — ${rssRes.count} فيديو جاهز` },
+        }));
+        onChannelAdded?.();
+      } else {
+        setSyncStatusMap((prev) => ({
+          ...prev,
+          [item.sourceId]: {
+            loading: false,
+            error: rssRes.error || 'تعذر جلب الفيديوهات عبر RSS',
+          },
+        }));
+      }
     } catch (err) {
       console.error('Failed to add channel to DB:', err);
       setErrorMessage('فشل إضافة القناة إلى قاعدة البيانات المحلية');
@@ -423,6 +452,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
             {results.map((item) => {
               const channelInfo = addedChannels[item.sourceId];
               const isAdded = !!channelInfo;
+              const syncStatus = syncStatusMap[item.sourceId];
 
               return (
                 <div
@@ -480,6 +510,30 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                           </span>
                         )}
                       </div>
+
+                      {/* RSS Sync Status Feedback */}
+                      {isAdded && syncStatus && (
+                        <div className="pt-1.5 text-xs">
+                          {syncStatus.loading && (
+                            <div className="flex items-center gap-1.5 text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 animate-pulse">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                              <span>جاري جلب الفيديوهات...</span>
+                            </div>
+                          )}
+                          {syncStatus.message && !syncStatus.loading && (
+                            <div className="flex items-center gap-1.5 text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 font-medium">
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>{syncStatus.message}</span>
+                            </div>
+                          )}
+                          {syncStatus.error && !syncStatus.loading && (
+                            <div className="flex items-center gap-1.5 text-rose-800 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                              <span>{syncStatus.error}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -490,7 +544,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                         اختر التصنيفات المناسبة لهذا المحتوى:
                       </span>
                       <div className="flex flex-wrap gap-1.5">
-                        {CURATION_CATEGORIES.map((cat) => {
+                        {curationCategories.map((cat) => {
                           const isCatSelected = channelInfo.category.includes(cat.id);
                           return (
                             <button
