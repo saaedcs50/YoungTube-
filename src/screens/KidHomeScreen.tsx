@@ -29,6 +29,7 @@ import {
 
 interface KidHomeScreenProps {
   onOpenParentDashboard: () => void;
+  onOpenDemoPlayer?: () => void;
   refreshTrigger?: number;
   suppressedVideoIds?: string[];
 }
@@ -162,6 +163,7 @@ async function loadBoundedFeed(
 
 export default function KidHomeScreen({
   onOpenParentDashboard,
+  onOpenDemoPlayer,
   refreshTrigger = 0,
   suppressedVideoIds = [],
 }: KidHomeScreenProps) {
@@ -500,6 +502,19 @@ export default function KidHomeScreen({
 
           {/* Unobtrusive Parent Zone Trigger (Small, in the corner) */}
           <div className="flex items-center gap-2">
+            {onOpenDemoPlayer && (
+              <button
+                id="kid-header-demo-player-btn"
+                type="button"
+                onClick={onOpenDemoPlayer}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-900 hover:bg-black text-white text-xs font-bold transition shadow-xs active:scale-95 cursor-pointer"
+                title="تجربة المشغل (Player Shell)"
+              >
+                <Play className="w-3.5 h-3.5 fill-current text-amber-400" />
+                <span>تجربة المشغل</span>
+              </button>
+            )}
+
             <button
               id="parent-dashboard-lock-btn"
               type="button"
@@ -659,7 +674,8 @@ export default function KidHomeScreen({
                 <div
                   key={video.videoId}
                   id={`video-card-${video.videoId}`}
-                  className="group bg-white rounded-3xl overflow-hidden border border-stone-200/80 hover:border-amber-300/80 hover:shadow-md transition-all duration-200 flex flex-col text-right"
+                  onClick={onOpenDemoPlayer}
+                  className="group bg-white rounded-3xl overflow-hidden border border-stone-200/80 hover:border-amber-300/80 hover:shadow-md transition-all duration-200 flex flex-col text-right cursor-pointer"
                 >
                   {/* Thumbnail with 16:9 ratio and play badge */}
                   <div className="relative aspect-video w-full bg-stone-100 overflow-hidden">

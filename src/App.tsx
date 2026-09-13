@@ -15,6 +15,7 @@ import SessionEndScreen from './components/SessionEndScreen';
 import TimerTestCard from './components/TimerTestCard';
 import AdBlockNotice from './components/AdBlockNotice';
 import KidHomeScreen from './screens/KidHomeScreen';
+import { PlayerView } from './screens/PlayerView';
 import { ChildProfileSection } from './components/ChildProfileSection';
 import { TasteShiftCard } from './components/TasteShiftCard';
 import { ChannelCurationByCategory } from './components/ChannelCurationByCategory';
@@ -111,6 +112,7 @@ export default function App() {
   // Default is 'kids' (real kid-facing interface)
   const [viewMode, setViewMode] = useState<'kids' | 'dashboard' | 'dev'>(isDevModeParam ? 'dev' : 'kids');
   const [showAdBlockModal, setShowAdBlockModal] = useState(false);
+  const [showDemoPlayer, setShowDemoPlayer] = useState(false);
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
 
   // Phase 8: Session Timer
@@ -408,6 +410,11 @@ export default function App() {
         />
       )}
 
+      {/* Demo Player Overlay */}
+      {showDemoPlayer && (
+        <PlayerView onClose={() => setShowDemoPlayer(false)} />
+      )}
+
       {/* Background archive sync lives in ensureChannelsArchiveSynced (kids + dashboard).
           Do not mount hidden ChannelsCountCard/FilteringResultCard here — they put the
           full Worker payload into React state and double-fetch in some modes. */}
@@ -425,13 +432,23 @@ export default function App() {
           {/* VIEW 0: REAL KID-FACING UI (Default View) */}
           <KidHomeScreen
             onOpenParentDashboard={handleOpenDashboard}
+            onOpenDemoPlayer={() => setShowDemoPlayer(true)}
             refreshTrigger={channelsRefreshTrigger}
             suppressedVideoIds={suppressedVideoIds}
           />
 
           {/* If ?dev=1 was present in URL, provide quick dev switch floating badge */}
           {isDevModeParam && (
-            <div className="fixed bottom-3 left-3 z-30">
+            <div className="fixed bottom-3 left-3 z-30 flex items-center gap-2">
+              <button
+                type="button"
+                id="floating-open-demo-player-btn"
+                onClick={() => setShowDemoPlayer(true)}
+                className="px-3 py-1.5 rounded-full bg-indigo-900/90 hover:bg-indigo-900 text-indigo-200 text-xs font-medium shadow-md backdrop-blur-xs transition cursor-pointer"
+                title="شاشة المشغل التجريبية"
+              >
+                ▶ شاشة المشغل التجريبية
+              </button>
               <button
                 type="button"
                 onClick={() => setViewMode('dev')}
@@ -541,6 +558,14 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    id="dashboard-open-demo-player-btn"
+                    type="button"
+                    onClick={() => setShowDemoPlayer(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1 transition shadow-xs cursor-pointer"
+                  >
+                    ▶ تجربة المشغل
+                  </button>
                   <button
                     onClick={() => setViewMode('kids')}
                     className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition cursor-pointer"
@@ -900,14 +925,24 @@ export default function App() {
                 </div>
               </div>
 
-              <button
-                id="back-to-kids-btn"
-                type="button"
-                onClick={() => setViewMode('kids')}
-                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
-              >
-                العودة لواجهة الأطفال الرئيسية ✨
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  id="open-demo-player-banner-btn"
+                  type="button"
+                  onClick={() => setShowDemoPlayer(true)}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  ▶ افتح شاشة المشغل التجريبية
+                </button>
+                <button
+                  id="back-to-kids-btn"
+                  type="button"
+                  onClick={() => setViewMode('kids')}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  العودة لواجهة الأطفال الرئيسية ✨
+                </button>
+              </div>
             </div>
 
             {/* Parent Onboarding & Settings Banner */}
