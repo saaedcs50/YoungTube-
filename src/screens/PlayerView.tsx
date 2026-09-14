@@ -20,6 +20,58 @@ import {
   X,
 } from 'lucide-react';
 import { LandscapeShell } from './LandscapeShell';
+import { PlayerSeekBar } from '../components/PlayerSeekBar';
+import { recordChildReaction } from '../tasteShiftStorage';
+import db from '../db';
+
+export interface QueuedVideo {
+  videoId: string;
+  title: string;
+  channelTitle: string;
+}
+
+const DEFAULT_PLAYLIST: QueuedVideo[] = [
+  {
+    videoId: 's6X_Q54_PBs',
+    title: 'Alphablocks - مغامرة الحروف والكلمات الإنجليزية',
+    channelTitle: 'Alphablocks',
+  },
+  {
+    videoId: 'u7e33WnUf0A',
+    title: 'Numberblocks - أصدقاء الأرقام وتعلم الحساب للأطفال',
+    channelTitle: 'Numberblocks',
+  },
+  {
+    videoId: 'x1rB6E1oTss',
+    title: 'Art for Kids Hub - تعلم رسم وتلوين الحيوانات بالريشة',
+    channelTitle: 'Art for Kids Hub',
+  },
+  {
+    videoId: 'w_gWvL8fN8g',
+    title: 'Arabian Fairy Tales - حكاية الشجرة الحكيمة والطيور الملونة',
+    channelTitle: 'Arabian Fairy Tales',
+  },
+  {
+    videoId: 'X_1g1z1b0a8',
+    title: 'Puffin Rock - حكايات الطبيعة الهادئة والمغامرات الودية',
+    channelTitle: 'Puffin Rock',
+  },
+  {
+    videoId: '02E1468SdHg',
+    title: 'Cosmic Kids Yoga - مغامرة الحركة واليوغا والنشاط الصحي',
+    channelTitle: 'Cosmic Kids Yoga',
+  },
+  {
+    videoId: 'UeF09e7hDbg',
+    title: '5-Minute Crafts PLAY - أفكار أشغال يدوية وابتكارات بالورق',
+    channelTitle: '5-Minute Crafts PLAY',
+  },
+  {
+    videoId: 'tbCjkPlsaes',
+    title: 'AllAttack - مهارات وتحديات رياضية ممتعة للأبطال',
+    channelTitle: 'AllAttack',
+  },
+];
 
 interface PlayerViewProps {
   videoId: string;
@@ -131,12 +183,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   // Track if user manually exited fullscreen while device is physically landscape
   const [manuallyExitedInLandscape, setManuallyExitedInLandscape] = useState(false);
 
-  const isFullscreenActiveRef = useRef(isFullscreenActive);
-  isFullscreenActiveRef.current = isFullscreenActive;
-
-  const isDeviceLandscapeRef = useRef(isDeviceLandscape);
-  isDeviceLandscapeRef.current = isDeviceLandscape;
-
   // Reconciled effective fullscreen state:
   // - propIsFullscreen if controlled from App
   // - isFullscreenActive from document.fullscreenElement
@@ -146,8 +192,192 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     isFullscreenActive ||
     (isDeviceLandscape && !manuallyExitedInLandscape);
 
+  const isFullscreenActiveRef = useRef(isFullscreen);
+  isFullscreenActiveRef.current = isFullscreen;
+
+  const isDeviceLandscapeRef = useRef(isDeviceLandscape);
+  isDeviceLandscapeRef.current = isDeviceLandscape;
+
+  const [showLandscapeControls, setShowLandscapeControls] = useState(true);
+
+  useEffect(() => {
+    if (isFullscreen) {
+      setShowLandscapeControls(true);
+    }
+  }, [isFullscreen]);
+
   const [isPlaying, setIsPlaying] = useState(true);
   const [isLooping, setIsLooping] = useState(false);
+
+  // Video Queue & Current Video State
+  const [currentVideo, setCurrentVideo] = useState<QueuedVideo>({
+    videoId,
+    title: videoTitle || 'فيديو أطفال ممتع',
+    channelTitle: channelTitle || 'قناة أطفال موثوقة',
+  });
+
+  useEffect(() => {
+    setCurrentVideo({
+      videoId,
+      title: videoTitle || 'فيديو أطفال ممتع',
+      channelTitle: channelTitle || 'قناة أطفال موثوقة',
+    });
+  }, [videoId, videoTitle, channelTitle]);
+
+  const [playlist, setPlaylist] = useState<QueuedVideo[]>(() => {
+    const list = [...DEFAULT_PLAYLIST];
+    if (!list.some((v) => v.videoId === videoId)) {
+      list.unshift({
+        videoId,
+        title: videoTitle || 'فيديو أطفال ممتع',
+        channelTitle: channelTitle || 'قناة أطفال موثوقة',
+      });
+    }
+    return list;
+  });
+
+  // Merge with cached feed if present in Dexie
+  useEffect(() => {
+    async function loadFeedQueue() {
+      try {
+        const feedItems = await db.feedCache.toArray();
+        if (feedItems && feedItems.length > 0) {
+          const mapped: QueuedVideo[] = feedItems.map((f) => ({
+            videoId: f.videoId,
+            title: f.title,
+            channelTitle: 'قناة أطفال موثوقة',
+          }));
+          const seen = new Set<string>();
+          const merged: QueuedVideo[] = [];
+          for (const item of [
+            {
+              videoId,
+              title: videoTitle || 'فيديو أطفال ممتع',
+              channelTitle: channelTitle || 'قناة أطفال موثوقة',
+            },
+            ...DEFAULT_PLAYLIST,
+            ...mapped,
+          ]) {
+            if (!seen.has(item.videoId)) {
+              seen.add(item.videoId);
+              merged.push(item);
+            }
+          }
+          setPlaylist(merged);
+        }
+      } catch (err) {
+        console.warn('Failed to load feed queue:', err);
+      }
+    }
+    loadFeedQueue();
+  }, [videoId, videoTitle, channelTitle]);
+
+  // Current Time & Duration tracking
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (playerRef.current) {
+        try {
+          const cur = playerRef.current.getCurrentTime?.() || 0;
+          const dur = playerRef.current.getDuration?.() || 0;
+          setCurrentTime(cur);
+          if (dur > 0) {
+            setDuration(dur);
+          }
+        } catch {}
+      }
+    }, 350);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleSeek = useCallback((targetSeconds: number) => {
+    if (!playerRef.current) return;
+    try {
+      if (typeof playerRef.current.seekTo === 'function') {
+        playerRef.current.seekTo(targetSeconds, true);
+      }
+      setCurrentTime(targetSeconds);
+    } catch (err) {
+      console.warn('Seek failed:', err);
+    }
+  }, []);
+
+  // Video switching via loadVideoById (no black flash, same instance)
+  const handlePlayQueuedVideo = useCallback((item: QueuedVideo) => {
+    setCurrentVideo(item);
+    setCurrentTime(0);
+    try {
+      playerRef.current?.loadVideoById?.(item.videoId);
+      setIsPlaying(true);
+    } catch (err) {
+      console.warn('loadVideoById failed:', err);
+    }
+  }, []);
+
+  const handlePrev = useCallback(() => {
+    if (playlist.length === 0) return;
+    const curIdx = playlist.findIndex((v) => v.videoId === currentVideo.videoId);
+    const prevIdx = curIdx > 0 ? curIdx - 1 : playlist.length - 1;
+    const prevItem = playlist[prevIdx];
+    if (prevItem) {
+      handlePlayQueuedVideo(prevItem);
+    }
+  }, [playlist, currentVideo.videoId, handlePlayQueuedVideo]);
+
+  const handleNext = useCallback(() => {
+    if (playlist.length === 0) return;
+    const curIdx = playlist.findIndex((v) => v.videoId === currentVideo.videoId);
+    const nextIdx = curIdx >= 0 ? (curIdx + 1) % playlist.length : 0;
+    const nextItem = playlist[nextIdx];
+    if (nextItem) {
+      handlePlayQueuedVideo(nextItem);
+    }
+  }, [playlist, currentVideo.videoId, handlePlayQueuedVideo]);
+
+  // Love / Favorite state (persisted via Dexie interactions & taste shift)
+  const [isLoved, setIsLoved] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkLoved() {
+      try {
+        const interaction = await db.interactions.get(currentVideo.videoId);
+        if (isMounted) {
+          setIsLoved(interaction?.childReaction === 'liked');
+        }
+      } catch (err) {
+        console.warn('Failed to check interaction:', err);
+      }
+    }
+    checkLoved();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentVideo.videoId]);
+
+  const handleToggleLove = useCallback(async () => {
+    const nextLoved = !isLoved;
+    setIsLoved(nextLoved);
+
+    try {
+      await recordChildReaction({
+        categoryId: 'general',
+        videoId: currentVideo.videoId,
+        channelId: currentVideo.channelTitle,
+        title: currentVideo.title,
+        reaction: nextLoved ? 'liked' : 'disliked',
+      });
+      if (!nextLoved) {
+        await db.interactions.update(currentVideo.videoId, {
+          childReaction: undefined,
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to record love reaction:', err);
+    }
+  }, [isLoved, currentVideo]);
 
   const effectiveForceStop = forceStop || testForceStop;
 
@@ -553,18 +783,27 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         lastTapRef.current = null;
 
         if (deltaY < -80) {
-          // Gesture 1: Swipe UP on video area -> Fullscreen (reuse exact existing function)
-          handleEnterFullscreen();
+          // Gesture 1: Swipe UP on video area -> Fullscreen (when in Portrait)
+          if (!isFullscreenActiveRef.current) {
+            handleEnterFullscreen();
+          }
           return;
         } else if (deltaY > 80) {
-          // Gesture 2: Swipe DOWN in Portrait -> pause and enter floating mini-player
-          try {
-            playerRef.current?.pauseVideo?.();
-          } catch (err) {
-            console.warn('pauseVideo on swipe-down failed:', err);
+          // Gesture 2: Swipe DOWN
+          // Branch on current mode (Landscape vs Portrait)
+          if (isFullscreenActiveRef.current) {
+            // Landscape/Fullscreen mode: swipe-down returns to Portrait player while continuing playback uninterrupted
+            handleExitFullscreen();
+          } else {
+            // Portrait mode: swipe-down pauses playback and enters floating mini-player
+            try {
+              playerRef.current?.pauseVideo?.();
+            } catch (err) {
+              console.warn('pauseVideo on swipe-down failed:', err);
+            }
+            setIsPlaying(false);
+            handleEnterMinimized();
           }
-          setIsPlaying(false);
-          handleEnterMinimized();
           return;
         }
       }
@@ -608,7 +847,11 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           handleSeekBy(-10);
         } else {
           // Middle third double-tap -> toggle controls
-          setShowPortraitControls((prev) => !prev);
+          if (isFullscreenActiveRef.current) {
+            setShowLandscapeControls((prev) => !prev);
+          } else {
+            setShowPortraitControls((prev) => !prev);
+          }
         }
       } else {
         // Potential single tap: record position and schedule single-tap action after 300ms window
@@ -620,13 +863,17 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
         singleTapTimerRef.current = setTimeout(() => {
           // Gesture 5: Single tap on video background -> toggle controls visibility
-          setShowPortraitControls((prev) => !prev);
+          if (isFullscreenActiveRef.current) {
+            setShowLandscapeControls((prev) => !prev);
+          } else {
+            setShowPortraitControls((prev) => !prev);
+          }
           lastTapRef.current = null;
           singleTapTimerRef.current = null;
         }, 300);
       }
     },
-    [handleEnterFullscreen, handleClose, handleSeekBy]
+    [handleEnterFullscreen, handleExitFullscreen, handleEnterMinimized, handleSeekBy]
   );
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -687,10 +934,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             {/* Title & Channel Info */}
             <div className="flex-1 min-w-0">
               <h2 className="font-bold text-sm sm:text-base text-stone-100 truncate">
-                {videoTitle || 'فيديو أطفال ممتع'}
+                {currentVideo.title}
               </h2>
               <p className="text-xs text-stone-400 truncate">
-                {channelTitle || 'قناة أطفال موثوقة'}
+                {currentVideo.channelTitle}
               </p>
             </div>
 
@@ -773,7 +1020,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         >
           {/* Exactly ONE YouTube Video Instance across entire lifetime */}
           <YouTube
-            videoId={videoId}
+            videoId={currentVideo.videoId}
             className="w-full h-full"
             iframeClassName="w-full h-full object-cover border-0 block"
             opts={{
@@ -817,9 +1064,24 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             <LandscapeShell
               isPlaying={isPlaying}
               isLooping={isLooping}
+              isLoved={isLoved}
+              currentTime={currentTime}
+              duration={duration}
+              videoTitle={currentVideo.title}
+              channelTitle={currentVideo.channelTitle}
               onTogglePlay={handleTogglePlay}
               onToggleLoop={handleToggleLoop}
+              onToggleLove={handleToggleLove}
+              onPrev={handlePrev}
+              onNext={handleNext}
+              onSeek={handleSeek}
               onExitFullscreen={handleExitFullscreen}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerCancel}
+              showOverlay={showLandscapeControls}
+              setShowOverlay={setShowLandscapeControls}
             />
           ) : isMinimized ? (
             /* Minimized Mini-Player Body Tap Target */
@@ -835,7 +1097,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               </div>
             </div>
           ) : (
-            /* Portrait Gesture Layer, Seek Indicators & Fullscreen Button */
+            /* Portrait Gesture Layer & Fullscreen Button */
             <>
               {/* Unified Pointer-Event Gesture Layer for Portrait Mode */}
               <div
@@ -847,29 +1109,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 className="absolute inset-0 z-10 bg-transparent cursor-pointer touch-none select-none"
                 aria-label="منطقة إيماءات مشغل الفيديو"
               />
-
-              {/* Seek Feedback Indicators */}
-              {seekFeedback && (
-                <div
-                  key={seekFeedback.key}
-                  className={`absolute top-0 bottom-0 z-20 flex items-center justify-center pointer-events-none transition-all duration-300 ${
-                    seekFeedback.direction === 'forward'
-                      ? 'right-0 w-1/3 bg-white/10 rounded-l-3xl backdrop-blur-[1px]'
-                      : 'left-0 w-1/3 bg-white/10 rounded-r-3xl backdrop-blur-[1px]'
-                  }`}
-                >
-                  <div className="flex flex-col items-center justify-center gap-1.5 text-white bg-black/60 px-4 py-2.5 rounded-2xl border border-white/10 shadow-lg animate-in fade-in zoom-in-95 duration-150">
-                    {seekFeedback.direction === 'forward' ? (
-                      <FastForward className="w-7 h-7 fill-white text-white" />
-                    ) : (
-                      <Rewind className="w-7 h-7 fill-white text-white" />
-                    )}
-                    <span className="text-xs font-bold font-mono tracking-wide">
-                      {seekFeedback.direction === 'forward' ? '+10s' : '-10s'}
-                    </span>
-                  </div>
-                </div>
-              )}
 
               {/* Portrait Fullscreen Button: visibility toggled by showPortraitControls */}
               <button
@@ -885,6 +1124,29 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 <Maximize2 className="w-5 h-5" />
               </button>
             </>
+          )}
+
+          {/* Seek Feedback Indicators (Active in both Portrait and Landscape) */}
+          {seekFeedback && (
+            <div
+              key={seekFeedback.key}
+              className={`absolute top-0 bottom-0 z-40 flex items-center justify-center pointer-events-none transition-all duration-300 ${
+                seekFeedback.direction === 'forward'
+                  ? 'right-0 w-1/3 bg-white/10 rounded-l-3xl backdrop-blur-[1px]'
+                  : 'left-0 w-1/3 bg-white/10 rounded-r-3xl backdrop-blur-[1px]'
+              }`}
+            >
+              <div className="flex flex-col items-center justify-center gap-1.5 text-white bg-black/60 px-4 py-2.5 rounded-2xl border border-white/10 shadow-lg animate-in fade-in zoom-in-95 duration-150">
+                {seekFeedback.direction === 'forward' ? (
+                  <FastForward className="w-7 h-7 fill-white text-white" />
+                ) : (
+                  <Rewind className="w-7 h-7 fill-white text-white" />
+                )}
+                <span className="text-xs font-bold font-mono tracking-wide">
+                  {seekFeedback.direction === 'forward' ? '+10s' : '-10s'}
+                </span>
+              </div>
+            </div>
           )}
 
           {/* Mini-Player Close "X" Button placed at top-right of mini rectangle */}
@@ -940,13 +1202,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       {!isFullscreen && !isMinimized && (
         <div className="flex-1 flex flex-col justify-between p-4 sm:p-6 bg-stone-950 min-h-0 overflow-y-auto overscroll-contain gap-4">
           {/* Row 1: Seek bar & Time display */}
-          <div className="flex items-center gap-3 w-full">
-            <div className="flex-1 h-2 bg-stone-800 rounded-full overflow-hidden relative cursor-pointer">
-              <div className="w-0 h-full bg-red-600 rounded-full" />
-            </div>
-            <span className="text-xs font-mono text-stone-400 whitespace-nowrap">
-              00:00 / 00:00
-            </span>
+          <div className="w-full">
+            <PlayerSeekBar
+              id="portrait-player-seek-bar"
+              currentTime={currentTime}
+              duration={duration}
+              onSeek={handleSeek}
+            />
           </div>
 
           {/* Controls Area: Two-tier hierarchy directly below the seek bar */}
@@ -962,9 +1224,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 id="player-control-prev"
                 className="w-12 h-12 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/90 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition active:scale-95 cursor-pointer shadow-sm"
                 aria-label="السابق"
-                onClick={() => {
-                  /* TODO: Previous */
-                }}
+                onClick={handlePrev}
               >
                 <SkipBack className="w-7 h-7 sm:w-8 sm:h-8" />
               </button>
@@ -990,9 +1250,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 id="player-control-next"
                 className="w-12 h-12 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/90 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition active:scale-95 cursor-pointer shadow-sm"
                 aria-label="التالي"
-                onClick={() => {
-                  /* TODO: Next */
-                }}
+                onClick={handleNext}
               >
                 <SkipForward className="w-7 h-7 sm:w-8 sm:h-8" />
               </button>
@@ -1034,14 +1292,20 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <button
                 type="button"
                 id="player-control-love"
-                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/60 hover:bg-rose-950/40 hover:text-rose-400 flex items-center justify-center text-stone-400 transition cursor-pointer"
-                aria-label="إعجاب / مفضلة"
-                title="إعجاب / مفضلة"
-                onClick={() => {
-                  /* TODO: Love action */
-                }}
+                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
+                  isLoved
+                    ? 'bg-rose-500/25 text-rose-400 border border-rose-500/50 ring-2 ring-rose-500/30'
+                    : 'bg-stone-900/60 hover:bg-rose-950/40 hover:text-rose-400 text-stone-400'
+                }`}
+                aria-label={isLoved ? 'إلغاء الإعجاب' : 'إعجاب / مفضلة'}
+                title={isLoved ? 'إلغاء الإعجاب' : 'إعجاب / مفضلة'}
+                onClick={handleToggleLove}
               >
-                <Heart className="w-5 h-5" />
+                <Heart
+                  className={`w-5 h-5 ${
+                    isLoved ? 'fill-rose-500 text-rose-500' : 'text-stone-400'
+                  }`}
+                />
               </button>
 
               {/* Autoplay Toggle */}
@@ -1064,17 +1328,32 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           <div className="space-y-2">
             <div className="text-xs font-bold text-stone-300">التالي</div>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain touch-pan-x">
-              {[1, 2, 3, 4, 5].map((item) => (
-                <div
-                  key={item}
-                  className="shrink-0 w-32 h-20 sm:w-36 sm:h-22 bg-stone-900 rounded-lg border border-stone-800 flex flex-col items-center justify-center gap-1 text-stone-600 select-none"
-                >
-                  <div className="w-6 h-6 rounded-full bg-stone-800 flex items-center justify-center text-stone-500 text-xs">
-                    {item}
-                  </div>
-                  <span className="text-[10px] text-stone-500">معاينة فيديو</span>
-                </div>
-              ))}
+              {playlist
+                .filter((item) => item.videoId !== currentVideo.videoId)
+                .map((item) => (
+                  <button
+                    key={item.videoId}
+                    type="button"
+                    onClick={() => handlePlayQueuedVideo(item)}
+                    className="shrink-0 w-36 sm:w-44 bg-stone-900 hover:bg-stone-800 rounded-xl border border-stone-800 p-2 flex flex-col gap-1.5 text-right cursor-pointer transition active:scale-95 group focus:outline-none focus:ring-1 focus:ring-stone-600"
+                  >
+                    <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-stone-950">
+                      <img
+                        src={`https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`}
+                        alt={item.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-stone-200 line-clamp-1 group-hover:text-white">
+                      {item.title}
+                    </span>
+                    <span className="text-[10px] text-stone-400 truncate">
+                      {item.channelTitle}
+                    </span>
+                  </button>
+                ))}
             </div>
           </div>
         </div>
