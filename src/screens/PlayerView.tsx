@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { LandscapeShell } from './LandscapeShell';
 import { PlayerSeekBar } from '../components/PlayerSeekBar';
+import { PlayerSettingsSheet } from '../components/PlayerSettingsSheet';
 import { recordChildReaction } from '../tasteShiftStorage';
 import db from '../db';
 
@@ -380,6 +381,46 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [isLoved, currentVideo]);
 
   const effectiveForceStop = forceStop || testForceStop;
+
+  // Settings Bottom Sheet State & History Stack Integration
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const isSettingsOpenRef = useRef(false);
+  isSettingsOpenRef.current = isSettingsOpen;
+
+  const handleOpenSettings = useCallback(() => {
+    if (typeof window !== 'undefined' && !window.history.state?.sheetOpen) {
+      window.history.pushState({ ...window.history.state, ytPlayer: true, sheetOpen: true }, '');
+    }
+    setIsSettingsOpen(true);
+  }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.state?.sheetOpen) {
+      window.history.back();
+    } else {
+      setIsSettingsOpen(false);
+    }
+  }, []);
+
+  // Hardware Back button dismisses the settings sheet
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (isSettingsOpenRef.current && !e.state?.sheetOpen) {
+        setIsSettingsOpen(false);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  // Close sheet if video enters fullscreen, is minimized, or receives forceStop
+  useEffect(() => {
+    if ((isFullscreen || isMinimized || effectiveForceStop) && isSettingsOpen) {
+      setIsSettingsOpen(false);
+    }
+  }, [isFullscreen, isMinimized, effectiveForceStop, isSettingsOpen]);
 
   const handleTogglePlay = useCallback(() => {
     if (!playerRef.current) return;
@@ -1262,12 +1303,14 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <button
                 type="button"
                 id="player-control-settings"
-                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/60 hover:bg-stone-800/80 hover:text-stone-200 flex items-center justify-center text-stone-400 transition cursor-pointer"
+                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
+                  isSettingsOpen
+                    ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 ring-2 ring-amber-400/20'
+                    : 'bg-stone-900/60 hover:bg-stone-800/80 hover:text-stone-200 text-stone-400'
+                }`}
                 aria-label="الإعدادات (السرعة، الجودة، الترجمة)"
                 title="الإعدادات (السرعة، الجودة، الترجمة)"
-                onClick={() => {
-                  /* TODO: Settings sheet (Quality, Captions, Speed) */
-                }}
+                onClick={handleOpenSettings}
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -1357,6 +1400,15 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Portrait Playback Settings Bottom Sheet */}
+      {!isFullscreen && !isMinimized && (
+        <PlayerSettingsSheet
+          isOpen={isSettingsOpen}
+          onClose={handleCloseSettings}
+          player={playerRef.current}
+        />
       )}
     </div>
   );
