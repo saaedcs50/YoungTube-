@@ -50,9 +50,9 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
   return (
     <div
       id="youngtube-landscape-shell"
-      className="absolute inset-0 z-30 w-full h-full bg-black flex items-center justify-center overflow-hidden select-none pointer-events-auto"
+      className="absolute inset-0 z-30 w-full h-full bg-transparent flex items-center justify-center overflow-hidden select-none pointer-events-auto"
     >
-      {/* If children (video rectangle) is passed inside, render it */}
+      {/* Overlay only — video lives under this shell. Opaque bg would hide the iframe. */}
       {children}
 
       {/* Transparent Click-Shield Layer: anti-leak protection + tap to toggle overlay */}
