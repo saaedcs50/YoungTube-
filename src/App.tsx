@@ -121,28 +121,38 @@ export default function App() {
   const [devForceStop, setDevForceStop] = useState(false);
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
 
-  // Fix 2: Player fullscreen state tracked in App.tsx
+  // Fix 2: Player fullscreen and mini-player states tracked in App.tsx
   const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
   const isPlayerFullscreenRef = useRef(false);
+
+  const [isPlayerMinimized, setIsPlayerMinimized] = useState(false);
+  const isPlayerMinimizedRef = useRef(false);
 
   const updatePlayerFullscreen = useCallback((val: boolean) => {
     setIsPlayerFullscreen(val);
     isPlayerFullscreenRef.current = val;
   }, []);
 
+  const updatePlayerMinimized = useCallback((val: boolean) => {
+    setIsPlayerMinimized(val);
+    isPlayerMinimizedRef.current = val;
+  }, []);
+
   const handleOpenDemoPlayer = useCallback(() => {
+    updatePlayerMinimized(false);
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
     }
     setShowDemoPlayer(true);
-  }, []);
+  }, [updatePlayerMinimized]);
 
   const handleSelectVideo = useCallback((videoId: string, title?: string, channelName?: string) => {
+    updatePlayerMinimized(false);
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
     }
     setActivePlaybackVideo({ videoId, title, channelName });
-  }, []);
+  }, [updatePlayerMinimized]);
 
   const handlePlayerEnterFullscreen = useCallback(() => {
     if (typeof window !== 'undefined' && !window.history.state?.fullscreen) {
@@ -154,6 +164,17 @@ export default function App() {
   const handlePlayerExitFullscreen = useCallback(() => {
     updatePlayerFullscreen(false);
   }, [updatePlayerFullscreen]);
+
+  const handlePlayerEnterMinimized = useCallback(() => {
+    if (typeof window !== 'undefined' && !window.history.state?.minimized) {
+      window.history.pushState({ ytPlayer: true, fullscreen: false, minimized: true }, '');
+    }
+    updatePlayerMinimized(true);
+  }, [updatePlayerMinimized]);
+
+  const handlePlayerExitMinimized = useCallback(() => {
+    updatePlayerMinimized(false);
+  }, [updatePlayerMinimized]);
 
   // Fix 2: Ensure Level 1 history entry exists when PlayerView opens
   useEffect(() => {
@@ -169,6 +190,16 @@ export default function App() {
   // Fix 2: Single popstate listener (only one place in the whole app)
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
+      // 1. Hardware Back while minimized: expand back to full Portrait!
+      const wasMinimized = isPlayerMinimizedRef.current;
+      const isMiniExpand = wasMinimized && Boolean(e.state?.ytPlayer && !e.state?.minimized);
+
+      if (isMiniExpand) {
+        updatePlayerMinimized(false);
+        return;
+      }
+
+      // 2. Hardware Back while fullscreen: exit fullscreen only
       const wasFullscreen = isPlayerFullscreenRef.current;
       const isFullscreenExit =
         (e.state?.ytPlayer && e.state?.fullscreen) ||
@@ -194,12 +225,12 @@ export default function App() {
         return;
       }
 
-      // If state has ytPlayer: true and fullscreen: false (or state is entirely absent)
-      // -> this pop means "close the player entirely": clear playingVideoId, return to KidHomeScreen.
-      if (!e.state?.ytPlayer || !e.state?.fullscreen) {
+      // 3. Otherwise, pop means "close the player entirely": clear playingVideoId, return to KidHomeScreen.
+      if (!e.state?.ytPlayer) {
         setActivePlaybackVideo(null);
         setShowDemoPlayer(false);
         updatePlayerFullscreen(false);
+        updatePlayerMinimized(false);
       }
     };
 
@@ -207,7 +238,7 @@ export default function App() {
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [updatePlayerFullscreen]);
+  }, [updatePlayerFullscreen, updatePlayerMinimized]);
 
   // Phase 8: Session Timer
   const sessionTimer = useSessionTimer(viewMode === 'kids');
@@ -474,6 +505,20 @@ export default function App() {
   // Phase 8: Session end determination (limit reached or outside schedule window)
   const isSessionEnded = sessionTimer.isLimitReached || !sessionTimer.isWithinScheduleWindow;
 
+  // Session safety: if session ends while player (or mini-player) is open, ensure it fully closes
+  useEffect(() => {
+    if (isSessionEnded) {
+      if (isPlayerMinimizedRef.current) {
+        updatePlayerMinimized(false);
+      }
+      if (isPlayerFullscreenRef.current) {
+        updatePlayerFullscreen(false);
+      }
+      setActivePlaybackVideo(null);
+      setShowDemoPlayer(false);
+    }
+  }, [isSessionEnded, updatePlayerMinimized, updatePlayerFullscreen]);
+
   return (
     <div className={`min-h-screen font-sans ${viewMode === 'kids' ? 'bg-[#FAF8F5]' : 'bg-slate-50 text-slate-800 flex flex-col justify-between p-4 sm:p-8'}`}>
       {/* Onboarding Modal */}
@@ -511,12 +556,16 @@ export default function App() {
           videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
           channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
           onClose={() => {
-            if (typeof window !== 'undefined' && window.history.state?.ytPlayer) {
-              window.history.back();
-            } else {
-              setActivePlaybackVideo(null);
-              setShowDemoPlayer(false);
-              updatePlayerFullscreen(false);
+            updatePlayerMinimized(false);
+            updatePlayerFullscreen(false);
+            setActivePlaybackVideo(null);
+            setShowDemoPlayer(false);
+            if (typeof window !== 'undefined') {
+              if (window.history.state?.minimized) {
+                window.history.go(-2);
+              } else if (window.history.state?.ytPlayer) {
+                window.history.back();
+              }
             }
           }}
           onEnded={() => {
@@ -526,6 +575,9 @@ export default function App() {
           isFullscreen={isPlayerFullscreen}
           onEnterFullscreen={handlePlayerEnterFullscreen}
           onExitFullscreen={handlePlayerExitFullscreen}
+          isMinimized={isPlayerMinimized}
+          onEnterMinimized={handlePlayerEnterMinimized}
+          onExitMinimized={handlePlayerExitMinimized}
         />
       )}
 

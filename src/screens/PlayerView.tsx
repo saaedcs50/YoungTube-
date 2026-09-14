@@ -15,6 +15,9 @@ import {
   EyeOff,
   Ban,
   Bookmark,
+  FastForward,
+  Rewind,
+  X,
 } from 'lucide-react';
 import { LandscapeShell } from './LandscapeShell';
 
@@ -28,6 +31,9 @@ interface PlayerViewProps {
   isFullscreen?: boolean;
   onEnterFullscreen?: () => void;
   onExitFullscreen?: () => void;
+  isMinimized?: boolean;
+  onEnterMinimized?: () => void;
+  onExitMinimized?: () => void;
 }
 
 export const PlayerView: React.FC<PlayerViewProps> = ({
@@ -40,10 +46,73 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   isFullscreen: propIsFullscreen,
   onEnterFullscreen,
   onExitFullscreen,
+  isMinimized: propIsMinimized,
+  onEnterMinimized,
+  onExitMinimized,
 }) => {
   const playerRef = useRef<YouTubePlayer | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [testForceStop, setTestForceStop] = useState(false);
+
+  // Minimized state (floating mini-player in bottom-right corner)
+  const [isMinimizedLocal, setIsMinimizedLocal] = useState(false);
+  const isMinimized = (propIsMinimized ?? false) || isMinimizedLocal;
+  const isMinimizedRef = useRef(isMinimized);
+  isMinimizedRef.current = isMinimized;
+
+  // Expanding from minimized back to portrait
+  const performExpandFromMinimized = useCallback(() => {
+    setIsMinimizedLocal(false);
+    onExitMinimized?.();
+    try {
+      playerRef.current?.playVideo?.();
+      setIsPlaying(true);
+    } catch (err) {
+      console.warn('playVideo on expand failed:', err);
+    }
+  }, [onExitMinimized]);
+
+  const handleExpandFromMinimized = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.state?.minimized) {
+      window.history.back();
+    } else {
+      performExpandFromMinimized();
+    }
+  }, [performExpandFromMinimized]);
+
+  const handleEnterMinimized = useCallback(() => {
+    if (typeof window !== 'undefined' && !window.history.state?.minimized) {
+      window.history.pushState({ ytPlayer: true, fullscreen: false, minimized: true }, '');
+    }
+    setIsMinimizedLocal(true);
+    onEnterMinimized?.();
+  }, [onEnterMinimized]);
+
+  const handleMiniPlayerClose = useCallback(() => {
+    try {
+      playerRef.current?.stopVideo?.();
+    } catch (err) {
+      console.warn('stopVideo on mini-close failed:', err);
+    }
+    setIsPlaying(false);
+    setIsMinimizedLocal(false);
+    onExitMinimized?.();
+    onClose();
+  }, [onClose, onExitMinimized]);
+
+  // When isMinimized transitions from true -> false, auto-resume video
+  const prevMinimizedRef = useRef(isMinimized);
+  useEffect(() => {
+    if (prevMinimizedRef.current && !isMinimized) {
+      try {
+        playerRef.current?.playVideo?.();
+        setIsPlaying(true);
+      } catch (err) {
+        console.warn('playVideo on expand transition failed:', err);
+      }
+    }
+    prevMinimizedRef.current = isMinimized;
+  }, [isMinimized]);
 
   // Fix 1: Two independent facts
   const [isDeviceLandscape, setIsDeviceLandscape] = useState(() => {
@@ -212,9 +281,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
       if (isLandscapeNow) {
         // Fix 1, Point 3: whenever isDeviceLandscape becomes true while playback is active,
-        // if not already in fullscreen, AUTOMATICALLY call enterFullscreen
+        // if not already in fullscreen and NOT minimized, AUTOMATICALLY call enterFullscreen
         setManuallyExitedInLandscape(false);
-        if (!isFullscreenActiveRef.current) {
+        if (!isFullscreenActiveRef.current && !isMinimizedRef.current) {
           handleEnterFullscreen();
         }
       } else {
@@ -264,7 +333,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     };
   }, [handleEnterFullscreen, handleExitFullscreen]);
 
-  // Force stop video playback immediately when forceStop turns true, and exit fullscreen if active
+  // Force stop video playback immediately when forceStop turns true, and exit fullscreen/minimized if active
   useEffect(() => {
     if (effectiveForceStop) {
       if (playerRef.current) {
@@ -277,8 +346,11 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       if (isFullscreen) {
         handleExitFullscreen();
       }
+      if (isMinimized) {
+        handleMiniPlayerClose();
+      }
     }
-  }, [effectiveForceStop, isFullscreen, handleExitFullscreen]);
+  }, [effectiveForceStop, isFullscreen, isMinimized, handleExitFullscreen, handleMiniPlayerClose]);
 
   // Clean up playback and fullscreen on unmount
   useEffect(() => {
@@ -345,22 +417,261 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     }
   };
 
+  // ================= PORTRAIT GESTURE LAYER (Unified Pointer-Event State Machine) =================
+  const [showPortraitControls, setShowPortraitControls] = useState(true);
+  const [seekFeedback, setSeekFeedback] = useState<{
+    direction: 'forward' | 'backward';
+    key: number;
+  } | null>(null);
+  const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const activePointerRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startTime: number;
+    lastX: number;
+    lastY: number;
+    hasMovedPastThreshold: boolean;
+  } | null>(null);
+
+  const lastTapRef = useRef<{
+    x: number;
+    y: number;
+    time: number;
+  } | null>(null);
+
+  const singleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSeekBy = useCallback((deltaSeconds: number) => {
+    if (!playerRef.current) return;
+    try {
+      const currentTime =
+        typeof playerRef.current.getCurrentTime === 'function'
+          ? playerRef.current.getCurrentTime()
+          : 0;
+      const newTime = Math.max(0, currentTime + deltaSeconds);
+      if (typeof playerRef.current.seekTo === 'function') {
+        playerRef.current.seekTo(newTime, true);
+      }
+
+      if (seekFeedbackTimerRef.current) {
+        clearTimeout(seekFeedbackTimerRef.current);
+      }
+      setSeekFeedback({
+        direction: deltaSeconds > 0 ? 'forward' : 'backward',
+        key: Date.now(),
+      });
+      seekFeedbackTimerRef.current = setTimeout(() => {
+        setSeekFeedback(null);
+      }, 700);
+    } catch (err) {
+      console.warn('Seek failed:', err);
+    }
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // Only handle primary pointer (first finger touch or left mouse click)
+    if (!e.isPrimary) return;
+    if (e.target !== e.currentTarget) return;
+
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if pointer capture fails
+    }
+
+    activePointerRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startTime: Date.now(),
+      lastX: e.clientX,
+      lastY: e.clientY,
+      hasMovedPastThreshold: false,
+    };
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const session = activePointerRef.current;
+    if (!session || session.pointerId !== e.pointerId) return;
+
+    session.lastX = e.clientX;
+    session.lastY = e.clientY;
+
+    const dx = e.clientX - session.startX;
+    const dy = e.clientY - session.startY;
+    const dist = Math.hypot(dx, dy);
+
+    // Movement threshold ~10px before committing to swipe-tracking
+    if (!session.hasMovedPastThreshold && dist >= 10) {
+      session.hasMovedPastThreshold = true;
+      // Committed to swipe: cancel any pending single-tap and clear double-tap candidate
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = null;
+      }
+      lastTapRef.current = null;
+    }
+
+    if (session.hasMovedPastThreshold && e.cancelable) {
+      e.preventDefault();
+    }
+  }, []);
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const session = activePointerRef.current;
+      if (!session || session.pointerId !== e.pointerId) return;
+
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // Ignore
+      }
+
+      activePointerRef.current = null;
+
+      const endX = e.clientX;
+      const endY = e.clientY;
+      const deltaX = endX - session.startX;
+      const deltaY = endY - session.startY;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+
+      // CLASSIFY GESTURE ONLY AFTER COMPLETION (Unified Pointer State Machine)
+
+      // 1. Swipe classification: movement >= 10px, net vertical displacement magnitude >= 80px, vertical dominant
+      if (session.hasMovedPastThreshold && absY >= 80 && absY > absX) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        if (singleTapTimerRef.current) {
+          clearTimeout(singleTapTimerRef.current);
+          singleTapTimerRef.current = null;
+        }
+        lastTapRef.current = null;
+
+        if (deltaY < -80) {
+          // Gesture 1: Swipe UP on video area -> Fullscreen (reuse exact existing function)
+          handleEnterFullscreen();
+          return;
+        } else if (deltaY > 80) {
+          // Gesture 2: Swipe DOWN in Portrait -> pause and enter floating mini-player
+          try {
+            playerRef.current?.pauseVideo?.();
+          } catch (err) {
+            console.warn('pauseVideo on swipe-down failed:', err);
+          }
+          setIsPlaying(false);
+          handleEnterMinimized();
+          return;
+        }
+      }
+
+      // 2. Aborted / partial drag: moved > 10px but didn't reach 80px threshold -> discard (not a tap)
+      if (session.hasMovedPastThreshold) {
+        if (singleTapTimerRef.current) {
+          clearTimeout(singleTapTimerRef.current);
+          singleTapTimerRef.current = null;
+        }
+        lastTapRef.current = null;
+        return;
+      }
+
+      // 3. Clean Tap Sequence: movement was < 10px
+      const now = Date.now();
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const clickX = endX - rect.left;
+      const widthRatio = rect.width > 0 ? clickX / rect.width : 0.5;
+
+      const lastTap = lastTapRef.current;
+      const isDoubleTap =
+        lastTap !== null &&
+        now - lastTap.time <= 300 &&
+        Math.hypot(endX - lastTap.x, endY - lastTap.y) < 40;
+
+      if (isDoubleTap) {
+        // Double-tap detected: cancel pending single tap
+        if (singleTapTimerRef.current) {
+          clearTimeout(singleTapTimerRef.current);
+          singleTapTimerRef.current = null;
+        }
+        lastTapRef.current = null;
+
+        // Double-tap classification by horizontal region
+        if (widthRatio > 2 / 3) {
+          // Gesture 3: Double-tap right third -> seek forward 10s
+          handleSeekBy(10);
+        } else if (widthRatio < 1 / 3) {
+          // Gesture 4: Double-tap left third -> seek backward 10s
+          handleSeekBy(-10);
+        } else {
+          // Middle third double-tap -> toggle controls
+          setShowPortraitControls((prev) => !prev);
+        }
+      } else {
+        // Potential single tap: record position and schedule single-tap action after 300ms window
+        lastTapRef.current = { x: endX, y: endY, time: now };
+
+        if (singleTapTimerRef.current) {
+          clearTimeout(singleTapTimerRef.current);
+        }
+
+        singleTapTimerRef.current = setTimeout(() => {
+          // Gesture 5: Single tap on video background -> toggle controls visibility
+          setShowPortraitControls((prev) => !prev);
+          lastTapRef.current = null;
+          singleTapTimerRef.current = null;
+        }, 300);
+      }
+    },
+    [handleEnterFullscreen, handleClose, handleSeekBy]
+  );
+
+  const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePointerRef.current?.pointerId === e.pointerId) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+      activePointerRef.current = null;
+    }
+  }, []);
+
+  // Clean up gesture timers on unmount
+  useEffect(() => {
+    return () => {
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+      }
+      if (seekFeedbackTimerRef.current) {
+        clearTimeout(seekFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div
       id="youngtube-player-view"
       dir="rtl"
-      className="fixed inset-0 z-50 bg-stone-950 text-white flex flex-col h-screen w-screen overflow-hidden select-none"
+      className={
+        isMinimized
+          ? 'fixed inset-0 z-50 pointer-events-none bg-transparent select-none'
+          : 'fixed inset-0 z-50 bg-stone-950 text-white flex flex-col h-screen w-screen overflow-hidden select-none'
+      }
     >
       {/* ================= TOP HALF / VIDEO AREA ================= */}
       <div
         className={
           isFullscreen
             ? 'fixed inset-0 z-50 w-full h-full bg-black overflow-hidden'
+            : isMinimized
+            ? 'fixed bottom-5 right-5 z-50 pointer-events-auto w-[160px] h-[90px] sm:w-[200px] sm:h-[112px] rounded-2xl shadow-2xl shadow-black/90 ring-1 ring-white/20 bg-black flex items-center justify-center transition-all duration-300'
             : 'flex-1 flex flex-col min-h-0 bg-stone-900 border-b border-stone-800'
         }
       >
         {/* Top Quarter (~25% of top half): Meta & Parent Actions (Portrait only) */}
-        {!isFullscreen && (
+        {!isFullscreen && !isMinimized && (
           <div className="h-[25%] p-3 sm:p-4 bg-stone-900 flex items-center justify-between border-b border-stone-800/80 gap-3">
             {/* Back/Close button (top-left / start in RTL) */}
             <button
@@ -455,6 +766,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           className={
             isFullscreen
               ? 'w-full h-full relative bg-black flex items-center justify-center overflow-hidden'
+              : isMinimized
+              ? 'w-full h-full relative bg-black rounded-2xl overflow-hidden flex items-center justify-center'
               : 'h-[75%] relative bg-black w-full flex items-center justify-center overflow-hidden'
           }
         >
@@ -508,21 +821,63 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               onToggleLoop={handleToggleLoop}
               onExitFullscreen={handleExitFullscreen}
             />
+          ) : isMinimized ? (
+            /* Minimized Mini-Player Body Tap Target */
+            <div
+              id="mini-player-body-tap"
+              onClick={handleExpandFromMinimized}
+              className="absolute inset-0 z-20 cursor-pointer flex items-center justify-center bg-black/20 hover:bg-black/35 transition group rounded-2xl"
+              aria-label="تكبير واستئناف المشاهدة"
+              title="انقر لاستئناف المشاهدة وتكبير المشغل"
+            >
+              <div className="w-9 h-9 rounded-full bg-black/60 border border-white/20 text-white flex items-center justify-center opacity-85 group-hover:opacity-100 group-hover:scale-105 transition shadow-md pointer-events-none">
+                <Play className="w-4 h-4 fill-white text-white translate-x-0.5" />
+              </div>
+            </div>
           ) : (
-            /* Portrait Click-Shield & Fullscreen Button */
+            /* Portrait Gesture Layer, Seek Indicators & Fullscreen Button */
             <>
+              {/* Unified Pointer-Event Gesture Layer for Portrait Mode */}
               <div
-                id="player-click-shield"
-                onClick={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                }}
-                className="absolute inset-0 z-10 bg-transparent cursor-pointer"
+                id="player-portrait-gesture-layer"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
+                className="absolute inset-0 z-10 bg-transparent cursor-pointer touch-none select-none"
+                aria-label="منطقة إيماءات مشغل الفيديو"
               />
 
+              {/* Seek Feedback Indicators */}
+              {seekFeedback && (
+                <div
+                  key={seekFeedback.key}
+                  className={`absolute top-0 bottom-0 z-20 flex items-center justify-center pointer-events-none transition-all duration-300 ${
+                    seekFeedback.direction === 'forward'
+                      ? 'right-0 w-1/3 bg-white/10 rounded-l-3xl backdrop-blur-[1px]'
+                      : 'left-0 w-1/3 bg-white/10 rounded-r-3xl backdrop-blur-[1px]'
+                  }`}
+                >
+                  <div className="flex flex-col items-center justify-center gap-1.5 text-white bg-black/60 px-4 py-2.5 rounded-2xl border border-white/10 shadow-lg animate-in fade-in zoom-in-95 duration-150">
+                    {seekFeedback.direction === 'forward' ? (
+                      <FastForward className="w-7 h-7 fill-white text-white" />
+                    ) : (
+                      <Rewind className="w-7 h-7 fill-white text-white" />
+                    )}
+                    <span className="text-xs font-bold font-mono tracking-wide">
+                      {seekFeedback.direction === 'forward' ? '+10s' : '-10s'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Portrait Fullscreen Button: visibility toggled by showPortraitControls */}
               <button
                 type="button"
                 id="player-fullscreen-btn"
-                className="absolute top-3 right-3 z-20 p-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-stone-200 border border-stone-800 transition cursor-pointer"
+                className={`absolute top-3 right-3 z-20 p-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-stone-200 border border-stone-800 transition-opacity duration-200 cursor-pointer ${
+                  showPortraitControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
                 aria-label="ملء الشاشة"
                 onClick={handleEnterFullscreen}
                 title="عرض بملء الشاشة"
@@ -530,6 +885,23 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 <Maximize2 className="w-5 h-5" />
               </button>
             </>
+          )}
+
+          {/* Mini-Player Close "X" Button placed at top-right of mini rectangle */}
+          {isMinimized && (
+            <button
+              type="button"
+              id="mini-player-close-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMiniPlayerClose();
+              }}
+              className="absolute -top-2 -right-2 z-30 w-7 h-7 rounded-full bg-stone-900 border border-stone-600 hover:border-rose-400 text-stone-200 hover:text-white hover:bg-rose-600 shadow-lg flex items-center justify-center cursor-pointer transition"
+              aria-label="إغلاق المشغل المصغر"
+              title="إغلاق الفيديو"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           )}
 
           {/* ForceStop Visual Banner */}
@@ -565,8 +937,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       </div>
 
       {/* ================= BOTTOM HALF (Portrait only) ================= */}
-      {!isFullscreen && (
-        <div className="flex-1 flex flex-col justify-between p-4 sm:p-6 bg-stone-950 min-h-0 overflow-y-auto gap-4">
+      {!isFullscreen && !isMinimized && (
+        <div className="flex-1 flex flex-col justify-between p-4 sm:p-6 bg-stone-950 min-h-0 overflow-y-auto overscroll-contain gap-4">
           {/* Row 1: Seek bar & Time display */}
           <div className="flex items-center gap-3 w-full">
             <div className="flex-1 h-2 bg-stone-800 rounded-full overflow-hidden relative cursor-pointer">
@@ -691,7 +1063,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           {/* Row 3: Up Next Strip */}
           <div className="space-y-2">
             <div className="text-xs font-bold text-stone-300">التالي</div>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain touch-pan-x">
               {[1, 2, 3, 4, 5].map((item) => (
                 <div
                   key={item}
