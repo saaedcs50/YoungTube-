@@ -113,6 +113,12 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'kids' | 'dashboard' | 'dev'>(isDevModeParam ? 'dev' : 'kids');
   const [showAdBlockModal, setShowAdBlockModal] = useState(false);
   const [showDemoPlayer, setShowDemoPlayer] = useState(false);
+  const [activePlaybackVideo, setActivePlaybackVideo] = useState<{
+    videoId: string;
+    title?: string;
+    channelName?: string;
+  } | null>(null);
+  const [devForceStop, setDevForceStop] = useState(false);
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
 
   // Phase 8: Session Timer
@@ -410,9 +416,21 @@ export default function App() {
         />
       )}
 
-      {/* Demo Player Overlay */}
-      {showDemoPlayer && (
-        <PlayerView onClose={() => setShowDemoPlayer(false)} />
+      {/* Real Video Player Overlay */}
+      {(activePlaybackVideo || showDemoPlayer) && (
+        <PlayerView
+          videoId={activePlaybackVideo?.videoId || 's6X_Q54_PBs'}
+          videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
+          channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
+          onClose={() => {
+            setActivePlaybackVideo(null);
+            setShowDemoPlayer(false);
+          }}
+          onEnded={() => {
+            console.log('Video finished playing cleanly');
+          }}
+          forceStop={isSessionEnded || devForceStop}
+        />
       )}
 
       {/* Background archive sync lives in ensureChannelsArchiveSynced (kids + dashboard).
@@ -433,6 +451,9 @@ export default function App() {
           <KidHomeScreen
             onOpenParentDashboard={handleOpenDashboard}
             onOpenDemoPlayer={() => setShowDemoPlayer(true)}
+            onSelectVideo={(videoId, title, channelName) => {
+              setActivePlaybackVideo({ videoId, title, channelName });
+            }}
             refreshTrigger={channelsRefreshTrigger}
             suppressedVideoIds={suppressedVideoIds}
           />
@@ -448,6 +469,19 @@ export default function App() {
                 title="شاشة المشغل التجريبية"
               >
                 ▶ شاشة المشغل التجريبية
+              </button>
+              <button
+                type="button"
+                id="floating-force-stop-toggle-btn"
+                onClick={() => setDevForceStop((prev) => !prev)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium shadow-md backdrop-blur-xs transition cursor-pointer ${
+                  devForceStop
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-stone-900/90 hover:bg-stone-800 text-amber-300'
+                }`}
+                title="اختبار إشارة إيقاف المشغل forceStop"
+              >
+                {devForceStop ? '⛔ forceStop: مفعّل' : '🧪 اختبار forceStop'}
               </button>
               <button
                 type="button"

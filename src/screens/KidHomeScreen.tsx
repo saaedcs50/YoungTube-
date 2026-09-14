@@ -30,6 +30,7 @@ import {
 interface KidHomeScreenProps {
   onOpenParentDashboard: () => void;
   onOpenDemoPlayer?: () => void;
+  onSelectVideo?: (videoId: string, title?: string, channelName?: string) => void;
   refreshTrigger?: number;
   suppressedVideoIds?: string[];
 }
@@ -164,6 +165,7 @@ async function loadBoundedFeed(
 export default function KidHomeScreen({
   onOpenParentDashboard,
   onOpenDemoPlayer,
+  onSelectVideo,
   refreshTrigger = 0,
   suppressedVideoIds = [],
 }: KidHomeScreenProps) {
@@ -674,7 +676,13 @@ export default function KidHomeScreen({
                 <div
                   key={video.videoId}
                   id={`video-card-${video.videoId}`}
-                  onClick={onOpenDemoPlayer}
+                  onClick={() => {
+                    if (onSelectVideo) {
+                      onSelectVideo(video.videoId, video.title, channelInfo?.title);
+                    } else if (onOpenDemoPlayer) {
+                      onOpenDemoPlayer();
+                    }
+                  }}
                   className="group bg-white rounded-3xl overflow-hidden border border-stone-200/80 hover:border-amber-300/80 hover:shadow-md transition-all duration-200 flex flex-col text-right cursor-pointer"
                 >
                   {/* Thumbnail with 16:9 ratio and play badge */}
