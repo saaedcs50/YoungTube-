@@ -73,6 +73,7 @@ interface Interaction {
   videoDuration: number;
   completed: boolean;
   lastWatched: number;
+  savedByParent?: boolean;
 }
 
 interface DownloadItem {

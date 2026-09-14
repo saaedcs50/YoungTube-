@@ -22,6 +22,8 @@ import {
 import { LandscapeShell } from './LandscapeShell';
 import { PlayerSeekBar } from '../components/PlayerSeekBar';
 import { PlayerSettingsSheet } from '../components/PlayerSettingsSheet';
+import PinLockModal from '../components/PinLockModal';
+import channelsSeed from '../../channels_seed.json';
 import { recordChildReaction } from '../tasteShiftStorage';
 import db from '../db';
 
@@ -29,6 +31,7 @@ export interface QueuedVideo {
   videoId: string;
   title: string;
   channelTitle: string;
+  channelId?: string;
 }
 
 const DEFAULT_PLAYLIST: QueuedVideo[] = [
@@ -36,41 +39,49 @@ const DEFAULT_PLAYLIST: QueuedVideo[] = [
     videoId: 's6X_Q54_PBs',
     title: 'Alphablocks - مغامرة الحروف والكلمات الإنجليزية',
     channelTitle: 'Alphablocks',
+    channelId: 'UC_qs3c0ehDvZkbiEbOj6Drg',
   },
   {
     videoId: 'u7e33WnUf0A',
     title: 'Numberblocks - أصدقاء الأرقام وتعلم الحساب للأطفال',
     channelTitle: 'Numberblocks',
+    channelId: 'UCPlwvN0w4qFSP1FllALB92w',
   },
   {
     videoId: 'x1rB6E1oTss',
     title: 'Art for Kids Hub - تعلم رسم وتلوين الحيوانات بالريشة',
     channelTitle: 'Art for Kids Hub',
+    channelId: 'UC5XMF3Inoi8R9nSI8ChOsdQ',
   },
   {
     videoId: 'w_gWvL8fN8g',
     title: 'Arabian Fairy Tales - حكاية الشجرة الحكيمة والطيور الملونة',
     channelTitle: 'Arabian Fairy Tales',
+    channelId: 'UCW0Z4L2o9Z7h1X9j9K0w1_g',
   },
   {
     videoId: 'X_1g1z1b0a8',
     title: 'Puffin Rock - حكايات الطبيعة الهادئة والمغامرات الودية',
     channelTitle: 'Puffin Rock',
+    channelId: 'UCrNkh63_Lq3f76_X5q7m6gQ',
   },
   {
     videoId: '02E1468SdHg',
     title: 'Cosmic Kids Yoga - مغامرة الحركة واليوغا والنشاط الصحي',
     channelTitle: 'Cosmic Kids Yoga',
+    channelId: 'UC5uIZ2KOZZeQDQo_Gsi_qbQ',
   },
   {
     videoId: 'UeF09e7hDbg',
     title: '5-Minute Crafts PLAY - أفكار أشغال يدوية وابتكارات بالورق',
     channelTitle: '5-Minute Crafts PLAY',
+    channelId: 'UC57Zk3kX0hZ9x3sL8s7-j_A',
   },
   {
     videoId: 'tbCjkPlsaes',
     title: 'AllAttack - مهارات وتحديات رياضية ممتعة للأبطال',
     channelTitle: 'AllAttack',
+    channelId: 'UCv6Csw_n4r2Xp5Xy8y0v5gA',
   },
 ];
 
@@ -78,6 +89,10 @@ interface PlayerViewProps {
   videoId: string;
   videoTitle?: string;
   channelTitle?: string;
+  channelId?: string;
+  onVideoHidden?: (videoId: string) => void;
+  onChannelBlocked?: () => void;
+  onRefreshHomeFeed?: () => void;
   onClose: () => void;
   onEnded: () => void;
   forceStop?: boolean;
@@ -93,6 +108,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   videoId,
   videoTitle,
   channelTitle,
+  channelId: propChannelId,
+  onVideoHidden,
+  onChannelBlocked,
+  onRefreshHomeFeed,
   onClose,
   onEnded,
   forceStop,
@@ -215,6 +234,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     videoId,
     title: videoTitle || 'فيديو أطفال ممتع',
     channelTitle: channelTitle || 'قناة أطفال موثوقة',
+    channelId: propChannelId,
   });
 
   useEffect(() => {
@@ -222,8 +242,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       videoId,
       title: videoTitle || 'فيديو أطفال ممتع',
       channelTitle: channelTitle || 'قناة أطفال موثوقة',
+      channelId: propChannelId,
     });
-  }, [videoId, videoTitle, channelTitle]);
+  }, [videoId, videoTitle, channelTitle, propChannelId]);
 
   const [playlist, setPlaylist] = useState<QueuedVideo[]>(() => {
     const list = [...DEFAULT_PLAYLIST];
@@ -232,22 +253,26 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         videoId,
         title: videoTitle || 'فيديو أطفال ممتع',
         channelTitle: channelTitle || 'قناة أطفال موثوقة',
+        channelId: propChannelId,
       });
     }
     return list;
   });
 
-  // Merge with cached feed if present in Dexie
+  // Merge with cached feed if present in Dexie (excluding hidden videos)
   useEffect(() => {
     async function loadFeedQueue() {
       try {
         const feedItems = await db.feedCache.toArray();
         if (feedItems && feedItems.length > 0) {
-          const mapped: QueuedVideo[] = feedItems.map((f) => ({
-            videoId: f.videoId,
-            title: f.title,
-            channelTitle: 'قناة أطفال موثوقة',
-          }));
+          const mapped: QueuedVideo[] = feedItems
+            .filter((f) => !f.hidden)
+            .map((f) => ({
+              videoId: f.videoId,
+              title: f.title,
+              channelTitle: 'قناة أطفال موثوقة',
+              channelId: f.channelId,
+            }));
           const seen = new Set<string>();
           const merged: QueuedVideo[] = [];
           for (const item of [
@@ -255,6 +280,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               videoId,
               title: videoTitle || 'فيديو أطفال ممتع',
               channelTitle: channelTitle || 'قناة أطفال موثوقة',
+              channelId: propChannelId,
             },
             ...DEFAULT_PLAYLIST,
             ...mapped,
@@ -271,7 +297,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       }
     }
     loadFeedQueue();
-  }, [videoId, videoTitle, channelTitle]);
+  }, [videoId, videoTitle, channelTitle, propChannelId]);
 
   // Current Time & Duration tracking
   const [currentTime, setCurrentTime] = useState(0);
@@ -337,7 +363,35 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     }
   }, [playlist, currentVideo.videoId, handlePlayQueuedVideo]);
 
-  // Love / Favorite state (persisted via Dexie interactions & taste shift)
+  // Helper: Resolve channelId robustly
+  const resolveChannelId = useCallback(
+    async (vidId: string, chTitle?: string, fallbackId?: string): Promise<string> => {
+      if (fallbackId) return fallbackId;
+      if (currentVideo.channelId) return currentVideo.channelId;
+      try {
+        const feedRow = await db.feedCache.get(vidId);
+        if (feedRow?.channelId) return feedRow.channelId;
+        const inter = await db.interactions.get(vidId);
+        if (inter?.channelId) return inter.channelId;
+        const foundInPlaylist = playlist.find((p) => p.videoId === vidId);
+        if (foundInPlaylist?.channelId) return foundInPlaylist.channelId;
+        if (chTitle) {
+          const ch = await db.channels.where('title').equals(chTitle).first();
+          if (ch?.sourceId) return ch.sourceId;
+          const seedMatch = (channelsSeed as any[]).find(
+            (c) => c.title === chTitle || c.originalName === chTitle
+          );
+          if (seedMatch?.sourceId) return seedMatch.sourceId;
+        }
+      } catch (err) {
+        console.warn('resolveChannelId error:', err);
+      }
+      return chTitle || vidId;
+    },
+    [currentVideo.channelId, playlist]
+  );
+
+  // Love / Favorite state (persisted via Dexie interactions parentRating: 'liked')
   const [isLoved, setIsLoved] = useState(false);
 
   useEffect(() => {
@@ -346,7 +400,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       try {
         const interaction = await db.interactions.get(currentVideo.videoId);
         if (isMounted) {
-          setIsLoved(interaction?.childReaction === 'liked');
+          setIsLoved(interaction?.parentRating === 'liked');
         }
       } catch (err) {
         console.warn('Failed to check interaction:', err);
@@ -363,22 +417,99 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     setIsLoved(nextLoved);
 
     try {
-      await recordChildReaction({
-        categoryId: 'general',
-        videoId: currentVideo.videoId,
-        channelId: currentVideo.channelTitle,
-        title: currentVideo.title,
-        reaction: nextLoved ? 'liked' : 'disliked',
-      });
-      if (!nextLoved) {
+      const existing = await db.interactions.get(currentVideo.videoId);
+      if (existing) {
         await db.interactions.update(currentVideo.videoId, {
-          childReaction: undefined,
+          parentRating: nextLoved ? 'liked' : undefined,
+          lastWatched: Date.now(),
+        });
+      } else {
+        const targetChannelId = await resolveChannelId(
+          currentVideo.videoId,
+          currentVideo.channelTitle,
+          propChannelId
+        );
+        await db.interactions.put({
+          videoId: currentVideo.videoId,
+          channelId: targetChannelId,
+          title: currentVideo.title,
+          thumbnail: `https://i.ytimg.com/vi/${currentVideo.videoId}/hqdefault.jpg`,
+          watchTime: 0,
+          videoDuration: 0,
+          completed: false,
+          lastWatched: Date.now(),
+          parentRating: nextLoved ? 'liked' : undefined,
+        });
+      }
+
+      if (nextLoved) {
+        void recordChildReaction({
+          categoryId: 'general',
+          videoId: currentVideo.videoId,
+          channelId: currentVideo.channelTitle,
+          title: currentVideo.title,
+          reaction: 'liked',
         });
       }
     } catch (err) {
       console.warn('Failed to record love reaction:', err);
     }
-  }, [isLoved, currentVideo]);
+  }, [isLoved, currentVideo, propChannelId, resolveChannelId]);
+
+  // Save (Parent Bookmark) state (persisted via Dexie interactions.savedByParent)
+  const [isSavedByParent, setIsSavedByParent] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkSaved() {
+      try {
+        const interaction = await db.interactions.get(currentVideo.videoId);
+        if (isMounted) {
+          setIsSavedByParent(Boolean(interaction?.savedByParent));
+        }
+      } catch (err) {
+        console.warn('Failed to check saved interaction:', err);
+      }
+    }
+    checkSaved();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentVideo.videoId]);
+
+  const handleToggleSave = useCallback(async () => {
+    const nextSaved = !isSavedByParent;
+    setIsSavedByParent(nextSaved);
+
+    try {
+      const existing = await db.interactions.get(currentVideo.videoId);
+      if (existing) {
+        await db.interactions.update(currentVideo.videoId, {
+          savedByParent: nextSaved,
+          lastWatched: Date.now(),
+        });
+      } else {
+        const targetChannelId = await resolveChannelId(
+          currentVideo.videoId,
+          currentVideo.channelTitle,
+          propChannelId
+        );
+        await db.interactions.put({
+          videoId: currentVideo.videoId,
+          channelId: targetChannelId,
+          title: currentVideo.title,
+          thumbnail: `https://i.ytimg.com/vi/${currentVideo.videoId}/hqdefault.jpg`,
+          watchTime: 0,
+          videoDuration: 0,
+          completed: false,
+          lastWatched: Date.now(),
+          savedByParent: nextSaved,
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to update savedByParent interaction:', err);
+    }
+  }, [isSavedByParent, currentVideo, propChannelId, resolveChannelId]);
 
   const effectiveForceStop = forceStop || testForceStop;
 
@@ -676,7 +807,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     }
   };
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (isFullscreen) {
       handleExitFullscreen();
     } else {
@@ -686,7 +817,118 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         onClose();
       }
     }
-  };
+  }, [isFullscreen, handleExitFullscreen, onClose]);
+
+  // Hide Video state & handler
+  const [hideConfirmed, setHideConfirmed] = useState(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setHideConfirmed(false);
+  }, [currentVideo.videoId]);
+
+  const handleHideVideo = useCallback(async () => {
+    if (hideConfirmed) return;
+    setHideConfirmed(true);
+
+    try {
+      const existing = await db.feedCache.get(currentVideo.videoId);
+      if (existing) {
+        await db.feedCache.update(currentVideo.videoId, { hidden: true });
+      } else {
+        const targetChannelId = await resolveChannelId(
+          currentVideo.videoId,
+          currentVideo.channelTitle,
+          propChannelId
+        );
+        await db.feedCache.put({
+          videoId: currentVideo.videoId,
+          channelId: targetChannelId,
+          title: currentVideo.title,
+          fetchedAt: Date.now(),
+          hidden: true,
+        });
+      }
+
+      // Remove from local playlist immediately
+      setPlaylist((prev) => prev.filter((v) => v.videoId !== currentVideo.videoId));
+
+      onVideoHidden?.(currentVideo.videoId);
+      onRefreshHomeFeed?.();
+    } catch (err) {
+      console.error('Failed to hide video:', err);
+    }
+
+    hideTimerRef.current = setTimeout(() => {
+      handleClose();
+    }, 1500);
+  }, [hideConfirmed, currentVideo, propChannelId, resolveChannelId, onVideoHidden, onRefreshHomeFeed, handleClose]);
+
+  useEffect(() => {
+    return () => {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Block Channel PIN Gate & handler
+  const [showBlockChannelPinModal, setShowBlockChannelPinModal] = useState(false);
+
+  const handleBlockChannelClick = useCallback(() => {
+    setShowBlockChannelPinModal(true);
+  }, []);
+
+  const handleBlockChannelCancel = useCallback(() => {
+    setShowBlockChannelPinModal(false);
+  }, []);
+
+  const handleBlockChannelUnlocked = useCallback(async () => {
+    setShowBlockChannelPinModal(false);
+
+    try {
+      const targetChannelId = await resolveChannelId(
+        currentVideo.videoId,
+        currentVideo.channelTitle,
+        propChannelId
+      );
+
+      // 1. db.channels: find row or create with enabled: false
+      const existing = await db.channels.where('sourceId').equals(targetChannelId).first();
+      if (existing && existing.id) {
+        await db.channels.update(existing.id, { enabled: false });
+      } else {
+        const seedMatch = (channelsSeed as any[]).find((c) => c.sourceId === targetChannelId);
+        await db.channels.add({
+          sourceType: 'channel',
+          sourceId: targetChannelId,
+          title: seedMatch?.title || currentVideo.channelTitle || 'قناة محجوبة',
+          thumbnail: seedMatch?.thumbnail,
+          category: seedMatch?.category || seedMatch?.categories || [],
+          isPreloaded: true,
+          enabled: false,
+        });
+      }
+
+      // 2. Mark all cached videos for this channel as hidden
+      const cachedVideos = await db.feedCache.where('channelId').equals(targetChannelId).toArray();
+      if (cachedVideos.length > 0) {
+        await Promise.all(
+          cachedVideos.map((v) => db.feedCache.update(v.videoId, { hidden: true }))
+        );
+      }
+
+      // Remove any video from this channel from local playlist
+      setPlaylist((prev) => prev.filter((v) => v.channelId !== targetChannelId));
+
+      onChannelBlocked?.();
+      onRefreshHomeFeed?.();
+      handleClose();
+    } catch (err) {
+      console.error('Failed to block channel:', err);
+      handleClose();
+    }
+  }, [currentVideo, propChannelId, resolveChannelId, onChannelBlocked, onRefreshHomeFeed, handleClose]);
 
   // ================= PORTRAIT GESTURE LAYER (Unified Pointer-Event State Machine) =================
   const [showPortraitControls, setShowPortraitControls] = useState(true);
@@ -987,23 +1229,30 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <button
                 type="button"
                 id="player-parent-hide-btn"
-                onClick={() => {
-                  /* TODO: Hide video action */
-                }}
-                className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs text-rose-300 font-medium flex items-center gap-1 border border-stone-700/50 transition cursor-pointer"
+                onClick={handleHideVideo}
+                disabled={hideConfirmed}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 border transition cursor-pointer ${
+                  hideConfirmed
+                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/60 shadow-sm'
+                    : 'bg-stone-800 hover:bg-stone-700 text-rose-300 border-stone-700/50'
+                }`}
                 title="إخفاء الفيديو من القائمة"
               >
-                <EyeOff className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">إخفاء الفيديو</span>
+                {hideConfirmed ? (
+                  <span>تم الإخفاء ✅</span>
+                ) : (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">إخفاء الفيديو</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
                 id="player-parent-disable-btn"
-                onClick={() => {
-                  /* TODO: Disable channel action */
-                }}
+                onClick={handleBlockChannelClick}
                 className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs text-amber-300 font-medium flex items-center gap-1 border border-stone-700/50 transition cursor-pointer"
-                title="تعطيل القناة"
+                title="تعطيل القناة (يتطلب رمز الدخول)"
               >
                 <Ban className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">تعطيل القناة</span>
@@ -1011,14 +1260,21 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <button
                 type="button"
                 id="player-parent-save-btn"
-                onClick={() => {
-                  /* TODO: Parent Save action */
-                }}
-                className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs text-indigo-300 font-medium flex items-center gap-1 border border-stone-700/50 transition cursor-pointer"
-                title="حفظ في المفضلة للأهل"
+                onClick={handleToggleSave}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 border transition cursor-pointer ${
+                  isSavedByParent
+                    ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/50 ring-1 ring-indigo-400/30'
+                    : 'bg-stone-800 hover:bg-stone-700 text-indigo-300 border-stone-700/50'
+                }`}
+                title={isSavedByParent ? 'إلغاء الحفظ' : 'حفظ في المفضلة للأهل'}
+                aria-label={isSavedByParent ? 'إلغاء الحفظ' : 'حفظ في المفضلة للأهل'}
               >
-                <Bookmark className="w-3.5 h-3.5" />
-                <span>حفظ</span>
+                <Bookmark
+                  className={`w-3.5 h-3.5 ${
+                    isSavedByParent ? 'fill-indigo-400 text-indigo-400' : 'text-indigo-300'
+                  }`}
+                />
+                <span>{isSavedByParent ? 'محفوظ' : 'حفظ'}</span>
               </button>
               <button
                 type="button"
@@ -1410,6 +1666,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           player={playerRef.current}
         />
       )}
+
+      {/* PIN Lock Modal for Disabling / Blocking Channel */}
+      <PinLockModal
+        isOpen={showBlockChannelPinModal}
+        onClose={handleBlockChannelCancel}
+        onUnlockSuccess={handleBlockChannelUnlocked}
+      />
     </div>
   );
 };

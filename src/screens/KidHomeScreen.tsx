@@ -30,7 +30,12 @@ import {
 interface KidHomeScreenProps {
   onOpenParentDashboard: () => void;
   onOpenDemoPlayer?: () => void;
-  onSelectVideo?: (videoId: string, title?: string, channelName?: string) => void;
+  onSelectVideo?: (
+    videoId: string,
+    title?: string,
+    channelName?: string,
+    channelId?: string
+  ) => void;
   refreshTrigger?: number;
   suppressedVideoIds?: string[];
 }
@@ -678,7 +683,7 @@ export default function KidHomeScreen({
                   id={`video-card-${video.videoId}`}
                   onClick={() => {
                     if (onSelectVideo) {
-                      onSelectVideo(video.videoId, video.title, channelInfo?.title);
+                      onSelectVideo(video.videoId, video.title, channelInfo?.title, video.channelId);
                     } else if (onOpenDemoPlayer) {
                       onOpenDemoPlayer();
                     }

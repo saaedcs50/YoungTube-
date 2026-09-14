@@ -117,6 +117,7 @@ export default function App() {
     videoId: string;
     title?: string;
     channelName?: string;
+    channelId?: string;
   } | null>(null);
   const [devForceStop, setDevForceStop] = useState(false);
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
@@ -146,12 +147,12 @@ export default function App() {
     setShowDemoPlayer(true);
   }, [updatePlayerMinimized]);
 
-  const handleSelectVideo = useCallback((videoId: string, title?: string, channelName?: string) => {
+  const handleSelectVideo = useCallback((videoId: string, title?: string, channelName?: string, channelId?: string) => {
     updatePlayerMinimized(false);
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
     }
-    setActivePlaybackVideo({ videoId, title, channelName });
+    setActivePlaybackVideo({ videoId, title, channelName, channelId });
   }, [updatePlayerMinimized]);
 
   const handlePlayerEnterFullscreen = useCallback(() => {
@@ -555,6 +556,9 @@ export default function App() {
           videoId={activePlaybackVideo?.videoId || 's6X_Q54_PBs'}
           videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
           channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
+          channelId={activePlaybackVideo?.channelId}
+          onVideoHidden={handleVideoHidden}
+          onChannelBlocked={handleBackfillSuccess}
           onClose={() => {
             updatePlayerMinimized(false);
             updatePlayerFullscreen(false);
