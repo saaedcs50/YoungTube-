@@ -25,6 +25,9 @@ interface PlayerViewProps {
   onClose: () => void;
   onEnded: () => void;
   forceStop?: boolean;
+  isFullscreen?: boolean;
+  onEnterFullscreen?: () => void;
+  onExitFullscreen?: () => void;
 }
 
 export const PlayerView: React.FC<PlayerViewProps> = ({
@@ -34,11 +37,46 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   onClose,
   onEnded,
   forceStop,
+  isFullscreen: propIsFullscreen,
+  onEnterFullscreen,
+  onExitFullscreen,
 }) => {
   const playerRef = useRef<YouTubePlayer | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [testForceStop, setTestForceStop] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Fix 1: Two independent facts
+  const [isDeviceLandscape, setIsDeviceLandscape] = useState(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(orientation: landscape)').matches;
+    }
+    return false;
+  });
+  const [isFullscreenActive, setIsFullscreenActive] = useState(() => {
+    if (typeof document !== 'undefined') {
+      return Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+    }
+    return false;
+  });
+
+  // Track if user manually exited fullscreen while device is physically landscape
+  const [manuallyExitedInLandscape, setManuallyExitedInLandscape] = useState(false);
+
+  const isFullscreenActiveRef = useRef(isFullscreenActive);
+  isFullscreenActiveRef.current = isFullscreenActive;
+
+  const isDeviceLandscapeRef = useRef(isDeviceLandscape);
+  isDeviceLandscapeRef.current = isDeviceLandscape;
+
+  // Reconciled effective fullscreen state:
+  // - propIsFullscreen if controlled from App
+  // - isFullscreenActive from document.fullscreenElement
+  // - isDeviceLandscape if physically landscape (unless user manually exited)
+  const isFullscreen =
+    (propIsFullscreen ?? false) ||
+    isFullscreenActive ||
+    (isDeviceLandscape && !manuallyExitedInLandscape);
+
   const [isPlaying, setIsPlaying] = useState(true);
   const [isLooping, setIsLooping] = useState(false);
 
@@ -63,8 +101,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     setIsLooping((prev) => !prev);
   }, []);
 
-  const handleExitFullscreen = useCallback(async () => {
-    setIsFullscreen(false);
+  const performExitFullscreen = useCallback(async () => {
+    setIsFullscreenActive(false);
+    setManuallyExitedInLandscape(true);
+    onExitFullscreen?.();
 
     try {
       if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
@@ -85,10 +125,20 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     } catch (err) {
       console.warn('screen.orientation.unlock not supported:', err);
     }
-  }, []);
+  }, [onExitFullscreen]);
 
-  const handleEnterFullscreen = useCallback(async () => {
-    setIsFullscreen(true);
+  const handleExitFullscreen = useCallback(() => {
+    // Fix 2, Point 4: When exiting via in-app button, call history.back()
+    // instead of directly calling exitFullscreen() yourself — let popstate handler
+    // be the single place that actually performs the exit
+    if (typeof window !== 'undefined' && window.history.state?.fullscreen) {
+      window.history.back();
+    } else {
+      performExitFullscreen();
+    }
+  }, [performExitFullscreen]);
+
+  const performEnterFullscreen = useCallback(async () => {
     const el = videoContainerRef.current;
     if (el) {
       try {
@@ -112,12 +162,31 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     }
   }, []);
 
-  // Listen to fullscreen changes, Escape key, and orientation changes
+  const handleEnterFullscreen = useCallback(() => {
+    setManuallyExitedInLandscape(false);
+    setIsFullscreenActive(true);
+    if (onEnterFullscreen) {
+      onEnterFullscreen();
+    } else if (typeof window !== 'undefined' && !window.history.state?.fullscreen) {
+      window.history.pushState({ ytPlayer: true, fullscreen: true }, '');
+    }
+    performEnterFullscreen();
+  }, [onEnterFullscreen, performEnterFullscreen]);
+
+  // Sync if propIsFullscreen changes from outside
+  useEffect(() => {
+    if (propIsFullscreen === false && isFullscreenActiveRef.current) {
+      performExitFullscreen();
+    }
+  }, [propIsFullscreen, performExitFullscreen]);
+
+  // Listen to fullscreen changes, Escape key, and REAL orientation changes (Fix 1)
   useEffect(() => {
     const onFullscreenChange = () => {
       const isNowFs = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setIsFullscreenActive(isNowFs);
       if (!isNowFs) {
-        setIsFullscreen(false);
+        setManuallyExitedInLandscape(true);
         try {
           if (screen.orientation && typeof (screen.orientation as any).unlock === 'function') {
             (screen.orientation as any).unlock();
@@ -125,35 +194,75 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         } catch {
           // ignore
         }
-      } else {
-        setIsFullscreen(true);
+        // Sync history if needed
+        if (typeof window !== 'undefined' && window.history.state?.fullscreen) {
+          window.history.back();
+        }
       }
     };
 
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
+    // Fix 1, Point 1: Track REAL device orientation via matchMedia('(orientation: landscape)')
+    const mql = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(orientation: landscape)') : null;
+    const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      const isLandscapeNow = e.matches;
+      setIsDeviceLandscape(isLandscapeNow);
+
+      if (isLandscapeNow) {
+        // Fix 1, Point 3: whenever isDeviceLandscape becomes true while playback is active,
+        // if not already in fullscreen, AUTOMATICALLY call enterFullscreen
+        setManuallyExitedInLandscape(false);
+        if (!isFullscreenActiveRef.current) {
+          handleEnterFullscreen();
+        }
+      } else {
+        // Fix 1, Point 4: whenever isDeviceLandscape becomes false while isFullscreenActive is still true,
+        // AUTOMATICALLY call exitFullscreen
+        setManuallyExitedInLandscape(false);
+        if (isFullscreenActiveRef.current) {
+          handleExitFullscreen();
+        }
+      }
+    };
+
+    if (mql) {
+      if (mql.addEventListener) {
+        mql.addEventListener('change', handleMediaChange);
+      } else if ((mql as any).addListener) {
+        (mql as any).addListener(handleMediaChange);
+      }
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
+      if (e.key === 'Escape' && isFullscreenActiveRef.current) {
         handleExitFullscreen();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
 
-    const handleOrientationChange = () => {
-      if (screen.orientation?.type?.startsWith('portrait') && isFullscreen) {
+    const handleScreenOrientationChange = () => {
+      if (screen.orientation?.type?.startsWith('portrait') && isFullscreenActiveRef.current) {
         handleExitFullscreen();
       }
     };
-    screen.orientation?.addEventListener?.('change', handleOrientationChange);
+    screen.orientation?.addEventListener?.('change', handleScreenOrientationChange);
 
     return () => {
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+      if (mql) {
+        if (mql.removeEventListener) {
+          mql.removeEventListener('change', handleMediaChange);
+        } else if ((mql as any).removeListener) {
+          (mql as any).removeListener(handleMediaChange);
+        }
+      }
       window.removeEventListener('keydown', handleKeyDown);
-      screen.orientation?.removeEventListener?.('change', handleOrientationChange);
+      screen.orientation?.removeEventListener?.('change', handleScreenOrientationChange);
     };
-  }, [isFullscreen, handleExitFullscreen]);
+  }, [handleEnterFullscreen, handleExitFullscreen]);
 
   // Force stop video playback immediately when forceStop turns true, and exit fullscreen if active
   useEffect(() => {
@@ -227,8 +336,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   const handleClose = () => {
     if (isFullscreen) {
       handleExitFullscreen();
+    } else {
+      if (typeof window !== 'undefined' && window.history.state?.ytPlayer) {
+        window.history.back();
+      } else {
+        onClose();
+      }
     }
-    onClose();
   };
 
   return (
