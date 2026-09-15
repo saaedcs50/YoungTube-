@@ -12,12 +12,6 @@ import {
   AlertTriangle,
   Search,
 } from 'lucide-react';
-import { Card as HeroUICard, Button as HeroUIButton, Input as HeroUIInput, Chip as HeroUIChip } from '@heroui/react';
-
-const Card = HeroUICard as any;
-const Button = HeroUIButton as any;
-const Input = HeroUIInput as any;
-const Chip = HeroUIChip as any;
 
 interface FilteringTabProps {
   onFilterChanged?: () => void;
@@ -237,7 +231,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
               </div>
 
               {/* Add Word Form */}
-              <form onSubmit={handleAddWord} className="flex gap-2 max-w-md items-center">
+              <form onSubmit={handleAddWord} className="flex gap-2 max-w-md">
                 <input
                   id="tab-blacklist-word-input"
                   type="text"
@@ -246,15 +240,15 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                   placeholder="أدخل كلمة لحظرها (مثال: رعب، مقلب، تحدي)..."
                   className="grow p-2.5 text-xs rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500 transition"
                 />
-                <Button
+                <button
                   id="tab-add-blacklist-word-btn"
                   type="submit"
-                  isDisabled={!newWord.trim()}
-                  className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-xs min-w-[80px]"
+                  disabled={!newWord.trim()}
+                  className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   <Plus className="w-4 h-4" />
                   <span>إضافة</span>
-                </Button>
+                </button>
               </form>
 
               {/* Words Chips List */}

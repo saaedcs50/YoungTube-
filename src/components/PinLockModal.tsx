@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import db, { Settings } from '../db';
 import { sha256 } from '../crypto';
 import { Lock, ShieldAlert, KeyRound, HelpCircle, ArrowLeft, X } from 'lucide-react';
-import { Button as HeroUIButton } from '@heroui/react';
-const Button = HeroUIButton as any;
 
 interface PinLockModalProps {
   isOpen: boolean;
@@ -170,12 +168,12 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
               <span className="text-[11px] text-slate-400">حماية لوحة التحكم</span>
             </div>
           </div>
-          <Button
+          <button
             onClick={onClose}
-            className="p-1 min-w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 bg-transparent shadow-none"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
           >
             <X className="w-4 h-4" />
-          </Button>
+          </button>
         </div>
 
         {/* Modal Content */}
@@ -197,25 +195,25 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
 
               {securityQuestion && (
                 <div className="pt-2 text-center">
-                  <Button
+                  <button
                     id="open-recovery-btn"
                     onClick={() => setShowRecovery(true)}
-                    className="text-xs font-semibold text-sky-600 hover:text-sky-800 underline inline-flex items-center gap-1 bg-transparent shadow-none p-0 h-auto min-w-0"
+                    className="text-xs font-semibold text-sky-600 hover:text-sky-800 underline inline-flex items-center gap-1"
                   >
                     <HelpCircle className="w-3.5 h-3.5" />
                     <span>استعادة الوصول عبر سؤال الأمان السري</span>
-                  </Button>
+                  </button>
                 </div>
               )}
 
               <div className="pt-2 flex justify-center">
-                <Button
+                <button
                   id="close-locked-modal-btn"
                   onClick={onClose}
                   className="px-6 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
                 >
                   إغلاق
-                </Button>
+                </button>
               </div>
             </div>
           ) : showRecovery ? (
@@ -269,20 +267,20 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
               </div>
 
               <div className="pt-2 flex justify-between items-center">
-                <Button
+                <button
                   type="button"
                   onClick={() => setShowRecovery(false)}
-                  className="text-xs text-slate-500 hover:text-slate-700 bg-transparent shadow-none p-0 h-auto min-w-0"
+                  className="text-xs text-slate-500 hover:text-slate-700"
                 >
                   إلغاء
-                </Button>
-                <Button
+                </button>
+                <button
                   id="submit-recovery-btn"
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs"
                 >
                   تعيين الرمز وفتح اللوحة
-                </Button>
+                </button>
               </div>
             </form>
           ) : (
@@ -324,26 +322,26 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
 
               <div className="pt-1 flex justify-between items-center">
                 {securityQuestion ? (
-                  <Button
+                  <button
                     type="button"
                     onClick={() => setShowRecovery(true)}
-                    className="text-xs text-sky-600 hover:underline bg-transparent shadow-none p-0 h-auto min-w-0"
+                    className="text-xs text-sky-600 hover:underline"
                   >
                     نسيت الرمز؟
-                  </Button>
+                  </button>
                 ) : (
                   <div />
                 )}
 
-                <Button
+                <button
                   id="submit-pin-btn"
                   type="submit"
-                  isDisabled={pin.length !== 6 || isVerifying}
+                  disabled={pin.length !== 6 || isVerifying}
                   className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
                 >
                   <span>{isVerifying ? 'جاري التحقق...' : 'تأكيد ودخول'}</span>
                   <ArrowLeft className="w-4 h-4" />
-                </Button>
+                </button>
               </div>
             </form>
           )}

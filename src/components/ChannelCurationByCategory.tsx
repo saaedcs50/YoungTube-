@@ -20,12 +20,6 @@ import {
   Layers,
   RefreshCw,
 } from 'lucide-react';
-import { Card as HeroUICard, Button as HeroUIButton, Input as HeroUIInput, Chip as HeroUIChip } from '@heroui/react';
-
-const Card = HeroUICard as any;
-const Button = HeroUIButton as any;
-const Input = HeroUIInput as any;
-const Chip = HeroUIChip as any;
 
 interface ChannelCurationByCategoryProps {
   onChannelChanged?: () => void;

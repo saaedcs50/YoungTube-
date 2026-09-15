@@ -18,11 +18,6 @@ import {
   Smartphone,
   RefreshCw,
 } from 'lucide-react';
-import { Card as HeroUICard, Button as HeroUIButton, Chip as HeroUIChip } from '@heroui/react';
-
-const Card = HeroUICard as any;
-const Button = HeroUIButton as any;
-const Chip = HeroUIChip as any;
 
 interface FilteringResultCardProps {
   channels: ChannelItem[] | null;
@@ -132,7 +127,7 @@ export default function FilteringResultCard({
   };
 
   return (
-    <Card
+    <div
       id="filtering-result-card"
       className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col justify-between"
     >
@@ -148,15 +143,15 @@ export default function FilteringResultCard({
             </div>
           </div>
 
-          <Button
+          <button
             id="re-filter-btn"
             onClick={runFilter}
-            isDisabled={filtering || !channels || channels.length === 0}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50 cursor-pointer min-w-0 h-auto bg-transparent border-none"
+            disabled={filtering || !channels || channels.length === 0}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50 cursor-pointer"
             title="إعادة تشغيل الفلترة"
           >
             <RefreshCw className={`w-4 h-4 ${filtering ? 'animate-spin' : ''}`} />
-          </Button>
+          </button>
         </div>
 
         {/* State Display */}
@@ -309,6 +304,6 @@ export default function FilteringResultCard({
           <span className="font-mono text-[10px] text-slate-400">db.feedCache</span>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

@@ -2,11 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import db, { Interaction } from '../db';
 import channelsSeed from '../../channels_seed.json';
 import { Bookmark, Play, Trash2, Film } from 'lucide-react';
-import { Card as HeroUICard, Button as HeroUIButton, Chip as HeroUIChip } from '@heroui/react';
-
-const Card = HeroUICard as any;
-const Button = HeroUIButton as any;
-const Chip = HeroUIChip as any;
 
 interface SavedVideoItem {
   videoId: string;
@@ -116,9 +111,9 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
             <h4 className="text-sm font-bold text-slate-800">
               الفيديوهات المحفوظة للأهل
             </h4>
-            <Chip className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-200">
+            <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-200">
               {savedVideos.length} فيديو
-            </Chip>
+            </span>
           </div>
           <p className="text-xs text-slate-500">
             فيديوهات تم حفظها من شاشة المشغل للرجوع إليها أو مراجعتها في أي وقت.
@@ -126,9 +121,9 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
         </div>
 
         {feedbackMessage && (
-          <Chip className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 animate-fade-in">
+          <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 animate-fade-in">
             {feedbackMessage}
-          </Chip>
+          </span>
         )}
       </div>
 
@@ -183,16 +178,16 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
               </div>
 
               {/* Action: Remove Button */}
-              <Button
+              <button
                 type="button"
                 id={`remove-saved-${video.videoId}-btn`}
-                onClick={(e: React.MouseEvent) => handleRemoveSaved(e, video.videoId, video.title)}
-                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 text-xs font-semibold flex items-center gap-1.5 transition shrink-0 border border-slate-200 hover:border-rose-200 cursor-pointer min-w-0 h-auto"
+                onClick={(e) => handleRemoveSaved(e, video.videoId, video.title)}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 text-xs font-semibold flex items-center gap-1.5 transition shrink-0 border border-slate-200 hover:border-rose-200 cursor-pointer"
                 title="إزالة من المحفوظات"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>إزالة</span>
-              </Button>
+              </button>
             </div>
           ))}
         </div>

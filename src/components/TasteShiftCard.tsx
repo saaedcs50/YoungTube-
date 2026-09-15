@@ -3,12 +3,6 @@ import db from '../db';
 import { useAllCategories } from '../hooks/useAllCategories';
 import channelsSeed from '../../channels_seed.json';
 import { TrendingUp, Check, ThumbsUp, ThumbsDown, Sparkles, Sliders } from 'lucide-react';
-import { Card as HeroUICard, Switch as HeroUISwitch, Chip as HeroUIChip, Button as HeroUIButton } from '@heroui/react';
-
-const Card = HeroUICard as any;
-const Switch = HeroUISwitch as any;
-const Chip = HeroUIChip as any;
-const Button = HeroUIButton as any;
 
 interface TasteShiftCardProps {
   onSaved?: () => void;
@@ -254,7 +248,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
   };
 
   return (
-    <Card id="taste-shift-card" className="rounded-3xl border border-indigo-200 bg-white p-6 shadow-xs">
+    <div id="taste-shift-card" className="rounded-3xl border border-indigo-200 bg-white p-6 shadow-xs">
       {/* Top Header with Title and Main Toggle Switch */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -267,16 +261,14 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                 التحول التدريجي في الاهتمامات (Taste Shift)
               </h3>
               {saveStatus === 'saving' && (
-                <Chip className="text-[10px] text-indigo-600 bg-indigo-50 border-none px-2 py-0.5 rounded-full animate-pulse">
+                <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full animate-pulse">
                   جاري الحفظ...
-                </Chip>
+                </span>
               )}
               {saveStatus === 'saved' && (
-                <Chip className="text-[10px] text-emerald-600 bg-emerald-50 border-none px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                  <div className="flex items-center gap-1">
-                    <Check className="w-3 h-3" /> تم الحفظ
-                  </div>
-                </Chip>
+                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                  <Check className="w-3 h-3" /> تم الحفظ
+                </span>
               )}
             </div>
             <p className="text-xs text-slate-500">
@@ -294,12 +286,23 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
           >
             {enabled ? 'مفعل' : 'معطل'}
           </span>
-          <Switch
+          <button
             id="toggle-taste-shift"
-            isSelected={enabled}
-            onChange={handleToggle}
-            color="primary"
-          />
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            onClick={handleToggle}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+              enabled ? 'bg-indigo-600' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                enabled ? '-translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -498,6 +501,6 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
         )}
 
       </div>
-    </Card>
+    </div>
   );
 };
