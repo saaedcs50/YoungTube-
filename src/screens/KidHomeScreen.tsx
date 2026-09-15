@@ -952,11 +952,11 @@ export default function KidHomeScreen({
               </div>
             ) : (
               /* Virtualized unbounded feed using virtua WindowVirtualizer */
-              <WindowVirtualizer bufferSize={600}>
+              <WindowVirtualizer bufferSize={600} itemSize={300} shift={false}>
                 {videoRows.map((row, rowIndex) => (
                   <div
                     key={`row-${row[0]?.videoId || rowIndex}`}
-                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6 mb-4 sm:mb-6"
+                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6 pb-4 sm:pb-6"
                   >
                     {row.map((video) => {
                       const channelInfo = channelMap.get(video.channelId);

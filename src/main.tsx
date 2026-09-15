@@ -1,7 +1,11 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
+import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import './index.css';
+
+// Register service worker immediately on startup
+registerSW({ immediate: true });
 
 // Suppress benign browser-level ResizeObserver notifications (common with virtualization)
 if (typeof window !== 'undefined') {

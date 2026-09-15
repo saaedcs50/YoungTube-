@@ -131,8 +131,23 @@ export default defineConfig(() => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [
             {
-              // دومين الـ Worker (workers.dev)
-              urlPattern: /^https:\/\/.*\.workers\.dev\/.*/i,
+              // YouTube thumbnails CacheFirst
+              urlPattern: /^https:\/\/i\.ytimg\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'yt-thumbnails',
+                expiration: {
+                  maxEntries: 200,
+                  maxAgeSeconds: 14 * 24 * 60 * 60, // 14 days
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              // دومين الـ Worker (workers.dev) - channels-latest / api paths
+              urlPattern: /^https:\/\/.*\.workers\.dev\/(api\/|channels-latest).*/i,
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'worker-api-cache',
@@ -142,7 +157,7 @@ export default defineConfig(() => {
                   maxAgeSeconds: 24 * 60 * 60, // أقصى عمر للكاش يوم واحد (24 ساعة)
                 },
                 cacheableResponse: {
-                  statuses: [0, 200],
+                  statuses: [200],
                 },
               },
             },
