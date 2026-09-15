@@ -57,6 +57,7 @@ interface FeedItem {
   title: string;
   videoDuration?: number;
   hasMusic?: boolean;
+  isPortrait?: boolean;
   fetchedAt: number;
   publishedAt?: string;
   hidden?: boolean;

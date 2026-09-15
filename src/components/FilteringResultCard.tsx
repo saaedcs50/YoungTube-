@@ -15,6 +15,7 @@ import {
   Sparkles,
   ShieldAlert,
   Film,
+  Smartphone,
   RefreshCw,
 } from 'lucide-react';
 
@@ -207,6 +208,15 @@ export default function FilteringResultCard({
                 </span>
                 <span className="font-bold text-slate-700 font-mono">
                   {result.breakdown.shortsExcluded}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="flex items-center gap-1 text-slate-500">
+                  <Smartphone className="w-3 h-3 text-slate-400" />
+                  مستبعد (فيديوهات طولية / Portrait):
+                </span>
+                <span className="font-bold text-slate-700 font-mono">
+                  {result.breakdown.portraitExcluded}
                 </span>
               </div>
               <div className="flex items-center justify-between text-[10px]">

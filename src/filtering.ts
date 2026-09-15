@@ -8,6 +8,7 @@ export interface FilteringResult {
   breakdown: {
     shortsExcluded: number;
     blacklistExcluded: number;
+    portraitExcluded: number;
     hiddenExcluded: number;
     hasMusicCount: number;
     noMusicCount: number;
@@ -52,6 +53,64 @@ export function isLikelyShortsTitle(title: string): boolean {
   if (t.includes('#shorts') || t.includes('#short')) return true;
   if (title.includes('شورتس')) return true;
   return /(?:^|[^a-z0-9])shorts(?:$|[^a-z0-9])/i.test(title);
+}
+
+/**
+ * Detects if a video is portrait/vertical by loading its thumbnail via a JS Image() object
+ * and checking if naturalHeight > naturalWidth.
+ *
+ * Uses frame0.jpg (YouTube's un-letterboxed raw frame) with a fallback to hqdefault.jpg.
+ * Wraps in a ~3s timeout and defaults to NOT excluding (fail-open: returns false) on error/timeout.
+ */
+export function checkIsPortraitVideo(videoId: string): Promise<boolean> {
+  if (typeof window === 'undefined' || typeof Image === 'undefined') {
+    return Promise.resolve(false);
+  }
+
+  return new Promise<boolean>((resolve) => {
+    let resolved = false;
+    const finish = (isPortrait: boolean) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(isPortrait);
+      }
+    };
+
+    // ~3s timeout: fail-open
+    const timer = setTimeout(() => {
+      finish(false);
+    }, 3000);
+
+    const img = new Image();
+    img.onload = () => {
+      clearTimeout(timer);
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        finish(img.naturalHeight > img.naturalWidth);
+      } else {
+        finish(false);
+      }
+    };
+
+    img.onerror = () => {
+      // If frame0.jpg fails or is missing, try fallback thumbnail
+      const fallbackImg = new Image();
+      fallbackImg.onload = () => {
+        clearTimeout(timer);
+        if (fallbackImg.naturalWidth > 0 && fallbackImg.naturalHeight > 0) {
+          finish(fallbackImg.naturalHeight > fallbackImg.naturalWidth);
+        } else {
+          finish(false);
+        }
+      };
+      fallbackImg.onerror = () => {
+        clearTimeout(timer);
+        finish(false);
+      };
+      fallbackImg.src = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+    };
+
+    img.src = `https://i.ytimg.com/vi/${videoId}/frame0.jpg`;
+  });
 }
 
 /**
@@ -123,6 +182,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
   let totalBefore = 0;
   let shortsExcluded = 0;
   let blacklistExcluded = 0;
+  let portraitExcluded = 0;
   let hiddenExcluded = 0;
   let hasMusicCount = 0;
   let noMusicCount = 0;
@@ -137,7 +197,12 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     const channelId = channel.sourceId || '';
     if (!channelId) continue;
 
-    const channelPassedItems: FeedItem[] = [];
+    const preliminaryVideos: Array<{
+      videoId: string;
+      title: string;
+      publishedAt?: string;
+      hasMusic: boolean;
+    }> = [];
 
     for (const video of channel.videos) {
       if (!video || !video.videoId || !video.title) continue;
@@ -170,23 +235,49 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
         titleLower.includes('no music') || titleLower.includes('بدون موسيقى');
       const hasMusic = !hasNoMusicPhrase;
 
-      if (hasMusic) {
+      preliminaryVideos.push({
+        videoId: video.videoId,
+        title: video.title,
+        publishedAt: video.publishedAt,
+        hasMusic,
+      });
+    }
+
+    // 4. Portrait orientation check for preliminary passing videos:
+    // Load thumbnail once per video, read naturalWidth/naturalHeight, exclude if height > width.
+    const orientationChecks = await Promise.all(
+      preliminaryVideos.map(async (v) => {
+        const isPortrait = await checkIsPortraitVideo(v.videoId);
+        return { ...v, isPortrait };
+      })
+    );
+
+    const channelPassedItems: FeedItem[] = [];
+
+    for (const item of orientationChecks) {
+      if (item.isPortrait) {
+        portraitExcluded++;
+        continue;
+      }
+
+      if (item.hasMusic) {
         hasMusicCount++;
       } else {
         noMusicCount++;
       }
 
-      const item: FeedItem = {
-        videoId: video.videoId,
+      const feedItem: FeedItem = {
+        videoId: item.videoId,
         channelId,
-        title: video.title,
-        hasMusic,
+        title: item.title,
+        hasMusic: item.hasMusic,
+        isPortrait: false,
         fetchedAt: now,
-        publishedAt: video.publishedAt,
+        publishedAt: item.publishedAt,
         hidden: false,
       };
 
-      channelPassedItems.push(item);
+      channelPassedItems.push(feedItem);
     }
 
     // Keep only the newest N for this channel so Dexie never holds 200 rows/channel
@@ -242,6 +333,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     breakdown: {
       shortsExcluded,
       blacklistExcluded,
+      portraitExcluded,
       hiddenExcluded,
       hasMusicCount,
       noMusicCount,
