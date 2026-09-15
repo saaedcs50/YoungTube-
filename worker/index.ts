@@ -585,6 +585,74 @@ export default {
       }
     }
 
+    // 6. GET /api/videos-views (Public proxy for YouTube video view count statistics)
+    // Deploy note: Cloudflare secret YOUTUBE_API_KEY must be set on the worker for production.
+    if (url.pathname === '/api/videos-views' && request.method === 'GET') {
+      const rawIds = url.searchParams.get('ids') || '';
+      const parsedIds = Array.from(
+        new Set(
+          rawIds
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean)
+        )
+      ).slice(0, 50);
+
+      if (parsedIds.length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'Missing or empty required query parameter "ids"' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      if (!env.YOUTUBE_API_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'YOUTUBE_API_KEY not configured' }),
+          { status: 503, headers: corsHeaders }
+        );
+      }
+
+      try {
+        const ytUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+        ytUrl.searchParams.set('part', 'statistics,id');
+        ytUrl.searchParams.set('id', parsedIds.join(','));
+        ytUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
+
+        const ytRes = await fetch(ytUrl.toString());
+        if (!ytRes.ok) {
+          return new Response(
+            JSON.stringify({ error: `Upstream YouTube API error (${ytRes.status})` }),
+            { status: 502, headers: corsHeaders }
+          );
+        }
+
+        const data: any = await ytRes.json();
+        const results: Record<string, number> = {};
+        for (const item of data.items || []) {
+          const vId = item.id;
+          const rawViews = item.statistics?.viewCount;
+          if (vId && rawViews !== undefined) {
+            results[vId] = Number(rawViews) || 0;
+          }
+        }
+
+        return new Response(JSON.stringify(results), {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Cache-Control': 'public, max-age=3600',
+          },
+        });
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : 'Failed to fetch video statistics',
+          }),
+          { status: 502, headers: corsHeaders }
+        );
+      }
+    }
+
     return new Response('Not Found', { status: 404, headers: corsHeaders });
   },
 

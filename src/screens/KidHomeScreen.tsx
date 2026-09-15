@@ -55,7 +55,6 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
-    viewCount: 4800000,
   },
   {
     videoId: 'u7e33WnUf0A',
@@ -64,7 +63,6 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
-    viewCount: 12500000,
   },
   {
     videoId: 'x1rB6E1oTss',
@@ -73,7 +71,6 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
-    viewCount: 3200000,
   },
   {
     videoId: 'w_gWvL8fN8g',
@@ -82,7 +79,6 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
-    viewCount: 1900000,
   },
   {
     videoId: 'X_1g1z1b0a8',
@@ -91,7 +87,6 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
-    viewCount: 950000,
   },
   {
     videoId: '02E1468SdHg',
@@ -100,7 +95,6 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
-    viewCount: 5400000,
   },
   {
     videoId: 'UeF09e7hDbg',
@@ -109,7 +103,6 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
-    viewCount: 8100000,
   },
   {
     videoId: 'tbCjkPlsaes',
@@ -118,7 +111,6 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
-    viewCount: 620000,
   },
 ];
 
@@ -575,9 +567,20 @@ export default function KidHomeScreen({
     );
   }, []);
 
+  // Stable signature of video IDs in the feed to avoid redundant enrichment runs on pure array re-renders
+  const feedVideoIdsSignature = useMemo(
+    () =>
+      videos
+        .map((v) => v.videoId)
+        .filter(Boolean)
+        .sort()
+        .join(','),
+    [videos]
+  );
+
   // Background view counts enrichment (non-blocking, runs on idle after first paint)
   useEffect(() => {
-    if (loading || videos.length === 0) return;
+    if (loading || !feedVideoIdsSignature) return;
 
     let cancelled = false;
     const runEnrichment = () => {
@@ -606,7 +609,7 @@ export default function KidHomeScreen({
         }
       }
     };
-  }, [videos, loading, handleViewCountsUpdated]);
+  }, [feedVideoIdsSignature, loading, handleViewCountsUpdated]);
 
   const suppressedSet = useMemo(() => new Set(suppressedVideoIds), [suppressedVideoIds]);
 

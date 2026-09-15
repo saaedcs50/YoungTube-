@@ -38,7 +38,10 @@ export function formatViewCount(count?: number): string | null {
 }
 
 /**
- * Fetches view counts for a batch of video IDs (up to 50) using YouTube Data API or backend proxy.
+ * Fetches view counts for a batch of video IDs (up to 50).
+ * Priority:
+ * 1) ALWAYS try Worker proxy first (/api/videos-views?ids=...)
+ * 2) Only if proxy fails or returns empty AND familyYoutubeApiKey is set, fallback to direct Google API
  */
 async function fetchBatchViewCounts(
   videoIds: string[],
@@ -50,7 +53,24 @@ async function fetchBatchViewCounts(
   const results: ViewCountResult = {};
 
   try {
-    // 1. If family API key is set in main settings, call YouTube Data API directly
+    // 1. ALWAYS try Worker proxy first (keeps API key secure on server/worker)
+    const proxyBase = WORKER_URL || '';
+    const proxyUrl = `${proxyBase}/api/videos-views?ids=${encodeURIComponent(idParam)}`;
+    const proxyRes = await fetch(proxyUrl);
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (
+        data &&
+        typeof data === 'object' &&
+        !Array.isArray(data) &&
+        !('error' in data) &&
+        Object.keys(data).length > 0
+      ) {
+        return data as ViewCountResult;
+      }
+    }
+
+    // 2. Only if proxy failed/returned empty AND familyYoutubeApiKey is set, fallback to direct Google API
     if (apiKey) {
       const url = `https://www.googleapis.com/youtube/v3/videos?part=statistics,id&id=${encodeURIComponent(
         idParam
@@ -68,17 +88,6 @@ async function fetchBatchViewCounts(
           }
         }
         return results;
-      }
-    }
-
-    // 2. Otherwise try backend proxy (server.ts / worker proxy)
-    const proxyBase = WORKER_URL || '';
-    const proxyUrl = `${proxyBase}/api/videos-views?ids=${encodeURIComponent(idParam)}`;
-    const res = await fetch(proxyUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && typeof data === 'object' && !Array.isArray(data)) {
-        return data as ViewCountResult;
       }
     }
   } catch (err) {
