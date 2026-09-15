@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, startTransition, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import db, { Settings } from './db';
 import { WORKER_URL } from './config';
 import { checkAndRequestStoragePersistence, StoragePersistenceResult } from './storage';
@@ -7,13 +7,13 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { useSessionTimer } from './hooks/useSessionTimer';
 import { ensureChannelsArchiveSynced } from './filtering';
 import KidHomeScreen from './screens/KidHomeScreen';
+import { PlayerView } from './screens/PlayerView';
+import SessionEndScreen from './components/SessionEndScreen';
 
 // Lazy-load heavy surfaces so kid-facing feed route starts immediately
-const PlayerView = React.lazy(() => import('./screens/PlayerView').then((m) => ({ default: m.PlayerView })));
 const Onboarding = React.lazy(() => import('./components/Onboarding'));
 const PinLockModal = React.lazy(() => import('./components/PinLockModal'));
 const AdBlockNotice = React.lazy(() => import('./components/AdBlockNotice'));
-const SessionEndScreen = React.lazy(() => import('./components/SessionEndScreen'));
 const ChannelsCountCard = React.lazy(() => import('./components/ChannelsCountCard'));
 const FilteringResultCard = React.lazy(() => import('./components/FilteringResultCard'));
 const TempAdminTool = React.lazy(() => import('./components/TempAdminTool'));
@@ -148,9 +148,7 @@ export default function App() {
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
     }
-    startTransition(() => {
-      setShowDemoPlayer(true);
-    });
+    setShowDemoPlayer(true);
   }, [updatePlayerMinimized]);
 
   const handleSelectVideo = useCallback((videoId: string, title?: string, channelName?: string, channelId?: string) => {
@@ -158,9 +156,7 @@ export default function App() {
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
     }
-    startTransition(() => {
-      setActivePlaybackVideo({ videoId, title, channelName, channelId });
-    });
+    setActivePlaybackVideo({ videoId, title, channelName, channelId });
   }, [updatePlayerMinimized]);
 
   const handlePlayerEnterFullscreen = useCallback(() => {
@@ -236,10 +232,8 @@ export default function App() {
 
       // 3. Otherwise, pop means "close the player entirely": clear playingVideoId, return to KidHomeScreen.
       if (!e.state?.ytPlayer) {
-        startTransition(() => {
-          setActivePlaybackVideo(null);
-          setShowDemoPlayer(false);
-        });
+        setActivePlaybackVideo(null);
+        setShowDemoPlayer(false);
         updatePlayerFullscreen(false);
         updatePlayerMinimized(false);
       }
@@ -470,9 +464,7 @@ export default function App() {
   // Open Dashboard handler
   const handleOpenDashboard = () => {
     if (isDashboardUnlocked) {
-      startTransition(() => {
-        setViewMode('dashboard');
-      });
+      setViewMode('dashboard');
     } else {
       setShowPinModal(true);
     }
@@ -481,17 +473,13 @@ export default function App() {
   const handleUnlockSuccess = () => {
     setIsDashboardUnlocked(true);
     setShowPinModal(false);
-    startTransition(() => {
-      setViewMode('dashboard');
-    });
+    setViewMode('dashboard');
     checkMainSettings();
   };
 
   const handleLockDashboard = () => {
     setIsDashboardUnlocked(false);
-    startTransition(() => {
-      setViewMode('kids');
-    });
+    setViewMode('kids');
   };
 
   // Finish first-run setup & navigate to KidHomeScreen
@@ -502,15 +490,11 @@ export default function App() {
         setMainSettings({ ...mainSettings, hasCompletedFirstSetup: true });
       }
       setIsDashboardUnlocked(false);
-      startTransition(() => {
-        setViewMode('kids');
-      });
+      setViewMode('kids');
     } catch (err) {
       console.error('Failed to finish first setup:', err);
       setIsDashboardUnlocked(false);
-      startTransition(() => {
-        setViewMode('kids');
-      });
+      setViewMode('kids');
     }
   };
 
@@ -552,9 +536,7 @@ export default function App() {
               await checkMainSettings();
               // First-run flow: land directly on Dashboard with first-run guidance banner
               setIsDashboardUnlocked(true);
-              startTransition(() => {
-                setViewMode('dashboard');
-              });
+              setViewMode('dashboard');
             }}
           />
         </Suspense>
@@ -581,41 +563,37 @@ export default function App() {
 
       {/* Real Video Player Overlay */}
       {(activePlaybackVideo || showDemoPlayer) && (
-        <Suspense fallback={null}>
-          <PlayerView
-            videoId={activePlaybackVideo?.videoId || 's6X_Q54_PBs'}
-            videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
-            channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
-            channelId={activePlaybackVideo?.channelId}
-            onVideoHidden={handleVideoHidden}
-            onChannelBlocked={handleBackfillSuccess}
-            onClose={() => {
-              updatePlayerMinimized(false);
-              updatePlayerFullscreen(false);
-              startTransition(() => {
-                setActivePlaybackVideo(null);
-                setShowDemoPlayer(false);
-              });
-              if (typeof window !== 'undefined') {
-                if (window.history.state?.minimized) {
-                  window.history.go(-2);
-                } else if (window.history.state?.ytPlayer) {
-                  window.history.back();
-                }
+        <PlayerView
+          videoId={activePlaybackVideo?.videoId || 's6X_Q54_PBs'}
+          videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
+          channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
+          channelId={activePlaybackVideo?.channelId}
+          onVideoHidden={handleVideoHidden}
+          onChannelBlocked={handleBackfillSuccess}
+          onClose={() => {
+            updatePlayerMinimized(false);
+            updatePlayerFullscreen(false);
+            setActivePlaybackVideo(null);
+            setShowDemoPlayer(false);
+            if (typeof window !== 'undefined') {
+              if (window.history.state?.minimized) {
+                window.history.go(-2);
+              } else if (window.history.state?.ytPlayer) {
+                window.history.back();
               }
-            }}
-            onEnded={() => {
-              console.log('Video finished playing cleanly');
-            }}
-            forceStop={isSessionEnded || devForceStop}
-            isFullscreen={isPlayerFullscreen}
-            onEnterFullscreen={handlePlayerEnterFullscreen}
-            onExitFullscreen={handlePlayerExitFullscreen}
-            isMinimized={isPlayerMinimized}
-            onEnterMinimized={handlePlayerEnterMinimized}
-            onExitMinimized={handlePlayerExitMinimized}
-          />
-        </Suspense>
+            }
+          }}
+          onEnded={() => {
+            console.log('Video finished playing cleanly');
+          }}
+          forceStop={isSessionEnded || devForceStop}
+          isFullscreen={isPlayerFullscreen}
+          onEnterFullscreen={handlePlayerEnterFullscreen}
+          onExitFullscreen={handlePlayerExitFullscreen}
+          isMinimized={isPlayerMinimized}
+          onEnterMinimized={handlePlayerEnterMinimized}
+          onExitMinimized={handlePlayerExitMinimized}
+        />
       )}
 
       {/* Background archive sync lives in ensureChannelsArchiveSynced (kids + dashboard).
@@ -624,14 +602,12 @@ export default function App() {
 
       {/* Phase 8: Full-Screen Session Takeover when limit reached or outside schedule window */}
       {isSessionEnded && viewMode !== 'dashboard' ? (
-        <Suspense fallback={null}>
-          <SessionEndScreen
-            isLimitReached={sessionTimer.isLimitReached}
-            isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
-            onParentUnlock={handleOpenDashboard}
-            onResetForTesting={sessionTimer.resetTodayUsage}
-          />
-        </Suspense>
+        <SessionEndScreen
+          isLimitReached={sessionTimer.isLimitReached}
+          isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
+          onParentUnlock={handleOpenDashboard}
+          onResetForTesting={sessionTimer.resetTodayUsage}
+        />
       ) : viewMode === 'kids' ? (
         <>
           {/* VIEW 0: REAL KID-FACING UI (Default View) */}
