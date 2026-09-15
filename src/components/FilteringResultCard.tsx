@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import db from '../db';
+import { WORKER_URL } from '../config';
 import {
   filterAndCacheVideos,
   getVideosWithMusicCount,
@@ -64,14 +65,35 @@ export default function FilteringResultCard({
 
   // Run filtering whenever channels data changes or refreshTrigger triggers
   const runFilter = useCallback(async () => {
-    if (!channels || channels.length === 0) {
+    let activeChannels = channels;
+
+    if (!activeChannels || activeChannels.length === 0) {
+      try {
+        let resp: Response;
+        try {
+          resp = await fetch(`${WORKER_URL}/api/channels-latest`);
+        } catch {
+          resp = await fetch('/api/channels-latest');
+        }
+        if (resp.ok) {
+          const data = await resp.json();
+          if (Array.isArray(data) && data.length > 0) {
+            activeChannels = data;
+          }
+        }
+      } catch (e) {
+        console.warn('FilteringResultCard fallback fetch error:', e);
+      }
+    }
+
+    if (!activeChannels || activeChannels.length === 0) {
       setResult(null);
       return;
     }
 
     setFiltering(true);
     try {
-      const res = await filterAndCacheVideos(channels);
+      const res = await filterAndCacheVideos(activeChannels);
       setResult(res);
 
       // If hideMusic is currently active, re-query the direct music count
@@ -129,7 +151,7 @@ export default function FilteringResultCard({
   return (
     <div
       id="filtering-result-card"
-      className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
+      className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
     >
       <div>
         <div className="flex items-center justify-between mb-4">

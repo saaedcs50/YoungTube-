@@ -152,7 +152,7 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div
         id="pin-lock-modal"
         className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden"
@@ -277,7 +277,7 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
                 <button
                   id="submit-recovery-btn"
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm"
                 >
                   تعيين الرمز وفتح اللوحة
                 </button>
@@ -337,7 +337,7 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
                   id="submit-pin-btn"
                   type="submit"
                   disabled={pin.length !== 6 || isVerifying}
-                  className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
+                  className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-sm"
                 >
                   <span>{isVerifying ? 'جاري التحقق...' : 'تأكيد ودخول'}</span>
                   <ArrowLeft className="w-4 h-4" />

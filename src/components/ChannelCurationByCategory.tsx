@@ -267,7 +267,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
       <CustomCategoryManager onChanged={handleChannelAdded} />
 
       {/* 1. YouTube Search Bar Component at Top */}
-      <div className="p-5 rounded-2xl bg-white border border-stone-200 shadow-2xs">
+      <div className="p-5 rounded-2xl bg-white border border-stone-200 shadow-sm">
         <YoutubeSearchBar onChannelAdded={handleChannelAdded} />
       </div>
 
@@ -289,14 +289,14 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
           <button
             type="button"
             onClick={expandAll}
-            className="min-h-[40px] px-3.5 py-1.5 text-xs font-semibold rounded-xl text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-2xs"
+            className="min-h-[40px] px-3.5 py-1.5 text-xs font-semibold rounded-xl text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-sm"
           >
             فتح الكل
           </button>
           <button
             type="button"
             onClick={collapseAll}
-            className="min-h-[40px] px-3.5 py-1.5 text-xs font-semibold rounded-xl text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-2xs"
+            className="min-h-[40px] px-3.5 py-1.5 text-xs font-semibold rounded-xl text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-sm"
           >
             طي الكل
           </button>
@@ -319,7 +319,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
               <div
                 key={cat.id}
                 id={`curation-cat-group-${cat.id}`}
-                className="rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-2xs transition"
+                className="rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-sm transition"
               >
                 {/* Collapsible Header */}
                 <button
@@ -466,7 +466,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                               >
                                 <span
                                   aria-hidden="true"
-                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
                                     channel.enabled ? '-translate-x-5' : 'translate-x-0'
                                   }`}
                                 />
@@ -486,7 +486,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
           {categorizedChannels.uncategorized.length > 0 && (
             <div
               id="curation-cat-group-uncategorized"
-              className="rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-2xs transition"
+              className="rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-sm transition"
             >
               <button
                 type="button"
@@ -613,7 +613,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                           >
                             <span
                               aria-hidden="true"
-                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
                                 channel.enabled ? '-translate-x-5' : 'translate-x-0'
                               }`}
                             />

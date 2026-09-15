@@ -1465,7 +1465,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
           {/* ForceStop Visual Banner */}
           {effectiveForceStop && (
-            <div className="absolute inset-0 z-30 bg-black/80 flex flex-col items-center justify-center p-4 text-center select-none backdrop-blur-xs">
+            <div className="absolute inset-0 z-30 bg-black/80 flex flex-col items-center justify-center p-4 text-center select-none backdrop-blur-sm">
               <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mb-2 border border-rose-500/40">
                 <Ban className="w-6 h-6" />
               </div>

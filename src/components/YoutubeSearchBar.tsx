@@ -369,7 +369,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                 onClick={() => setSearchType('channel')}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   searchType === 'channel'
-                    ? 'bg-white text-slate-800 shadow-xs'
+                    ? 'bg-white text-slate-800 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -381,7 +381,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                 onClick={() => setSearchType('playlist')}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   searchType === 'playlist'
-                    ? 'bg-white text-slate-800 shadow-xs'
+                    ? 'bg-white text-slate-800 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -411,7 +411,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
               id="execute-youtube-search-btn"
               type="submit"
               disabled={isLoading || !query.trim()}
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shrink-0 shadow-xs"
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shrink-0 shadow-sm"
             >
               {isLoading ? (
                 <>
@@ -460,7 +460,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                   className={`p-3 rounded-2xl border transition ${
                     isAdded
                       ? 'bg-amber-50/40 border-amber-300'
-                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -553,7 +553,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                               onClick={() => handleToggleCategory(item.sourceId, cat.id)}
                               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition active:scale-95 cursor-pointer ${
                                 isCatSelected
-                                  ? 'bg-amber-500 text-white shadow-2xs'
+                                  ? 'bg-amber-500 text-white shadow-sm'
                                   : 'bg-white text-slate-600 border border-slate-200 hover:bg-amber-50 hover:border-amber-300'
                               }`}
                             >

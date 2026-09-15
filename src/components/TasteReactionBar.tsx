@@ -55,7 +55,7 @@ export const TasteReactionBar: React.FC<TasteReactionBarProps> = ({
         id={`taste-like-${videoId}`}
         disabled={busy || picked !== null}
         onClick={() => handle('liked')}
-        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition active:scale-95 cursor-pointer shadow-2xs ${
+        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition active:scale-95 cursor-pointer shadow-sm ${
           picked === 'liked'
             ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
             : picked
@@ -72,7 +72,7 @@ export const TasteReactionBar: React.FC<TasteReactionBarProps> = ({
         id={`taste-dislike-${videoId}`}
         disabled={busy || picked !== null}
         onClick={() => handle('disliked')}
-        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition active:scale-95 cursor-pointer shadow-2xs ${
+        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition active:scale-95 cursor-pointer shadow-sm ${
           picked === 'disliked'
             ? 'bg-rose-100 text-rose-800 border-rose-300'
             : picked

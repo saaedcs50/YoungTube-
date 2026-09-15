@@ -136,7 +136,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
           جاري تحميل الفيديوهات المحفوظة...
         </div>
       ) : savedVideos.length > 0 ? (
-        <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-2xs">
+        <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-sm">
           {savedVideos.map((video) => (
             <div
               key={video.videoId}
@@ -159,7 +159,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
                   />
                   {/* Small Play Overlay on hover */}
                   <div className="absolute inset-0 bg-black/20 group-hover:bg-black/35 flex items-center justify-center transition">
-                    <div className="w-6 h-6 rounded-full bg-white/90 text-indigo-600 flex items-center justify-center shadow-xs">
+                    <div className="w-6 h-6 rounded-full bg-white/90 text-indigo-600 flex items-center justify-center shadow-sm">
                       <Play className="w-3 h-3 fill-current translate-x-0.2" />
                     </div>
                   </div>
@@ -185,7 +185,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
                 type="button"
                 id={`remove-saved-${video.videoId}-btn`}
                 onClick={(e) => handleRemoveSaved(e, video.videoId, video.title)}
-                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-700 text-xs font-semibold flex items-center gap-1.5 transition shrink-0 border border-stone-200 hover:border-rose-200 cursor-pointer shadow-2xs"
+                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-700 text-xs font-semibold flex items-center gap-1.5 transition shrink-0 border border-stone-200 hover:border-rose-200 cursor-pointer shadow-sm"
                 title="إزالة من المحفوظات"
               >
                 <Trash2 className="w-3.5 h-3.5" />

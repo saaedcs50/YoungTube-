@@ -11,6 +11,8 @@ export interface DashboardShellProps {
   onLock: () => void;
   onOpenDemoPlayer?: () => void;
   hasIncompleteSetup?: boolean;
+  showTools?: boolean;
+  onToggleTools?: () => void;
   headerSlot?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -24,9 +26,28 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   onLock,
   onOpenDemoPlayer,
   hasIncompleteSetup = false,
+  showTools = false,
+  onToggleTools,
   headerSlot,
   children,
 }) => {
+  // Discrete 5-tap unlocking mechanism on dashboard title for system tools
+  const tapCountRef = React.useRef(0);
+  const tapTimerRef = React.useRef<number | null>(null);
+
+  const handleTitleTap = () => {
+    tapCountRef.current += 1;
+    if (tapTimerRef.current) window.clearTimeout(tapTimerRef.current);
+    if (tapCountRef.current >= 5) {
+      tapCountRef.current = 0;
+      onToggleTools?.();
+    } else {
+      tapTimerRef.current = window.setTimeout(() => {
+        tapCountRef.current = 0;
+      }, 2000);
+    }
+  };
+
   return (
     <div
       id="dashboard-shell"
@@ -36,8 +57,12 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-stone-200/70 px-4 sm:px-8 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.02)]">
         <div className="max-w-6xl w-full mx-auto flex items-center justify-between gap-4">
           {/* Logo & Title */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-xs shadow-amber-200/50 shrink-0">
+          <div
+            className="flex items-center gap-3 select-none cursor-default"
+            onClick={handleTitleTap}
+            title="لوحة الأهل"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-sm shadow-amber-200/50 shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
@@ -48,6 +73,11 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 hidden sm:inline-block">
                   مفتوحة للوالدين
                 </span>
+                {showTools && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
+                    وضع الأدوات
+                  </span>
+                )}
               </div>
               <p className="text-xs text-stone-500 font-medium hidden sm:block">
                 {subtitle}
@@ -64,7 +94,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 id="dashboard-header-demo-player-btn"
                 type="button"
                 onClick={onOpenDemoPlayer}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
                 title="تجربة المشغل"
               >
                 <Play className="w-3.5 h-3.5 fill-current text-indigo-600" />
@@ -76,7 +106,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               id="dashboard-header-lock-btn"
               type="button"
               onClick={onLock}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-rose-50 hover:text-rose-700 text-stone-700 border border-stone-200/60 text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-rose-50 hover:text-rose-700 text-stone-700 border border-stone-200/60 text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
               title="قفل لوحة الأهل فوراً"
             >
               <Lock className="w-3.5 h-3.5 text-stone-500" />
@@ -87,7 +117,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               id="dashboard-header-back-btn"
               type="button"
               onClick={onClose}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
               title="العودة لشاشة الأطفال"
             >
               <span>شاشة الأطفال</span>
@@ -104,6 +134,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           activeSection={activeSection}
           onSelectSection={onSelectSection}
           hasIncompleteSetup={hasIncompleteSetup}
+          showTools={showTools}
         />
 
         {/* Section Content Panel */}

@@ -147,7 +147,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
       </div>
 
       {/* Card 1: Name and Age Inputs */}
-      <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm space-y-4">
         <h4 className="text-xs sm:text-sm font-bold text-stone-800 flex items-center gap-2">
           <span>البيانات الأساسية للطفل</span>
         </h4>
@@ -194,7 +194,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
       </div>
 
       {/* Card 2: Positive Interests Multi-select */}
-      <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs space-y-3">
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="space-y-1">
             <label className="text-xs sm:text-sm font-bold text-stone-800 flex items-center gap-2">
@@ -223,7 +223,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
                 onClick={() => togglePositive(cat.id)}
                 className={`min-h-[42px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition active:scale-95 cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-emerald-600 text-white border border-emerald-600 shadow-xs ring-2 ring-emerald-500/20'
+                    ? 'bg-emerald-600 text-white border border-emerald-600 shadow-sm ring-2 ring-emerald-500/20'
                     : 'bg-stone-50/70 text-stone-700 border border-stone-200 hover:bg-emerald-50/60 hover:border-emerald-300'
                 }`}
               >
@@ -237,7 +237,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
       </div>
 
       {/* Card 3: Negative Interests Multi-select */}
-      <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs space-y-3">
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="space-y-1">
             <label className="text-xs sm:text-sm font-bold text-stone-800 flex items-center gap-2">
@@ -266,7 +266,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
                 onClick={() => toggleNegative(cat.id)}
                 className={`min-h-[42px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition active:scale-95 cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-rose-600 text-white border border-rose-600 shadow-xs ring-2 ring-rose-500/20'
+                    ? 'bg-rose-600 text-white border border-rose-600 shadow-sm ring-2 ring-rose-500/20'
                     : 'bg-stone-50/70 text-stone-700 border border-stone-200 hover:bg-rose-50/60 hover:border-rose-300'
                 }`}
               >

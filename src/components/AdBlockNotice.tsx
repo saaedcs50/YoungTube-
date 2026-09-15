@@ -90,7 +90,7 @@ export default function AdBlockNotice({
         </div>
 
         {/* QR Code Container */}
-        <div className="relative p-2.5 bg-white rounded-xl shadow-xs border border-slate-200 inline-flex items-center justify-center min-w-[190px] min-h-[190px]">
+        <div className="relative p-2.5 bg-white rounded-xl shadow-sm border border-slate-200 inline-flex items-center justify-center min-w-[190px] min-h-[190px]">
           {qrLoading ? (
             <div className="w-44 h-44 flex flex-col items-center justify-center text-slate-400 gap-2">
               <QrIcon className="w-8 h-8 animate-pulse text-sky-500" />
@@ -158,7 +158,7 @@ export default function AdBlockNotice({
               id="onboarding-dns-finish-btn"
               type="button"
               onClick={onFinish}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
             >
               <Check className="w-4 h-4" />
               <span>تم ✅</span>
@@ -182,7 +182,7 @@ export default function AdBlockNotice({
 
   if (mode === 'modal') {
     return (
-      <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
         <div
           id="adblock-notice-modal"
           className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 my-auto"

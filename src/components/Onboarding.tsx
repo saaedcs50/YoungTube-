@@ -107,7 +107,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div
         id="onboarding-modal"
         className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col"
@@ -195,7 +195,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   id="onboarding-step1-btn"
                   type="submit"
                   disabled={pin.length !== 6 || confirmPin.length !== 6}
-                  className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
+                  className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-sm"
                 >
                   <span>التالي</span>
                   <ArrowLeft className="w-4 h-4" />
@@ -276,7 +276,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   id="onboarding-step2-btn"
                   type="submit"
                   disabled={!securityAnswer.trim()}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-sm"
                 >
                   <span>التالي</span>
                   <ArrowLeft className="w-4 h-4" />
@@ -329,7 +329,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   type="button"
                   onClick={handleAdvanceToStep4}
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-sm"
                 >
                   <span>{isSubmitting ? 'جاري الحفظ...' : 'التالي (حجب الإعلانات)'}</span>
                   <ArrowLeft className="w-4 h-4" />

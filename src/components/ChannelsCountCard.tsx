@@ -84,7 +84,7 @@ export default function ChannelsCountCard({
   return (
     <div
       id="channels-count-card"
-      className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
+      className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
     >
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -139,11 +139,11 @@ export default function ChannelsCountCard({
             </div>
 
             <div className="grid grid-cols-2 gap-2.5 pt-1">
-              <div className="p-2.5 rounded-lg bg-white border border-sky-100 shadow-2xs space-y-0.5">
+              <div className="p-2.5 rounded-lg bg-white border border-sky-100 shadow-sm space-y-0.5">
                 <span className="text-[11px] text-stone-500 block">قنوات بأرشيف نشط</span>
                 <span className="text-xs sm:text-sm font-bold text-sky-900">{channelsWithVideos} قناة</span>
               </div>
-              <div className="p-2.5 rounded-lg bg-white border border-sky-100 shadow-2xs space-y-0.5">
+              <div className="p-2.5 rounded-lg bg-white border border-sky-100 shadow-sm space-y-0.5">
                 <span className="text-[11px] text-stone-500 block">إجمالي الفيديوهات</span>
                 <span className="text-xs sm:text-sm font-bold text-sky-900">{totalVideos} فيديو</span>
               </div>

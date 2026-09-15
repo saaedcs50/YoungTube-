@@ -48,7 +48,7 @@ export default function TimerTestCard({
   return (
     <div
       id="timer-test-card"
-      className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
+      className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
     >
       <div>
         {/* Header */}
@@ -68,7 +68,7 @@ export default function TimerTestCard({
             type="button"
             onClick={handleReset}
             disabled={resetting}
-            className="inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition cursor-pointer disabled:opacity-50 self-start sm:self-auto border border-stone-200 shadow-2xs"
+            className="inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition cursor-pointer disabled:opacity-50 self-start sm:self-auto border border-stone-200 shadow-sm"
             title="تصفير عداد اليوم للاختبار فقط"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${resetting ? 'animate-spin' : ''}`} />
@@ -173,7 +173,7 @@ export default function TimerTestCard({
                 id="simulate-limit-btn"
                 type="button"
                 onClick={onSimulateLimit}
-                className="inline-flex items-center gap-1.5 min-h-[36px] px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition cursor-pointer border border-indigo-200 shadow-2xs"
+                className="inline-flex items-center gap-1.5 min-h-[36px] px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition cursor-pointer border border-indigo-200 shadow-sm"
                 title="يضبط العداد فوراً على الحد الأقصى لتجربة شاشة الإغلاق"
               >
                 <FastForward className="w-3.5 h-3.5" />

@@ -41,7 +41,7 @@ export const PWAInstallButton: React.FC = () => {
         </button>
 
         {showIOSGuide && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-right">
               <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
                 <h3 className="text-base font-bold text-slate-800">التثبيت على iOS (Safari)</h3>

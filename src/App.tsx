@@ -18,6 +18,7 @@ const ChannelsCountCard = React.lazy(() => import('./components/ChannelsCountCar
 const FilteringResultCard = React.lazy(() => import('./components/FilteringResultCard'));
 const TempAdminTool = React.lazy(() => import('./components/TempAdminTool'));
 const ChildProfileSection = React.lazy(() => import('./components/ChildProfileSection').then((m) => ({ default: m.ChildProfileSection })));
+const TimerSection = React.lazy(() => import('./components/dashboard/TimerSection').then((m) => ({ default: m.TimerSection })));
 const TasteShiftCard = React.lazy(() => import('./components/TasteShiftCard').then((m) => ({ default: m.TasteShiftCard })));
 const ChannelCurationByCategory = React.lazy(() => import('./components/ChannelCurationByCategory').then((m) => ({ default: m.ChannelCurationByCategory })));
 const FilteringTab = React.lazy(() => import('./components/FilteringTab').then((m) => ({ default: m.FilteringTab })));
@@ -25,6 +26,20 @@ const SavedVideosTab = React.lazy(() => import('./components/SavedVideosTab').th
 const TimerTestCard = React.lazy(() => import('./components/TimerTestCard'));
 import { DashboardShell } from './components/dashboard/DashboardShell';
 import { DashboardSectionId } from './components/dashboard/DashboardNav';
+
+// Unified dashboard section loading skeleton
+const SectionLoadingSkeleton: React.FC = () => (
+  <div className="rounded-2xl border border-stone-200/80 bg-white p-6 shadow-sm animate-pulse space-y-4">
+    <div className="flex items-center gap-3">
+      <div className="w-9 h-9 rounded-xl bg-amber-100/70" />
+      <div className="space-y-1.5 flex-1">
+        <div className="h-4 bg-stone-200/70 rounded-full w-1/4" />
+        <div className="h-3 bg-stone-100 rounded-full w-1/2" />
+      </div>
+    </div>
+    <div className="h-28 bg-stone-50 rounded-xl border border-stone-100" />
+  </div>
+);
 import {
   Database,
   Cloud,
@@ -249,13 +264,41 @@ export default function App() {
 
   // Phase 8: Session Timer
   const sessionTimer = useSessionTimer(viewMode === 'kids');
-  const [timerLimitInput, setTimerLimitInput] = useState<number>(60);
-  const [scheduleStartInput, setScheduleStartInput] = useState<string>('00:00');
-  const [scheduleEndInput, setScheduleEndInput] = useState<string>('23:59');
-  const [timerSettingsSaved, setTimerSettingsSaved] = useState(false);
 
   // Parent Dashboard Navigation Section
   const [dashboardSection, setDashboardSection] = useState<DashboardSectionId>('child');
+
+  // Tools nav visibility (persisted in localStorage or enabled via ?tools or ?dev=1 or 5 taps on title)
+  const [showTools, setShowTools] = useState<boolean>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('tools') || urlParams.get('dev') === '1') return true;
+      return localStorage.getItem('youngtube_show_tools') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleTools = useCallback(() => {
+    setShowTools((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('youngtube_show_tools', String(next));
+      } catch (e) {
+        console.warn('Failed to save showTools state', e);
+      }
+      if (!next && dashboardSection === 'tools') {
+        setDashboardSection('child');
+      }
+      return next;
+    });
+  }, [dashboardSection]);
+
+  useEffect(() => {
+    if (!showTools && dashboardSection === 'tools') {
+      setDashboardSection('child');
+    }
+  }, [showTools, dashboardSection]);
 
   // Check if main settings record exists
   const checkMainSettings = useCallback(async () => {
@@ -274,14 +317,8 @@ export default function App() {
           };
           await db.settings.put(updatedRecord);
           setMainSettings(updatedRecord);
-          setTimerLimitInput(updatedRecord.sessionLimitMinutes ?? 60);
-          setScheduleStartInput(updatedRecord.scheduleWindow?.start || '00:00');
-          setScheduleEndInput(updatedRecord.scheduleWindow?.end || '23:59');
         } else {
           setMainSettings(record);
-          setTimerLimitInput(record.sessionLimitMinutes ?? 60);
-          setScheduleStartInput(record.scheduleWindow?.start || '00:00');
-          setScheduleEndInput(record.scheduleWindow?.end || '23:59');
         }
         setShowOnboarding(false);
       }
@@ -289,24 +326,6 @@ export default function App() {
       // Fallback
     }
   }, []);
-
-  const handleSaveTimerSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!mainSettings) return;
-    const updated = {
-      ...mainSettings,
-      sessionLimitMinutes: Number(timerLimitInput) || 60,
-      scheduleWindow: {
-        start: scheduleStartInput || '00:00',
-        end: scheduleEndInput || '23:59',
-      },
-    };
-    await db.settings.put(updated);
-    setMainSettings(updated);
-    await sessionTimer.refreshSettings();
-    setTimerSettingsSaved(true);
-    setTimeout(() => setTimerSettingsSaved(false), 2000);
-  };
 
   const runDatabaseTest = useCallback(async () => {
     setDbResult({ loading: true });
@@ -625,7 +644,7 @@ export default function App() {
                 type="button"
                 id="floating-open-demo-player-btn"
                 onClick={handleOpenDemoPlayer}
-                className="px-3 py-1.5 rounded-full bg-indigo-900/90 hover:bg-indigo-900 text-indigo-200 text-xs font-medium shadow-md backdrop-blur-xs transition cursor-pointer"
+                className="px-3 py-1.5 rounded-full bg-indigo-900/90 hover:bg-indigo-900 text-indigo-200 text-xs font-medium shadow-md backdrop-blur-sm transition cursor-pointer"
                 title="شاشة المشغل التجريبية"
               >
                 ▶ شاشة المشغل التجريبية
@@ -634,7 +653,7 @@ export default function App() {
                 type="button"
                 id="floating-force-stop-toggle-btn"
                 onClick={() => setDevForceStop((prev) => !prev)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium shadow-md backdrop-blur-xs transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full text-xs font-medium shadow-md backdrop-blur-sm transition cursor-pointer ${
                   devForceStop
                     ? 'bg-rose-600 text-white'
                     : 'bg-stone-900/90 hover:bg-stone-800 text-amber-300'
@@ -649,7 +668,7 @@ export default function App() {
                   setDashboardSection('tools');
                   setViewMode('dashboard');
                 }}
-                className="px-3 py-1.5 rounded-full bg-stone-900/80 hover:bg-stone-900 text-amber-300 text-xs font-mono shadow-md backdrop-blur-xs transition cursor-pointer"
+                className="px-3 py-1.5 rounded-full bg-stone-900/80 hover:bg-stone-900 text-amber-300 text-xs font-mono shadow-md backdrop-blur-sm transition cursor-pointer"
                 title="لوحة المطور وفحص الأنظمة (?dev=1)"
               >
                 ⚙️ لوحة الفحص (?dev=1)
@@ -665,6 +684,8 @@ export default function App() {
           onLock={handleLockDashboard}
           onOpenDemoPlayer={handleOpenDemoPlayer}
           hasIncompleteSetup={!mainSettings?.hasCompletedFirstSetup}
+          showTools={showTools}
+          onToggleTools={handleToggleTools}
           headerSlot={<PWAInstallButton />}
         >
           {/* First-Run Welcome / Guidance Banner */}
@@ -702,7 +723,7 @@ export default function App() {
           {/* SECTION: ملف الطفل */}
           {dashboardSection === 'child' && (
             <div id="section-child" className="space-y-6">
-              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل ملف الطفل...</div>}>
+              <Suspense fallback={<SectionLoadingSkeleton />}>
                 <ChildProfileSection onSaved={checkMainSettings} />
               </Suspense>
             </div>
@@ -710,128 +731,22 @@ export default function App() {
 
           {/* SECTION: مواعيد التشغيل */}
           {dashboardSection === 'timer' && (
-            <div id="section-timer" className="space-y-6 max-w-4xl mx-auto">
-              <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-2xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-stone-200 mb-5">
-                  <div>
-                    <h3 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                        <Clock className="w-4 h-4 text-emerald-700" />
-                      </span>
-                      <span>مواعيد التشغيل والحد اليومي</span>
-                    </h3>
-                    <p className="text-xs sm:text-sm text-stone-500 mt-1">
-                      تحديد المدة اليومية القصوى المسموحة وساعات المشاهدة المصرح بها للطفل.
-                    </p>
-                  </div>
-                  {timerSettingsSaved && (
-                    <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 animate-fade-in self-start sm:self-auto">
-                      تم حفظ الإعدادات بنجاح ✅
-                    </span>
-                  )}
-                </div>
-
-                <form onSubmit={handleSaveTimerSettings} className="space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* Session Limit Minutes */}
-                    <div className="space-y-1.5">
-                      <label htmlFor="session-limit-input" className="text-xs font-bold text-stone-700 block">
-                        الحد اليومي (بالدقائق)
-                      </label>
-                      <input
-                        id="session-limit-input"
-                        type="number"
-                        min="1"
-                        max="720"
-                        value={timerLimitInput}
-                        onChange={(e) => setTimerLimitInput(Math.max(1, Number(e.target.value) || 1))}
-                        className="w-full p-2.5 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono text-stone-900"
-                      />
-                      <span className="text-[10px] text-stone-400">الافتراضي: 60 دقيقة</span>
-                    </div>
-
-                    {/* Window Start */}
-                    <div className="space-y-1.5">
-                      <label htmlFor="schedule-start-input" className="text-xs font-bold text-stone-700 block">
-                        بداية الوقت المسموح
-                      </label>
-                      <input
-                        id="schedule-start-input"
-                        type="time"
-                        value={scheduleStartInput}
-                        onChange={(e) => setScheduleStartInput(e.target.value)}
-                        className="w-full p-2.5 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono text-stone-900"
-                      />
-                      <span className="text-[10px] text-stone-400">مثل: 08:00</span>
-                    </div>
-
-                    {/* Window End */}
-                    <div className="space-y-1.5">
-                      <label htmlFor="schedule-end-input" className="text-xs font-bold text-stone-700 block">
-                        نهاية الوقت المسموح
-                      </label>
-                      <input
-                        id="schedule-end-input"
-                        type="time"
-                        value={scheduleEndInput}
-                        onChange={(e) => setScheduleEndInput(e.target.value)}
-                        className="w-full p-2.5 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono text-stone-900"
-                      />
-                      <span className="text-[10px] text-stone-400">مثل: 20:00</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
-                    <button
-                      id="save-timer-settings-btn"
-                      type="submit"
-                      className="min-h-[38px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
-                    >
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>حفظ إعدادات الوقت</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={sessionTimer.resetTodayUsage}
-                      className="min-h-[38px] px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition cursor-pointer border border-stone-200 shadow-2xs"
-                      title="تصفير عداد اليوم للاختبار"
-                    >
-                      تصفير استهلاك اليوم (الحالي: {sessionTimer.secondsUsedToday} ثانية)
-                    </button>
-                  </div>
-                </form>
-
-                {/* Phase 9: Ad-blocking DNS Notice Permanent Row */}
-                <div className="mt-8 pt-5 border-t border-stone-200">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-stone-50 border border-stone-200">
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-sky-600" />
-                        <span>حجب إعلانات يوتيوب (Private DNS)</span>
-                      </h4>
-                      <p className="text-xs text-stone-600 leading-relaxed">
-                        حجب غالبية الإعلانات مجاناً على مستوى الجهاز بالكامل (أندرويد و iOS) بدون تطبيقات إضافية.
-                      </p>
-                    </div>
-                    <button
-                      id="open-adblock-notice-btn"
-                      type="button"
-                      onClick={() => setShowAdBlockModal(true)}
-                      className="min-h-[38px] px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold shrink-0 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <span>عرض إرشادات ورمز QR</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+            <div id="section-timer" className="space-y-6">
+              <Suspense fallback={<SectionLoadingSkeleton />}>
+                <TimerSection
+                  mainSettings={mainSettings}
+                  sessionTimer={sessionTimer}
+                  onSettingsSaved={checkMainSettings}
+                  onOpenAdBlockModal={() => setShowAdBlockModal(true)}
+                />
+              </Suspense>
             </div>
           )}
 
           {/* SECTION: تعديل الذوق (Taste Shift) */}
           {dashboardSection === 'taste' && (
             <div id="section-taste" className="space-y-6">
-              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل خريطة الذوق...</div>}>
+              <Suspense fallback={<SectionLoadingSkeleton />}>
                 <TasteShiftCard onSaved={checkMainSettings} />
               </Suspense>
             </div>
@@ -840,7 +755,15 @@ export default function App() {
           {/* SECTION: تنظيم وتصنيف القنوات */}
           {dashboardSection === 'channels' && (
             <div id="section-channels" className="space-y-6">
-              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل القنوات...</div>}>
+              {/* Live Channels Archive Summary Card */}
+              <Suspense fallback={null}>
+                <ChannelsCountCard
+                  refreshTrigger={channelsRefreshTrigger}
+                  onChannelsLoaded={handleChannelsLoaded}
+                />
+              </Suspense>
+
+              <Suspense fallback={<SectionLoadingSkeleton />}>
                 <ChannelCurationByCategory
                   onChannelChanged={() => setChannelsRefreshTrigger((prev) => prev + 1)}
                 />
@@ -851,7 +774,15 @@ export default function App() {
           {/* SECTION: الفلترة والحجب */}
           {dashboardSection === 'filtering' && (
             <div id="section-filtering" className="space-y-6">
-              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل إعدادات الفلترة...</div>}>
+              {/* Filtering Engine Result & Protection Summary Card */}
+              <Suspense fallback={null}>
+                <FilteringResultCard
+                  channels={channelsData}
+                  refreshTrigger={channelsRefreshTrigger}
+                />
+              </Suspense>
+
+              <Suspense fallback={<SectionLoadingSkeleton />}>
                 <FilteringTab
                   onFilterChanged={() => {
                     checkMainSettings();
@@ -865,7 +796,7 @@ export default function App() {
           {/* SECTION: الفيديوهات المحفوظة */}
           {dashboardSection === 'saved' && (
             <div id="section-saved" className="space-y-6">
-              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل الفيديوهات المحفوظة...</div>}>
+              <Suspense fallback={<SectionLoadingSkeleton />}>
                 <SavedVideosTab onSelectVideo={handleSelectVideo} />
               </Suspense>
             </div>
@@ -873,7 +804,7 @@ export default function App() {
 
           {/* Prominent Bottom Button for First-Run Setup */}
           {!mainSettings?.hasCompletedFirstSetup && (
-            <div id="first-run-bottom-action" className="p-6 rounded-3xl bg-amber-50 border-2 border-amber-300 text-center space-y-3 shadow-xs">
+            <div id="first-run-bottom-action" className="p-6 rounded-3xl bg-amber-50 border-2 border-amber-300 text-center space-y-3 shadow-sm">
               <div className="space-y-1">
                 <h4 className="text-base font-bold text-amber-950">
                   هل انتهيت من ضبط الإعدادات والقنوات؟
@@ -897,7 +828,7 @@ export default function App() {
           {dashboardSection === 'tools' && (
             <div id="section-tools" className="space-y-6">
               {/* Helper Bar */}
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 text-xs text-stone-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 text-xs text-stone-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-stone-700">سجل الإعدادات الثابت:</span>
                   <code className="font-mono bg-stone-100 px-2 py-0.5 rounded text-stone-800">settings.get('main')</code>
@@ -916,7 +847,7 @@ export default function App() {
               {/* Card 1: Database Test Card */}
               <div
                 id="db-test-card"
-                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
+                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -991,7 +922,7 @@ export default function App() {
               {/* Card 2: Cloudflare Worker Card (with Cache vs Online distinction) */}
               <div
                 id="worker-test-card"
-                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
+                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -1106,7 +1037,7 @@ export default function App() {
               {/* Card 3: Storage Persistence Card */}
               <div
                 id="storage-persistence-card"
-                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
+                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -1211,23 +1142,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Card 4: Channels Count Card (Stage 5) */}
-              <Suspense fallback={null}>
-                <ChannelsCountCard
-                  refreshTrigger={channelsRefreshTrigger}
-                  onChannelsLoaded={handleChannelsLoaded}
-                />
-              </Suspense>
-
-              {/* Card 5: Filtering Result Card (Part 2) */}
-              <Suspense fallback={null}>
-                <FilteringResultCard
-                  channels={channelsData}
-                  refreshTrigger={channelsRefreshTrigger}
-                />
-              </Suspense>
-
-              {/* Card 7: Timer Test Card (Phase 8: Timers) */}
+              {/* Card 4: Timer Test Card (Phase 8: Timers) */}
               <div className="md:col-span-2 lg:col-span-3">
                 <Suspense fallback={null}>
                   <TimerTestCard

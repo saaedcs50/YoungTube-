@@ -204,7 +204,7 @@ export default function TempAdminTool({ onBackfillSuccess }: TempAdminToolProps)
             id="start-backfill-btn"
             type="submit"
             disabled={loading || !sourceId.trim() || !adminKey.trim()}
-            className="min-h-[38px] px-5 py-2 rounded-xl bg-stone-800 hover:bg-stone-900 active:bg-black text-white text-xs font-bold flex items-center gap-2 transition shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="min-h-[38px] px-5 py-2 rounded-xl bg-stone-800 hover:bg-stone-900 active:bg-black text-white text-xs font-bold flex items-center gap-2 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {loading ? (
               <>

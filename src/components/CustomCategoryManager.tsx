@@ -120,7 +120,7 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
                   onClick={() => setSelectedEmoji(emoji)}
                   className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition cursor-pointer active:scale-95 ${
                     isSelected
-                      ? 'bg-amber-500 text-white shadow-xs scale-105'
+                      ? 'bg-amber-500 text-white shadow-sm scale-105'
                       : 'hover:bg-amber-100/60 text-stone-700'
                   }`}
                 >
@@ -139,7 +139,7 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
           id="create-custom-cat-btn"
           type="submit"
           disabled={!labelInput.trim()}
-          className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-xs"
+          className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-sm"
         >
           <Plus className="w-4 h-4" />
           <span>إنشاء التصنيف</span>
@@ -158,7 +158,7 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
             {customCategories.map((cat) => (
               <div
                 key={cat.id}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-amber-200 text-xs text-stone-800 shadow-2xs"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-amber-200 text-xs text-stone-800 shadow-sm"
               >
                 <span>{cat.emoji}</span>
                 <span className="font-bold">{cat.label}</span>

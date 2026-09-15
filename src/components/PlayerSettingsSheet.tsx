@@ -394,7 +394,7 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
                 })}
               </div>
             ) : (
-              <div className="px-3.5 py-3 rounded-xl bg-stone-850/60 border border-stone-800 text-xs text-stone-400 text-right">
+              <div className="px-3.5 py-3 rounded-xl bg-stone-900/60 border border-stone-800 text-xs text-stone-400 text-right">
                 لا توجد ترجمة متاحة لهذا الفيديو
               </div>
             )}

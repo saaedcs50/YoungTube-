@@ -74,14 +74,14 @@ export const WeeklyChoiceCard: React.FC<WeeklyChoiceCardProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-right">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-xl bg-amber-200/70 text-amber-800 shadow-2xs">
+            <span className="p-1.5 rounded-xl bg-amber-200/70 text-amber-800 shadow-sm">
               <Sparkles className="w-5 h-5" />
             </span>
             <h2 className="text-lg sm:text-xl font-black text-amber-950">
               عايز نجرّب إيه الأسبوع ده؟ 🎨
             </h2>
           </div>
-          <p className="text-xs sm:text-sm font-medium text-amber-850">
+          <p className="text-xs sm:text-sm font-medium text-amber-900">
             اختر قسماً جديداً تحب تستكشف فيديوهاته وتتعلم منه هذا الأسبوع!
           </p>
         </div>
@@ -96,7 +96,7 @@ export const WeeklyChoiceCard: React.FC<WeeklyChoiceCardProps> = ({
               id={`choice-btn-${catId}`}
               type="button"
               onClick={() => handleSelectCategory(catId)}
-              className="p-4 sm:p-5 rounded-2xl bg-white/95 border border-amber-200/90 hover:border-amber-400 hover:bg-amber-50/80 active:scale-[0.98] shadow-2xs hover:shadow-sm transition-all duration-150 flex items-center justify-center gap-3 text-center cursor-pointer group"
+              className="p-4 sm:p-5 rounded-2xl bg-white/95 border border-amber-200/90 hover:border-amber-400 hover:bg-amber-50/80 active:scale-[0.98] shadow-sm hover:shadow-md transition-all duration-150 flex items-center justify-center gap-3 text-center cursor-pointer group"
             >
               <span className="text-3xl sm:text-4xl group-hover:scale-110 transition-transform duration-200">
                 {cat.emoji}
