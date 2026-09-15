@@ -256,9 +256,11 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
       .map((item) => item.videoId)
   );
 
-  // 2. Group allExisting by channelId in memory
+  // 2. Group allExisting by channelId and build lookup map
+  const existingMap = new Map<string, FeedItem>();
   const existingByChannel = new Map<string, FeedItem[]>();
   for (const item of allExisting) {
+    existingMap.set(item.videoId, item);
     if (!item.channelId) continue;
     const list = existingByChannel.get(item.channelId);
     if (list) {
@@ -325,6 +327,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
         noMusicCount++;
       }
 
+      const existingItem = existingMap.get(video.videoId);
       const feedItem: FeedItem = {
         videoId: video.videoId,
         channelId,
@@ -333,6 +336,8 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
         fetchedAt: now,
         publishedAt: video.publishedAt,
         hidden: false,
+        viewCount: existingItem?.viewCount,
+        viewCountFetchedAt: existingItem?.viewCountFetchedAt,
       };
 
       channelPassedItems.push(feedItem);

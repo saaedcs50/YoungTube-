@@ -2,6 +2,7 @@ import React from 'react';
 import { FeedItem } from '../db';
 import { VolumeX, Heart } from 'lucide-react';
 import { TasteReactionBar } from './TasteReactionBar';
+import { formatViewCount } from '../services/youtubeViewCounts';
 
 export interface VideoCardProps {
   video: FeedItem;
@@ -34,6 +35,8 @@ export const VideoCard = React.memo(
     const thumbnailUrl = `https://i.ytimg.com/vi/${video.videoId}/${
       isNarrow ? 'mqdefault' : 'hqdefault'
     }.jpg`;
+
+    const formattedViews = formatViewCount(video.viewCount);
 
     const handleClick = () => {
       if (onSelectVideo) {
@@ -106,10 +109,18 @@ export const VideoCard = React.memo(
             {video.title}
           </h3>
 
-          <div className="flex items-center justify-between text-xs font-medium pt-0.5">
-            <span className="truncate max-w-[90%] text-stone-500 group-hover:text-stone-700 transition-colors">
+          <div className="flex items-center justify-between text-xs font-medium pt-0.5 text-stone-500">
+            <span className="truncate max-w-[65%] group-hover:text-stone-700 transition-colors">
               {channelTitle}
             </span>
+            {formattedViews && (
+              <span
+                id={`view-count-${video.videoId}`}
+                className="shrink-0 text-[11px] text-stone-400 font-medium font-sans flex items-center gap-1"
+              >
+                <span>{formattedViews}</span>
+              </span>
+            )}
           </div>
 
           {!isFavorite && isTasteShiftTarget && activeTasteShiftCategory && onTasteReacted && (
@@ -130,6 +141,7 @@ export const VideoCard = React.memo(
       prev.video.videoId === next.video.videoId &&
       prev.video.title === next.video.title &&
       prev.video.hasMusic === next.video.hasMusic &&
+      prev.video.viewCount === next.video.viewCount &&
       prev.channelTitle === next.channelTitle &&
       prev.isFavorite === next.isFavorite &&
       prev.isTasteShiftTarget === next.isTasteShiftTarget &&

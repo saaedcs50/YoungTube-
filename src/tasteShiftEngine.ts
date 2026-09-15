@@ -160,17 +160,37 @@ export function rollWeekPerCategory(
  * Phase C — interest bridge: up to `familiarPerNovel` familiar items,
  * then 1 novel item. Prevents a wall of new-category videos.
  * Pools should already be shuffled by the caller.
+ * Accepts optional `startOffset` to randomize or configure the starting rhythm phase.
  */
 export function bridgeInterleave<T>(
   familiar: T[],
   novel: T[],
-  familiarPerNovel = 2
+  familiarPerNovel = 2,
+  startOffset?: number
 ): T[] {
+  if (novel.length === 0) return [...familiar];
+  if (familiar.length === 0) return [...novel];
+
   const ratio = Math.max(1, Math.floor(familiarPerNovel));
+  // Vary the initial starting phase (0..ratio) so novel items don't always appear at rigid index offsets
+  const initialFamiliar =
+    startOffset !== undefined
+      ? Math.max(0, Math.min(ratio, startOffset))
+      : Math.floor(Math.random() * (ratio + 1));
+
   const result: T[] = [];
   let fi = 0;
   let ni = 0;
 
+  // Initial phase: take initialFamiliar familiar items before the first novel item
+  for (let k = 0; k < initialFamiliar && fi < familiar.length; k++) {
+    result.push(familiar[fi++]);
+  }
+  if (ni < novel.length) {
+    result.push(novel[ni++]);
+  }
+
+  // Standard recurring cycle for subsequent items
   while (fi < familiar.length || ni < novel.length) {
     for (let k = 0; k < ratio && fi < familiar.length; k++) {
       result.push(familiar[fi++]);

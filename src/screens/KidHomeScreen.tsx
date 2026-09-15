@@ -7,6 +7,7 @@ import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
 import { TasteReactionBar } from '../components/TasteReactionBar';
 import { VideoCard } from '../components/VideoCard';
 import { WindowVirtualizer } from 'virtua';
+import { enrichFeedItemViewCounts } from '../services/youtubeViewCounts';
 import {
   computeBaseShare,
   resolveEffectiveShare,
@@ -54,6 +55,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
+    viewCount: 4800000,
   },
   {
     videoId: 'u7e33WnUf0A',
@@ -62,6 +64,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
+    viewCount: 12500000,
   },
   {
     videoId: 'x1rB6E1oTss',
@@ -70,6 +73,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
+    viewCount: 3200000,
   },
   {
     videoId: 'w_gWvL8fN8g',
@@ -78,6 +82,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
+    viewCount: 1900000,
   },
   {
     videoId: 'X_1g1z1b0a8',
@@ -86,6 +91,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
+    viewCount: 950000,
   },
   {
     videoId: '02E1468SdHg',
@@ -94,6 +100,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
+    viewCount: 5400000,
   },
   {
     videoId: 'UeF09e7hDbg',
@@ -102,6 +109,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
+    viewCount: 8100000,
   },
   {
     videoId: 'tbCjkPlsaes',
@@ -110,17 +118,87 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
+    viewCount: 620000,
   },
 ];
 
-// Fisher-Yates shuffle to randomize video order on fresh app mount
+let sessionShuffleCounter = 0;
+
+function getRandom(): number {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0] / (0xffffffff + 1);
+  }
+  return Math.random();
+}
+
+// High-entropy Fisher-Yates shuffle to randomize video order across full candidate pool
 function shuffleVideos(array: FeedItem[]): FeedItem[] {
+  sessionShuffleCounter += 1;
   const arr = [...array];
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const r = getRandom();
+    const j = Math.floor(r * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+}
+
+/**
+ * Lightweight diversity constraint: avoids placing 3+ videos from the same channelId
+ * consecutively when the pool allows (max-2 streak per channel).
+ */
+function enforceChannelDiversity(items: FeedItem[], maxConsecutive = 2): FeedItem[] {
+  if (items.length <= maxConsecutive) return items;
+  const arr = [...items];
+  let currentChannel = arr[0]?.channelId;
+  let streak = 1;
+
+  for (let i = 1; i < arr.length; i++) {
+    const ch = arr[i]?.channelId;
+    if (ch && currentChannel && ch === currentChannel) {
+      streak += 1;
+      if (streak > maxConsecutive) {
+        // Look ahead for the next video from a different channel to break the streak
+        let swapIdx = -1;
+        for (let j = i + 1; j < arr.length; j++) {
+          if (arr[j]?.channelId && arr[j].channelId !== currentChannel) {
+            swapIdx = j;
+            break;
+          }
+        }
+        if (swapIdx !== -1) {
+          [arr[i], arr[swapIdx]] = [arr[swapIdx], arr[i]];
+          currentChannel = arr[i].channelId;
+          streak = 1;
+        }
+      }
+    } else {
+      currentChannel = ch;
+      streak = 1;
+    }
+  }
+  return arr;
+}
+
+/**
+ * In-place merge for silent background sync:
+ * Preserves the exact user scroll order while updating item metadata (views, flags)
+ * and safely appending newly discovered videos at the end without jump.
+ */
+function mergeInPlace(prev: FeedItem[], latest: FeedItem[]): FeedItem[] {
+  if (prev.length === 0) return enforceChannelDiversity(shuffleVideos(latest));
+  const latestMap = new Map(latest.map((v) => [v.videoId, v]));
+  const kept = prev
+    .filter((v) => latestMap.has(v.videoId))
+    .map((v) => {
+      const updated = latestMap.get(v.videoId)!;
+      return { ...v, ...updated };
+    });
+  const keptIds = new Set(kept.map((v) => v.videoId));
+  const added = latest.filter((v) => !keptIds.has(v.videoId));
+  return added.length > 0 ? [...kept, ...enforceChannelDiversity(shuffleVideos(added))] : kept;
 }
 
 function videoRecency(item: FeedItem): number {
@@ -339,14 +417,11 @@ export default function KidHomeScreen({
       const tasteShift = settings?.tasteShift as TasteShiftConfig | undefined;
       if (!tasteShift?.enabled || !tasteShift.targetCategories || tasteShift.targetCategories.length === 0) {
         setTasteShiftConfig(null);
-        setVideos((prev) => {
-          if (prev.length === 0) return shuffleVideos(availableVideos);
-          const nextIds = new Set(availableVideos.map((v) => v.videoId));
-          const kept = prev.filter((v) => nextIds.has(v.videoId));
-          const keptIds = new Set(kept.map((v) => v.videoId));
-          const added = availableVideos.filter((v) => !keptIds.has(v.videoId));
-          return added.length > 0 ? [...kept, ...shuffleVideos(added)] : kept;
-        });
+        if (silent) {
+          setVideos((prev) => mergeInPlace(prev, availableVideos));
+        } else {
+          setVideos(enforceChannelDiversity(shuffleVideos(availableVideos)));
+        }
       } else {
         const { currentWeek, baseShare } = computeBaseShare(
           tasteShift.startDate,
@@ -370,24 +445,21 @@ export default function KidHomeScreen({
           currentWeek,
         });
 
-        const keepOrder = (list: FeedItem[]) => {
-          setVideos((prev) => {
-            if (prev.length === 0) return shuffleVideos(list);
-            const nextIds = new Set(list.map((v) => v.videoId));
-            const kept = prev.filter((v) => nextIds.has(v.videoId));
-            const keptIds = new Set(kept.map((v) => v.videoId));
-            const added = list.filter((v) => !keptIds.has(v.videoId));
-            return added.length > 0 ? [...kept, ...shuffleVideos(added)] : kept;
-          });
-        };
-
         if (!activeCategory) {
-          keepOrder(availableVideos);
+          if (silent) {
+            setVideos((prev) => mergeInPlace(prev, availableVideos));
+          } else {
+            setVideos(enforceChannelDiversity(shuffleVideos(availableVideos)));
+          }
         } else {
           const catState = getOrInitCategoryState(tasteShift, activeCategory, baseShare);
           if (isCategoryInCooldown(catState)) {
             // Hard reject cooldown: serve normal feed without target mix
-            keepOrder(availableVideos);
+            if (silent) {
+              setVideos((prev) => mergeInPlace(prev, availableVideos));
+            } else {
+              setVideos(enforceChannelDiversity(shuffleVideos(availableVideos)));
+            }
           } else {
             const share = resolveEffectiveShare(tasteShift, activeCategory);
 
@@ -423,15 +495,20 @@ export default function KidHomeScreen({
             }
 
             const targetCount = Math.round((availableVideos.length * share) / 100);
-            const shuffledTarget = shuffleVideos(targetPool);
-            const shuffledRest = shuffleVideos(restPool);
+            const shuffledTarget = enforceChannelDiversity(shuffleVideos(targetPool));
+            const shuffledRest = enforceChannelDiversity(shuffleVideos(restPool));
             const takeTargetCount = Math.min(targetCount, shuffledTarget.length);
             const takeRestCount = availableVideos.length - takeTargetCount;
             const chosenTarget = shuffledTarget.slice(0, takeTargetCount);
             const chosenRest = shuffledRest.slice(0, Math.max(0, takeRestCount));
-            // Phase C: 2 familiar + 1 new (no full reshuffle — keeps the bridge pattern)
-            const combined = bridgeInterleave(chosenRest, chosenTarget, 2);
-            setVideos(combined);
+            // Phase C: 2 familiar + 1 new with randomized phase (no rigid predictable pattern)
+            const combined = enforceChannelDiversity(bridgeInterleave(chosenRest, chosenTarget, 2));
+
+            if (silent) {
+              setVideos((prev) => mergeInPlace(prev, combined));
+            } else {
+              setVideos(combined);
+            }
 
             // Log impressions for first batch of target cards (async, non-blocking)
             if (chosenTarget.length > 0) {
@@ -445,7 +522,7 @@ export default function KidHomeScreen({
       }
     } catch (err) {
       console.error('Failed to query db in KidHomeScreen:', err);
-      setVideos((prev) => (prev.length > 0 ? prev : shuffleVideos(STARTER_VIDEOS)));
+      setVideos((prev) => (prev.length > 0 ? prev : enforceChannelDiversity(shuffleVideos(STARTER_VIDEOS))));
     } finally {
       setLoading(false);
     }
@@ -486,6 +563,50 @@ export default function KidHomeScreen({
       if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [loadVideos]);
+
+  // Stable callback to incrementally merge enriched view counts into active feed state
+  const handleViewCountsUpdated = useCallback((updatedMap: Record<string, number>) => {
+    setVideos((prevVideos) =>
+      prevVideos.map((v) =>
+        updatedMap[v.videoId] !== undefined && v.viewCount !== updatedMap[v.videoId]
+          ? { ...v, viewCount: updatedMap[v.videoId], viewCountFetchedAt: Date.now() }
+          : v
+      )
+    );
+  }, []);
+
+  // Background view counts enrichment (non-blocking, runs on idle after first paint)
+  useEffect(() => {
+    if (loading || videos.length === 0) return;
+
+    let cancelled = false;
+    const runEnrichment = () => {
+      if (cancelled) return;
+      void enrichFeedItemViewCounts(videos, (updatedMap) => {
+        if (!cancelled) {
+          handleViewCountsUpdated(updatedMap);
+        }
+      });
+    };
+
+    let idleId: number | undefined;
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = (window as any).requestIdleCallback(runEnrichment, { timeout: 3000 });
+    } else {
+      idleId = setTimeout(runEnrichment, 800) as unknown as number;
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId !== undefined) {
+        if (typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+          (window as any).cancelIdleCallback(idleId);
+        } else {
+          clearTimeout(idleId);
+        }
+      }
+    };
+  }, [videos, loading, handleViewCountsUpdated]);
 
   const suppressedSet = useMemo(() => new Set(suppressedVideoIds), [suppressedVideoIds]);
 
@@ -533,6 +654,8 @@ export default function KidHomeScreen({
           hasMusic: cached?.hasMusic,
           fetchedAt: inter.lastWatched || Date.now(),
           hidden: false,
+          viewCount: cached?.viewCount,
+          viewCountFetchedAt: cached?.viewCountFetchedAt,
         });
       }
 
@@ -622,8 +745,21 @@ export default function KidHomeScreen({
             </div>
           </div>
 
-          {/* Unobtrusive Parent Zone Trigger (Small, in the corner) */}
+          {/* Unobtrusive Header Action Controls */}
           <div className="flex items-center gap-2">
+            <button
+              id="kid-refresh-feed-btn"
+              type="button"
+              onClick={() => void loadVideos(false)}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold transition shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+              title="تجديد الفيديوهات وترتيبها"
+              aria-label="تجديد الفيديوهات وترتيبها"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-600 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">تجديد</span>
+            </button>
+
             {onOpenDemoPlayer && (
               <button
                 id="kid-header-demo-player-btn"
@@ -696,6 +832,7 @@ export default function KidHomeScreen({
                   onClick={() => {
                     setShowFavorites(false);
                     setSelectedCategory(cat.id);
+                    void loadVideos(false);
                   }}
                   className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer ${
                     isActive
@@ -926,7 +1063,10 @@ export default function KidHomeScreen({
                 <button
                   id="reset-filter-btn"
                   type="button"
-                  onClick={() => setSelectedCategory('all')}
+                  onClick={() => {
+                    setSelectedCategory('all');
+                    void loadVideos(false);
+                  }}
                   className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer active:scale-95"
                 >
                   عرض جميع الفيديوهات ✨

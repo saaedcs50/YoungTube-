@@ -61,6 +61,8 @@ interface FeedItem {
   fetchedAt: number;
   publishedAt?: string;
   hidden?: boolean;
+  viewCount?: number;
+  viewCountFetchedAt?: number;
 }
 
 interface Interaction {
@@ -164,6 +166,19 @@ db.version(3).stores({
 
 // Phase B: explicit Taste Shift event log
 db.version(4).stores({
+  settings: 'id',
+  channels: '++id, sourceId, *category',
+  usage: 'date',
+  feedCache: 'videoId, channelId, fetchedAt, publishedAt',
+  interactions: 'videoId, channelId',
+  downloads: '++id',
+  dailySummaries: 'date',
+  customCategories: '++id, &categoryId',
+  tasteShiftEvents: '++id, ts, categoryId, type, videoId',
+});
+
+// Version 5: viewCount and viewCountFetchedAt fields on feedCache
+db.version(5).stores({
   settings: 'id',
   channels: '++id, sourceId, *category',
   usage: 'date',

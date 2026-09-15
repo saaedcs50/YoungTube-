@@ -63,6 +63,36 @@ async function startServer() {
     });
   });
 
+  // YouTube videos statistics proxy endpoint (safely proxies with server YOUTUBE_API_KEY if present)
+  app.get('/api/videos-views', async (req, res) => {
+    const ids = (req.query.ids as string) || '';
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!ids || !apiKey) {
+      res.json({});
+      return;
+    }
+    try {
+      const url = `https://www.googleapis.com/youtube/v3/videos?part=statistics,id&id=${encodeURIComponent(
+        ids
+      )}&key=${encodeURIComponent(apiKey)}`;
+      const ytRes = await fetch(url);
+      if (!ytRes.ok) {
+        res.json({});
+        return;
+      }
+      const data: any = await ytRes.json();
+      const results: Record<string, number> = {};
+      for (const item of data.items || []) {
+        if (item.id && item.statistics?.viewCount !== undefined) {
+          results[item.id] = Number(item.statistics.viewCount) || 0;
+        }
+      }
+      res.json(results);
+    } catch {
+      res.json({});
+    }
+  });
+
   // Vite middleware for dev or static serving for prod
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
