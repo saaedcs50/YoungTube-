@@ -25,6 +25,8 @@ import {
   Smile,
   Search,
   X,
+  Heart,
+  ArrowRight,
 } from 'lucide-react';
 
 interface KidHomeScreenProps {
@@ -182,6 +184,11 @@ export default function KidHomeScreen({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Child-facing Favorites view state
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [favoritesVideos, setFavoritesVideos] = useState<FeedItem[]>([]);
+  const [favoritesCount, setFavoritesCount] = useState(0);
 
   // Taste Shift feature state
   const [tasteShiftConfig, setTasteShiftConfig] = useState<{
@@ -452,6 +459,64 @@ export default function KidHomeScreen({
 
   const suppressedSet = useMemo(() => new Set(suppressedVideoIds), [suppressedVideoIds]);
 
+  // 2.5 Load favorites videos (liked videos) with strict safety filters
+  const loadFavorites = useCallback(async () => {
+    try {
+      const [interactions, storedChannels, settings] = await Promise.all([
+        db.interactions
+          .filter((i) => i.parentRating === 'liked' || i.childReaction === 'liked')
+          .toArray(),
+        db.channels.toArray(),
+        db.settings.get('main'),
+      ]);
+
+      interactions.sort((a, b) => (b.lastWatched || 0) - (a.lastWatched || 0));
+
+      const disabledChannelIds = new Set(
+        storedChannels.filter((c) => c.enabled === false).map((c) => c.sourceId)
+      );
+
+      const hideMusicVideos = settings?.hideMusicVideos === true;
+      const suppressed = new Set(suppressedVideoIds);
+
+      const videoIds = interactions.map((i) => i.videoId);
+      const cachedRows =
+        videoIds.length > 0 ? await db.feedCache.where('videoId').anyOf(videoIds).toArray() : [];
+      const cachedMap = new Map(cachedRows.map((r) => [r.videoId, r]));
+
+      const safeList: FeedItem[] = [];
+      for (const inter of interactions) {
+        if (suppressed.has(inter.videoId)) continue;
+
+        const cached = cachedMap.get(inter.videoId);
+        if (cached?.hidden === true) continue;
+
+        const targetChannelId = inter.channelId || cached?.channelId;
+        if (targetChannelId && disabledChannelIds.has(targetChannelId)) continue;
+
+        if (hideMusicVideos && cached?.hasMusic === true) continue;
+
+        safeList.push({
+          videoId: inter.videoId,
+          channelId: targetChannelId || 'unknown',
+          title: inter.title || cached?.title || 'فيديو أطفال',
+          hasMusic: cached?.hasMusic,
+          fetchedAt: inter.lastWatched || Date.now(),
+          hidden: false,
+        });
+      }
+
+      setFavoritesVideos(safeList);
+      setFavoritesCount(safeList.length);
+    } catch (err) {
+      console.error('Failed to load favorites videos:', err);
+    }
+  }, [suppressedVideoIds]);
+
+  useEffect(() => {
+    void loadFavorites();
+  }, [loadFavorites, refreshTrigger, showFavorites]);
+
   // 3. Filter videos by selected category and client-side in-feed search
   const filteredVideos = useMemo(() => {
     let result = videos;
@@ -480,6 +545,17 @@ export default function KidHomeScreen({
 
     return result;
   }, [videos, selectedCategory, debouncedSearch, channelMap, suppressedSet]);
+
+  // 3.5 Filter favorites by search query
+  const filteredFavorites = useMemo(() => {
+    if (!debouncedSearch) return favoritesVideos;
+    return favoritesVideos.filter((video) => {
+      const channelInfo = channelMap.get(video.channelId);
+      const titleMatch = video.title.toLowerCase().includes(debouncedSearch);
+      const channelMatch = channelInfo?.title.toLowerCase().includes(debouncedSearch);
+      return titleMatch || channelMatch;
+    });
+  }, [favoritesVideos, debouncedSearch, channelMap]);
 
   return (
     <div
@@ -540,14 +616,48 @@ export default function KidHomeScreen({
       <section className="bg-[#FAF8F5] border-b border-stone-200/40 px-4 sm:px-8 py-3">
         <div className="max-w-7xl mx-auto space-y-3">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {/* Child-facing "المفضلة" (Favorites) button */}
+            <button
+              id="kid-favorites-toggle-btn"
+              type="button"
+              onClick={() => {
+                setShowFavorites((prev) => !prev);
+              }}
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer shadow-xs ${
+                showFavorites
+                  ? 'bg-rose-500 text-white shadow-rose-200 ring-2 ring-rose-300'
+                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+              }`}
+              title="فيديوهاتي المفضلة"
+            >
+              <Heart
+                className={`w-4 h-4 ${
+                  showFavorites ? 'fill-white text-white' : 'fill-rose-500 text-rose-500'
+                }`}
+              />
+              <span>المفضلة</span>
+              {favoritesCount > 0 && (
+                <span
+                  className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
+                    showFavorites ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-800'
+                  }`}
+                >
+                  {favoritesCount}
+                </span>
+              )}
+            </button>
+
             {kidCategories.map((cat) => {
-              const isActive = selectedCategory === cat.id;
+              const isActive = !showFavorites && selectedCategory === cat.id;
               return (
                 <button
                   key={cat.id}
                   id={`cat-chip-${cat.id}`}
                   type="button"
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => {
+                    setShowFavorites(false);
+                    setSelectedCategory(cat.id);
+                  }}
                   className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition active:scale-95 cursor-pointer ${
                     isActive
                       ? 'bg-amber-500 text-white shadow-xs'
@@ -595,8 +705,168 @@ export default function KidHomeScreen({
       </section>
 
       {/* 3. Main Video Grid */}
-      <main className="grow max-w-7xl w-full mx-auto px-4 sm:px-8 py-6">
-        {loading ? (
+      <main className="grow w-full py-4 sm:py-6">
+        {showFavorites ? (
+          <div id="kid-favorites-view" className="space-y-6">
+            {/* Header banner with back button */}
+            <div className="px-4 sm:px-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-rose-100 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 border border-rose-100">
+                    <Heart className="w-6 h-6 fill-rose-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-stone-800 flex items-center gap-2">
+                      <span>فيديوهاتي المفضلة ❤️</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold border border-rose-200">
+                        {filteredFavorites.length} فيديو
+                      </span>
+                    </h2>
+                    <p className="text-xs text-stone-500">
+                      الفيديوهات التي نالت إعجابك وتستمتع بمشاهدتها دائماً
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  id="back-to-home-feed-btn"
+                  type="button"
+                  onClick={() => setShowFavorites(false)}
+                  className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>العودة للفيديوهات</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Favorites Video Grid or Empty State */}
+            {filteredFavorites.length === 0 ? (
+              debouncedSearch ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 px-4 sm:px-8">
+                  <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto">
+                    <Search className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base sm:text-lg font-bold text-stone-800">
+                      مفيش فيديو مفضل بهذا الاسم
+                    </h3>
+                    <p className="text-xs text-stone-500 max-w-md mx-auto">
+                      تأكد من كتابة الاسم بشكل صحيح أو امسح البحث لمشاهدة كل مفضلاتك.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInput('');
+                      setDebouncedSearch('');
+                    }}
+                    className="px-5 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                  >
+                    عرض كل الفيديوهات المفضلة ❤️
+                  </button>
+                </div>
+              ) : (
+                /* Empty state, kid-friendly tone specified by user */
+                <div
+                  id="kid-favorites-empty-state"
+                  className="flex flex-col items-center justify-center py-20 text-center space-y-4 px-4 sm:px-8"
+                >
+                  <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto border border-rose-100 shadow-xs">
+                    <Heart className="w-8 h-8 fill-rose-500" />
+                  </div>
+                  <div className="space-y-1.5 max-w-md mx-auto">
+                    <h3 className="text-base sm:text-lg font-bold text-stone-800">
+                      لسه مفيش فيديوهات حبيتها ❤️
+                    </h3>
+                    <p className="text-xs sm:text-sm text-stone-500 leading-relaxed">
+                      اضغط على القلب وانت بتتفرج عشان تحفظها هنا!
+                    </p>
+                  </div>
+                  <button
+                    id="back-to-feed-from-empty-favorites-btn"
+                    type="button"
+                    onClick={() => setShowFavorites(false)}
+                    className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-xs cursor-pointer active:scale-95 flex items-center gap-1.5"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    <span>العودة للفيديوهات</span>
+                  </button>
+                </div>
+              )
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6">
+                {filteredFavorites.map((video) => {
+                  const channelInfo = channelMap.get(video.channelId);
+                  const channelTitle = channelInfo?.title || 'قناة أطفال';
+                  const thumbnailUrl = `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`;
+
+                  return (
+                    <div
+                      key={video.videoId}
+                      id={`favorite-card-${video.videoId}`}
+                      onClick={() => {
+                        if (onSelectVideo) {
+                          onSelectVideo(video.videoId, video.title, channelInfo?.title, video.channelId);
+                        } else if (onOpenDemoPlayer) {
+                          onOpenDemoPlayer();
+                        }
+                      }}
+                      className="group bg-white flex flex-col text-right cursor-pointer"
+                    >
+                      {/* Thumbnail: edge-to-edge, no rounded corners, no play overlay */}
+                      <div className="relative aspect-video w-full bg-stone-100 overflow-hidden">
+                        <img
+                          src={thumbnailUrl}
+                          alt={video.title}
+                          className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`;
+                          }}
+                        />
+
+                        {/* Favorite Heart Badge */}
+                        <div
+                          id={`favorite-badge-${video.videoId}`}
+                          className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-rose-500/90 text-white text-[10px] font-bold shadow-xs backdrop-blur-xs flex items-center gap-1 pointer-events-none z-10"
+                        >
+                          <Heart className="w-3 h-3 fill-white" />
+                          <span>مفضلة</span>
+                        </div>
+
+                        {/* Optional No Music Badge */}
+                        {video.hasMusic === false && (
+                          <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-md bg-stone-900/80 text-emerald-300 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs">
+                            <VolumeX className="w-3 h-3" />
+                            <span>بدون موسيقى</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Video Details: keep small internal padding so text isn't flush against the edges */}
+                      <div className="px-3.5 pt-2.5 pb-3 flex flex-col justify-between grow space-y-1.5">
+                        <h3
+                          className="text-sm sm:text-base font-bold text-stone-800 line-clamp-2 leading-snug group-hover:text-rose-700 transition"
+                          title={video.title}
+                        >
+                          {video.title}
+                        </h3>
+
+                        <div className="flex items-center justify-between text-xs text-stone-500 font-medium pt-0.5">
+                          <span className="truncate max-w-[85%] text-stone-600">
+                            {channelTitle}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-stone-400 gap-3">
             <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
             <span className="text-sm font-medium">جاري تحضير الفيديوهات الممتعة...</span>
@@ -604,7 +874,7 @@ export default function KidHomeScreen({
         ) : filteredVideos.length === 0 ? (
           debouncedSearch ? (
             /* Part A: Friendly Search Empty State */
-            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 px-4 sm:px-8">
               <div className="w-16 h-16 rounded-3xl bg-amber-100/70 text-amber-700 flex items-center justify-center mx-auto">
                 <Search className="w-8 h-8" />
               </div>
@@ -629,7 +899,7 @@ export default function KidHomeScreen({
               </button>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 px-4 sm:px-8">
               <div className="w-16 h-16 rounded-3xl bg-amber-100/60 text-amber-600 flex items-center justify-center mx-auto">
                 <Film className="w-8 h-8" />
               </div>
@@ -652,13 +922,15 @@ export default function KidHomeScreen({
             </div>
           )
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6">
             {showWeeklyChoiceCard && tasteShiftConfig && (
-              <WeeklyChoiceCard
-                targetCategories={tasteShiftConfig.targetCategories}
-                currentWeek={tasteShiftConfig.currentWeek}
-                onChoiceMade={() => loadVideos(true)}
-              />
+              <div className="col-span-full px-4 sm:px-8 mb-2">
+                <WeeklyChoiceCard
+                  targetCategories={tasteShiftConfig.targetCategories}
+                  currentWeek={tasteShiftConfig.currentWeek}
+                  onChoiceMade={() => loadVideos(true)}
+                />
+              </div>
             )}
             {filteredVideos.map((video) => {
               const channelInfo = channelMap.get(video.channelId);
@@ -688,14 +960,14 @@ export default function KidHomeScreen({
                       onOpenDemoPlayer();
                     }
                   }}
-                  className="group bg-white rounded-3xl overflow-hidden border border-stone-200/80 hover:border-amber-300/80 hover:shadow-md transition-all duration-200 flex flex-col text-right cursor-pointer"
+                  className="group bg-white flex flex-col text-right cursor-pointer"
                 >
-                  {/* Thumbnail with 16:9 ratio and play badge */}
+                  {/* Thumbnail: edge-to-edge, no rounded corners, no play overlay */}
                   <div className="relative aspect-video w-full bg-stone-100 overflow-hidden">
                     <img
                       src={thumbnailUrl}
                       alt={video.title}
-                      className="w-full h-full object-cover group-hover:scale-104 transition duration-300"
+                      className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
                       referrerPolicy="no-referrer"
                       loading="lazy"
                       onError={(e) => {
@@ -708,30 +980,23 @@ export default function KidHomeScreen({
                     {isTasteShiftTarget && (
                       <div
                         id={`taste-shift-badge-${video.videoId}`}
-                        className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-lg bg-white/90 text-stone-800 text-[10px] font-bold shadow-xs backdrop-blur-xs border border-white/60 pointer-events-none z-10"
+                        className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-white/90 text-stone-800 text-[10px] font-bold shadow-xs backdrop-blur-xs border border-white/60 pointer-events-none z-10"
                       >
                         ✨ جديد
                       </div>
                     )}
 
-                    {/* Warm Play Badge Overlay (Warm Amber / Cream - No Red) */}
-                    <div className="absolute inset-0 bg-stone-900/10 group-hover:bg-stone-900/25 flex items-center justify-center transition">
-                      <div className="w-13 h-13 rounded-full bg-white/95 text-amber-600 shadow-md flex items-center justify-center group-hover:scale-110 transition backdrop-blur-xs">
-                        <Play className="w-6 h-6 fill-current translate-x-0.5" />
-                      </div>
-                    </div>
-
                     {/* Optional No Music Badge */}
                     {video.hasMusic === false && (
-                      <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-lg bg-stone-900/80 text-emerald-300 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs">
+                      <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-md bg-stone-900/80 text-emerald-300 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs">
                         <VolumeX className="w-3 h-3" />
                         <span>بدون موسيقى</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Video Details */}
-                  <div className="p-4 flex flex-col justify-between grow space-y-2">
+                  {/* Video Details: keep small internal padding so text isn't flush against the edges */}
+                  <div className="px-3.5 pt-2.5 pb-3 flex flex-col justify-between grow space-y-1.5">
                     <h3
                       className="text-sm sm:text-base font-bold text-stone-800 line-clamp-2 leading-snug group-hover:text-amber-800 transition"
                       title={video.title}
@@ -739,13 +1004,9 @@ export default function KidHomeScreen({
                       {video.title}
                     </h3>
 
-                    <div className="flex items-center justify-between pt-1 border-t border-stone-100 text-xs text-stone-500 font-medium">
-                      <span className="truncate max-w-[70%] text-stone-600">
+                    <div className="flex items-center justify-between text-xs text-stone-500 font-medium pt-0.5">
+                      <span className="truncate max-w-[85%] text-stone-600">
                         {channelTitle}
-                      </span>
-                      <span className="text-[11px] text-amber-600 font-semibold flex items-center gap-1">
-                        <span>مشاهدة</span>
-                        <Play className="w-3 h-3 fill-current" />
                       </span>
                     </div>
                     {isTasteShiftTarget && tasteShiftConfig?.activeCategoryThisWeek && (

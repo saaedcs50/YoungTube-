@@ -20,6 +20,7 @@ import { ChildProfileSection } from './components/ChildProfileSection';
 import { TasteShiftCard } from './components/TasteShiftCard';
 import { ChannelCurationByCategory } from './components/ChannelCurationByCategory';
 import { FilteringTab } from './components/FilteringTab';
+import { SavedVideosTab } from './components/SavedVideosTab';
 import {
   Database,
   Cloud,
@@ -45,6 +46,7 @@ import {
   Sparkles,
   User,
   FolderKanban,
+  Bookmark,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -252,6 +254,7 @@ export default function App() {
   const [isChildProfileOpen, setIsChildProfileOpen] = useState(true);
   const [isChannelCurationOpen, setIsChannelCurationOpen] = useState(true);
   const [isFilteringOpen, setIsFilteringOpen] = useState(true);
+  const [isSavedVideosOpen, setIsSavedVideosOpen] = useState(true);
 
   // Check if main settings record exists
   const checkMainSettings = useCallback(async () => {
@@ -1061,6 +1064,46 @@ export default function App() {
                       setChannelsRefreshTrigger((prev) => prev + 1);
                     }}
                   />
+                </div>
+              )}
+            </div>
+
+            {/* Setup Screen Part C: Saved Videos (الفيديوهات المحفوظة) */}
+            <div id="saved-videos-card" className="rounded-3xl border border-indigo-200 bg-white p-6 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setIsSavedVideosOpen(!isSavedVideosOpen)}
+                className="w-full flex items-center justify-between text-right cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                    <Bookmark className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      الفيديوهات المحفوظة
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      قائمة الفيديوهات المحفوظة للأهل للمراجعة والتشغيل المباشر
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-slate-400">
+                  <span className="text-xs font-medium hidden sm:inline">
+                    {isSavedVideosOpen ? 'طي القسم' : 'توسيع القسم'}
+                  </span>
+                  {isSavedVideosOpen ? (
+                    <ChevronUp className="w-5 h-5" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5" />
+                  )}
+                </div>
+              </button>
+
+              {isSavedVideosOpen && (
+                <div className="mt-6 pt-5 border-t border-slate-100">
+                  <SavedVideosTab onSelectVideo={handleSelectVideo} />
                 </div>
               )}
             </div>
