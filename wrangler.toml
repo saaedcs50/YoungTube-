@@ -4,3 +4,6 @@ compatibility_date = "2024-01-01"
 
 [triggers]
 crons = ["*/15 * * * *"]
+[[kv_namespaces]]
+binding = "CHANNELS_ARCHIVE"
+id = "b933debea57649fc921e173185619ffb"
