@@ -756,7 +756,7 @@ export default function App() {
           {dashboardSection === 'channels' && (
             <div id="section-channels" className="space-y-6">
               {/* Live Channels Archive Summary Card */}
-              <Suspense fallback={null}>
+              <Suspense fallback={<SectionLoadingSkeleton />}>
                 <ChannelsCountCard
                   refreshTrigger={channelsRefreshTrigger}
                   onChannelsLoaded={handleChannelsLoaded}
@@ -775,7 +775,7 @@ export default function App() {
           {dashboardSection === 'filtering' && (
             <div id="section-filtering" className="space-y-6">
               {/* Filtering Engine Result & Protection Summary Card */}
-              <Suspense fallback={null}>
+              <Suspense fallback={<SectionLoadingSkeleton />}>
                 <FilteringResultCard
                   channels={channelsData}
                   refreshTrigger={channelsRefreshTrigger}

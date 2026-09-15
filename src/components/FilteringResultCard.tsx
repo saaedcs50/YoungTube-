@@ -3,21 +3,19 @@ import db from '../db';
 import { WORKER_URL } from '../config';
 import {
   filterAndCacheVideos,
-  getVideosWithMusicCount,
   type FilteringResult,
   type ChannelItem,
 } from '../filtering';
 import {
   Filter,
   CheckCircle2,
-  AlertCircle,
   Music,
   VolumeX,
-  Sparkles,
   ShieldAlert,
-  Film,
   Smartphone,
   RefreshCw,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 
 interface FilteringResultCardProps {
@@ -25,94 +23,106 @@ interface FilteringResultCardProps {
   refreshTrigger?: number;
 }
 
+interface DexieSummary {
+  totalCached: number;
+  activeCount: number;
+  hiddenCount: number;
+  hasMusicCount: number;
+  noMusicCount: number;
+  portraitCount: number;
+  blacklistWordsCount: number;
+}
+
 export default function FilteringResultCard({
   channels,
   refreshTrigger = 0,
 }: FilteringResultCardProps) {
   const [filtering, setFiltering] = useState(false);
-  const [result, setResult] = useState<FilteringResult | null>(null);
+  const [lastResult, setLastResult] = useState<FilteringResult | null>(null);
   const [hideMusic, setHideMusic] = useState(false);
-  const [musicVideosCount, setMusicVideosCount] = useState<number | null>(null);
-  const [loadingMusicCount, setLoadingMusicCount] = useState(false);
+  const [summary, setSummary] = useState<DexieSummary | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(true);
 
-  // Load initial hideMusicVideos setting from db.settings
-  useEffect(() => {
-    let isMounted = true;
-    async function loadSetting() {
-      try {
-        const settings = await db.settings.get('main');
-        if (isMounted && settings) {
-          const isHide = settings.hideMusicVideos === true;
-          setHideMusic(isHide);
-          if (isHide) {
-            setLoadingMusicCount(true);
-            const count = await getVideosWithMusicCount();
-            if (isMounted) {
-              setMusicVideosCount(count);
-              setLoadingMusicCount(false);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load hideMusicVideos setting:', err);
-      }
+  // 1) Read-only lightweight summary from Dexie (NEVER runs filterAndCacheVideos on mount)
+  const loadDexieSummary = useCallback(async () => {
+    try {
+      setLoadingSummary(true);
+      const [allFeed, settings] = await Promise.all([
+        db.feedCache.toArray(),
+        db.settings.get('main'),
+      ]);
+
+      const isHide = settings?.hideMusicVideos === true;
+      setHideMusic(isHide);
+
+      const totalCached = allFeed.length;
+      const activeCount = allFeed.filter((item) => item.hidden !== true).length;
+      const hiddenCount = allFeed.filter((item) => item.hidden === true).length;
+      const hasMusicCount = allFeed.filter((item) => item.hasMusic === true).length;
+      const noMusicCount = allFeed.filter((item) => item.hasMusic === false).length;
+      const portraitCount = allFeed.filter((item) => item.isPortrait === true).length;
+      const blacklistWordsCount = settings?.blacklistWords?.length || 0;
+
+      setSummary({
+        totalCached,
+        activeCount,
+        hiddenCount,
+        hasMusicCount,
+        noMusicCount,
+        portraitCount,
+        blacklistWordsCount,
+      });
+    } catch (err) {
+      console.error('Failed to read Dexie summary in FilteringResultCard:', err);
+    } finally {
+      setLoadingSummary(false);
     }
-    loadSetting();
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
-  // Run filtering whenever channels data changes or refreshTrigger triggers
-  const runFilter = useCallback(async () => {
-    let activeChannels = channels;
+  useEffect(() => {
+    loadDexieSummary();
+  }, [loadDexieSummary, refreshTrigger]);
 
-    if (!activeChannels || activeChannels.length === 0) {
-      try {
-        let resp: Response;
-        try {
-          resp = await fetch(`${WORKER_URL}/api/channels-latest`);
-        } catch {
-          resp = await fetch('/api/channels-latest');
-        }
-        if (resp.ok) {
-          const data = await resp.json();
-          if (Array.isArray(data) && data.length > 0) {
-            activeChannels = data;
-          }
-        }
-      } catch (e) {
-        console.warn('FilteringResultCard fallback fetch error:', e);
-      }
-    }
-
-    if (!activeChannels || activeChannels.length === 0) {
-      setResult(null);
-      return;
-    }
-
+  // 2) Explicit filter recalculation triggered ONLY by explicit user button click
+  const handleExplicitRecalculate = async () => {
     setFiltering(true);
     try {
-      const res = await filterAndCacheVideos(activeChannels);
-      setResult(res);
+      let activeChannels = channels;
 
-      // If hideMusic is currently active, re-query the direct music count
-      if (hideMusic) {
-        const count = await getVideosWithMusicCount();
-        setMusicVideosCount(count);
+      if (!activeChannels || activeChannels.length === 0) {
+        try {
+          let resp: Response;
+          try {
+            resp = await fetch(`${WORKER_URL}/api/channels-latest`);
+          } catch {
+            resp = await fetch('/api/channels-latest');
+          }
+          if (resp.ok) {
+            const data = await resp.json();
+            if (Array.isArray(data) && data.length > 0) {
+              activeChannels = data;
+            }
+          }
+        } catch (e) {
+          console.warn('FilteringResultCard fallback fetch error:', e);
+        }
       }
+
+      if (activeChannels && activeChannels.length > 0) {
+        const res = await filterAndCacheVideos(activeChannels);
+        setLastResult(res);
+      }
+
+      // Re-read lightweight counts from Dexie after recalculation completes
+      await loadDexieSummary();
     } catch (err) {
-      console.error('Filtering error:', err);
+      console.error('Filtering calculation error:', err);
     } finally {
       setFiltering(false);
     }
-  }, [channels, hideMusic]);
+  };
 
-  useEffect(() => {
-    runFilter();
-  }, [runFilter, refreshTrigger]);
-
-  // When "Hide videos with music" checkbox is toggled
+  // 3) Music filter toggle (persists setting only, no implicit heavy re-filter)
   const handleMusicToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setHideMusic(checked);
@@ -131,148 +141,137 @@ export default function FilteringResultCard({
     } catch (err) {
       console.error('Failed to save hideMusicVideos setting to db.settings:', err);
     }
-
-    if (checked) {
-      setLoadingMusicCount(true);
-      try {
-        // Direct query against db.feedCache
-        const count = await getVideosWithMusicCount();
-        setMusicVideosCount(count);
-      } catch (err) {
-        console.error('Failed to query db.feedCache for hasMusic:', err);
-      } finally {
-        setLoadingMusicCount(false);
-      }
-    } else {
-      setMusicVideosCount(null);
-    }
   };
 
   return (
     <div
       id="filtering-result-card"
-      className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
+      className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between space-y-4"
     >
       <div>
-        <div className="flex items-center justify-between mb-4">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-100">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
               <Filter className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-stone-900">نتائج الفلترة والحماية</h2>
-              <span className="text-xs text-stone-400 font-mono">Client-Side Engine (Dexie)</span>
+              <h2 className="text-base font-bold text-stone-900">ملخص الفلترة والحماية</h2>
+              <span className="text-xs text-stone-400 font-mono">Client-Side Summary (Dexie)</span>
             </div>
           </div>
 
           <button
             id="re-filter-btn"
-            onClick={runFilter}
-            disabled={filtering || !channels || channels.length === 0}
-            className="p-2 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition disabled:opacity-50 cursor-pointer"
-            title="إعادة تشغيل الفلترة"
+            type="button"
+            onClick={handleExplicitRecalculate}
+            disabled={filtering}
+            className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer border border-stone-200 shadow-sm"
+            title="إعادة فحص وتطبيق معايير الفلترة على الفيديوهات"
           >
-            <RefreshCw className={`w-4 h-4 ${filtering ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${filtering ? 'animate-spin text-emerald-600' : 'text-stone-500'}`} />
+            <span>{filtering ? 'جاري الفلترة...' : 'تطبيق الفلترة الآن'}</span>
           </button>
         </div>
 
         {/* State Display */}
         {filtering ? (
-          <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 animate-pulse flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-stone-400 shrink-0" />
-            جاري تطبيق معايير الأمان وفلترة الفيديوهات...
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 animate-pulse flex items-center gap-2.5">
+            <RefreshCw className="w-4 h-4 animate-spin text-emerald-600 shrink-0" />
+            <span>جاري فحص وتطبيق معايير الأمان (Shorts، الكلمات المحظورة، الموسيقى)...</span>
           </div>
-        ) : !channels ? (
-          <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-stone-400 shrink-0" />
-            في انتظار اكتمال تحميل القنوات من الـ Worker...
+        ) : loadingSummary ? (
+          <div className="p-4 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 animate-pulse flex items-center gap-2">
+            <Layers className="w-4 h-4 text-stone-400 shrink-0 animate-spin" />
+            <span>جاري قراءة إحصائيات الذاكرة المحلية...</span>
           </div>
-        ) : channels.length === 0 ? (
-          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            لا توجد فيديوهات للفلترة حالياً (القائمة المدمجة فارغة).
-          </div>
-        ) : result ? (
-          <div className="space-y-3">
+        ) : summary ? (
+          <div className="space-y-4">
             {/* Primary Counts Grid */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
               <div className="p-3 rounded-xl bg-stone-50 border border-stone-200 text-center">
-                <span className="text-[10px] text-stone-500 font-medium block">قبل الفلترة</span>
+                <span className="text-[10px] text-stone-500 font-medium block">إجمالي في الذاكرة</span>
                 <span className="text-base sm:text-lg font-bold text-stone-900 font-mono">
-                  {result.totalBefore}
+                  {summary.totalCached}
                 </span>
-                <span className="text-[10px] text-stone-400 block mt-0.5">فيديو</span>
+                <span className="text-[10px] text-stone-400 block mt-0.5">فيديو مفحوص</span>
               </div>
 
               <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-center">
-                <span className="text-[10px] text-emerald-700 font-medium block">بعد الفلترة</span>
+                <span className="text-[10px] text-emerald-700 font-medium block">مقبول ونشط</span>
                 <span className="text-base sm:text-lg font-bold text-emerald-800 font-mono">
-                  {result.totalAfterFilter}
+                  {summary.activeCount}
                 </span>
-                <span className="text-[10px] text-emerald-600 block mt-0.5">مقبول في الذاكرة</span>
+                <span className="text-[10px] text-emerald-600 block mt-0.5">متاح للطفل</span>
               </div>
 
               <div className="p-3 rounded-xl bg-rose-50/70 border border-rose-200 text-center">
-                <span className="text-[10px] text-rose-700 font-medium block">المستبعد</span>
+                <span className="text-[10px] text-rose-700 font-medium block">مستبعد / محجوب</span>
                 <span className="text-base sm:text-lg font-bold text-rose-800 font-mono">
-                  {result.excludedCount}
+                  {summary.hiddenCount}
                 </span>
                 <span className="text-[10px] text-rose-600 block mt-0.5">شورتس / محظور</span>
               </div>
             </div>
 
             {/* Heuristic Breakdown Stats */}
-            <div className="p-3 rounded-xl bg-stone-50 border border-stone-200/80 text-xs text-stone-600 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="flex items-center gap-1.5 text-stone-500">
-                  <Film className="w-3.5 h-3.5 text-stone-400" />
-                  مستبعد (Shorts):
-                </span>
-                <span className="font-bold text-stone-800 font-mono">
-                  {result.breakdown.shortsExcluded}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="flex items-center gap-1.5 text-stone-500">
-                  <Smartphone className="w-3.5 h-3.5 text-stone-400" />
-                  مستبعد (فيديوهات طولية / Portrait):
-                </span>
-                <span className="font-bold text-stone-800 font-mono">
-                  {result.breakdown.portraitExcluded}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="flex items-center gap-1.5 text-stone-500">
-                  <ShieldAlert className="w-3.5 h-3.5 text-stone-400" />
-                  مستبعد (قائمة الكلمات المحظورة):
-                </span>
-                <span className="font-bold text-stone-800 font-mono">
-                  {result.breakdown.blacklistExcluded}
-                </span>
-              </div>
-              {result.breakdown.hiddenExcluded > 0 && (
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="flex items-center gap-1.5 text-rose-600">
-                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-                    مستبعد يدوياً (فيديوهات مخفية):
-                  </span>
-                  <span className="font-bold text-rose-700 font-mono">
-                    {result.breakdown.hiddenExcluded}
-                  </span>
-                </div>
-              )}
+            <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs text-stone-600 space-y-2">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
                   <VolumeX className="w-3.5 h-3.5 text-emerald-600" />
                   فيديوهات بدون موسيقى:
                 </span>
                 <span className="font-bold text-emerald-700 font-mono">
-                  {result.breakdown.noMusicCount}
+                  {summary.noMusicCount} فيديو
                 </span>
               </div>
+
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1.5 text-amber-700 font-medium">
+                  <Music className="w-3.5 h-3.5 text-amber-600" />
+                  فيديوهات تحتوي على موسيقى:
+                </span>
+                <span className="font-bold text-amber-800 font-mono">
+                  {summary.hasMusicCount} فيديو
+                </span>
+              </div>
+
+              {summary.portraitCount > 0 && (
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="flex items-center gap-1.5 text-stone-500">
+                    <Smartphone className="w-3.5 h-3.5 text-stone-400" />
+                    مستبعد (فيديوهات طولية / Portrait):
+                  </span>
+                  <span className="font-bold text-stone-800 font-mono">
+                    {summary.portraitCount}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1.5 text-stone-500">
+                  <ShieldAlert className="w-3.5 h-3.5 text-stone-400" />
+                  قائمة الكلمات المحظورة:
+                </span>
+                <span className="font-bold text-stone-800 font-mono">
+                  {summary.blacklistWordsCount} كلمة نشطة
+                </span>
+              </div>
+
+              {lastResult && (
+                <div className="pt-2 border-t border-stone-200/70 flex items-center justify-between text-[10px] text-stone-400">
+                  <span className="flex items-center gap-1 text-stone-500 font-medium">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    آخر حساب كامل:
+                  </span>
+                  <span className="font-mono">
+                    استبعاد {lastResult.breakdown.shortsExcluded} شورتس • {lastResult.breakdown.blacklistExcluded} كلمات
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Music Filtering Checkbox (Requirement 6) */}
+            {/* Music Filtering Checkbox */}
             <div className="mt-3 pt-3 border-t border-stone-100 space-y-2">
               <label
                 htmlFor="hide-music-checkbox"
@@ -291,7 +290,6 @@ export default function FilteringResultCard({
                 </div>
               </label>
 
-              {/* Direct query against db.feedCache result shown below */}
               {hideMusic && (
                 <div
                   id="music-filter-stat-box"
@@ -300,15 +298,11 @@ export default function FilteringResultCard({
                   <div className="flex items-center gap-1.5">
                     <Music className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                     <span className="text-[11px] font-medium">
-                      فيديوهات بموسيقى في الذاكرة (Direct Dexie Query):
+                      الفيديوهات ذات الموسيقى المحجوبة من خلاصة الطفل:
                     </span>
                   </div>
                   <span className="font-bold text-xs font-mono bg-amber-200/60 px-2 py-0.5 rounded text-amber-950">
-                    {loadingMusicCount ? (
-                      <span className="animate-pulse">...</span>
-                    ) : (
-                      `${musicVideosCount ?? 0} فيديو (hasMusic: true)`
-                    )}
+                    {summary.hasMusicCount} فيديو
                   </span>
                 </div>
               )}
@@ -317,14 +311,13 @@ export default function FilteringResultCard({
         ) : null}
       </div>
 
-      <div className="mt-4 pt-3 border-t border-stone-100">
-        <div className="flex items-center justify-between text-[11px] text-stone-500">
-          <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>خصوصية عائلية تامة (معالجة بالكامل محلياً)</span>
-          </span>
-          <span className="font-mono text-[10px] text-stone-400">db.feedCache</span>
-        </div>
+      {/* Footer */}
+      <div className="pt-3 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
+        <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span>معالجة محلية بالكامل دون إرسال بيانات الطفل خارجياً</span>
+        </span>
+        <span className="font-mono text-[10px] text-stone-400">db.feedCache</span>
       </div>
     </div>
   );

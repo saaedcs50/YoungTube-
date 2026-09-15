@@ -612,7 +612,7 @@ export default function KidHomeScreen({
             <div>
               <h1 className="text-base sm:text-xl font-black text-stone-900 tracking-tight flex items-center gap-2">
                 <span>{childName ? `عالم ${childName}` : 'عالم الصغار'}</span>
-                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100/90 text-emerald-800 border border-emerald-300/70 shadow-xs">
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100/90 text-emerald-800 border border-emerald-300/70 shadow-sm">
                   آمن ونظيف ✨
                 </span>
               </h1>
