@@ -1,5 +1,7 @@
 import React from 'react';
 import { Moon, Sparkles, Clock, Lock, RotateCcw } from 'lucide-react';
+import { Button as HeroUIButton } from '@heroui/react';
+const Button = HeroUIButton as any;
 
 interface SessionEndScreenProps {
   isLimitReached: boolean;
@@ -73,7 +75,7 @@ export default function SessionEndScreen({
       {/* Discreet Parent & Testing Controls at Bottom Corner */}
       <div className="w-full max-w-2xl mx-auto flex items-center justify-between text-xs text-slate-500 pt-4 border-t border-white/5">
         {onParentUnlock ? (
-          <button
+          <Button
             id="session-end-parent-unlock-btn"
             type="button"
             onClick={onParentUnlock}
@@ -82,13 +84,13 @@ export default function SessionEndScreen({
           >
             <Lock className="w-3.5 h-3.5" />
             <span>لوحة تحكم الوالدين (PIN)</span>
-          </button>
+          </Button>
         ) : (
           <span />
         )}
 
         {onResetForTesting && (
-          <button
+          <Button
             id="session-end-reset-test-btn"
             type="button"
             onClick={onResetForTesting}
@@ -97,7 +99,7 @@ export default function SessionEndScreen({
           >
             <RotateCcw className="w-3 h-3" />
             <span>تصفير العداد (وضع الاختبار)</span>
-          </button>
+          </Button>
         )}
       </div>
     </div>

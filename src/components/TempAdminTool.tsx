@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { WORKER_URL } from '../config';
 import { PlaySquare, KeyRound, Loader2, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { Card as HeroUICard, Button as HeroUIButton, Chip as HeroUIChip } from '@heroui/react';
+
+const Card = HeroUICard as any;
+const Button = HeroUIButton as any;
+const Chip = HeroUIChip as any;
 
 interface TempAdminToolProps {
   onBackfillSuccess?: () => void;
@@ -99,7 +104,7 @@ export default function TempAdminTool({ onBackfillSuccess }: TempAdminToolProps)
   };
 
   return (
-    <div
+    <Card
       id="temp-admin-tool-section"
       className="rounded-3xl border-2 border-dashed border-amber-300 bg-amber-50/50 p-5 sm:p-7 space-y-5"
     >
@@ -111,9 +116,9 @@ export default function TempAdminTool({ onBackfillSuccess }: TempAdminToolProps)
           <div>
             <h2 className="text-base font-bold text-amber-950 flex items-center gap-2">
               <span>أداة إدارية مؤقتة</span>
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-200 text-amber-900">
+              <Chip className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 border-none">
                 Stage 5 Backfill
-              </span>
+              </Chip>
             </h2>
             <p className="text-xs text-amber-800 mt-0.5">
               أرشفة فيديوهات القنوات وقوائم التشغيل (حتى 200 فيديو) وحفظها في Cloudflare KV.
@@ -200,11 +205,11 @@ export default function TempAdminTool({ onBackfillSuccess }: TempAdminToolProps)
 
         {/* Submit Button */}
         <div className="flex items-center gap-3 pt-2">
-          <button
+          <Button
             id="start-backfill-btn"
             type="submit"
-            disabled={loading || !sourceId.trim() || !adminKey.trim()}
-            className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold flex items-center gap-2 transition shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            isDisabled={loading || !sourceId.trim() || !adminKey.trim()}
+            className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold flex items-center gap-2 transition shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer min-w-0"
           >
             {loading ? (
               <>
@@ -217,7 +222,7 @@ export default function TempAdminTool({ onBackfillSuccess }: TempAdminToolProps)
                 <span>ابدأ التحميل</span>
               </>
             )}
-          </button>
+          </Button>
         </div>
 
         {/* Result Feedback Display (right below the button) */}
@@ -270,6 +275,6 @@ export default function TempAdminTool({ onBackfillSuccess }: TempAdminToolProps)
           </div>
         )}
       </form>
-    </div>
+    </Card>
   );
 }

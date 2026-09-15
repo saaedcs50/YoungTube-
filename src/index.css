@@ -1,5 +1,5 @@
 @import "tailwindcss";
-
+@import "@heroui/styles";
 
 /* Phase 6 — player options panel */
 @keyframes slideInRight {

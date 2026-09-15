@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { WORKER_URL } from '../config';
 import { Tv, RefreshCw, CheckCircle2, AlertTriangle, Film, Layers } from 'lucide-react';
+import { Card as HeroUICard, Button as HeroUIButton } from '@heroui/react';
+
+const Card = HeroUICard as any;
+const Button = HeroUIButton as any;
 
 interface ChannelData {
   sourceId: string;
@@ -82,7 +86,7 @@ export default function ChannelsCountCard({
   );
 
   return (
-    <div
+    <Card
       id="channels-count-card"
       className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col justify-between"
     >
@@ -97,15 +101,15 @@ export default function ChannelsCountCard({
               <span className="text-xs text-slate-500 font-mono">/api/channels-latest</span>
             </div>
           </div>
-          <button
+          <Button
             id="retest-channels-btn"
             onClick={fetchChannelsLatest}
-            disabled={loading}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50 cursor-pointer"
+            isDisabled={loading}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50 cursor-pointer min-w-0 h-auto bg-transparent border-none"
             title="تحديث عدد القنوات"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          </Button>
         </div>
 
         {/* Status / Count Display */}
@@ -164,6 +168,6 @@ export default function ChannelsCountCard({
           <span className="font-mono text-[10px] text-slate-400">KV + Seed</span>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import db from '../db';
 import { sha256 } from '../crypto';
 import { KeyRound, HelpCircle, Sparkles, ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { Button as HeroUIButton, Input } from '@heroui/react';
+const Button = HeroUIButton as any;
 import AdBlockNotice from './AdBlockNotice';
 
 interface OnboardingProps {
@@ -191,15 +193,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               </div>
 
               <div className="pt-2 flex justify-end">
-                <button
+                <Button
                   id="onboarding-step1-btn"
                   type="submit"
-                  disabled={pin.length !== 6 || confirmPin.length !== 6}
+                  isDisabled={pin.length !== 6 || confirmPin.length !== 6}
                   className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
                 >
                   <span>التالي</span>
                   <ArrowLeft className="w-4 h-4" />
-                </button>
+                </Button>
               </div>
             </form>
           )}
@@ -264,23 +266,23 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               </div>
 
               <div className="pt-2 flex justify-between items-center">
-                <button
+                <Button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
                   <span>رجوع</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   id="onboarding-step2-btn"
                   type="submit"
-                  disabled={!securityAnswer.trim()}
+                  isDisabled={!securityAnswer.trim()}
                   className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
                 >
                   <span>التالي</span>
                   <ArrowLeft className="w-4 h-4" />
-                </button>
+                </Button>
               </div>
             </form>
           )}
@@ -316,24 +318,24 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               </div>
 
               <div className="pt-2 flex justify-between items-center">
-                <button
+                <Button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
                   <span>رجوع</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   id="onboarding-step3-btn"
                   type="button"
                   onClick={handleAdvanceToStep4}
-                  disabled={isSubmitting}
+                  isDisabled={isSubmitting}
                   className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-xs"
                 >
                   <span>{isSubmitting ? 'جاري الحفظ...' : 'التالي (حجب الإعلانات)'}</span>
                   <ArrowLeft className="w-4 h-4" />
-                </button>
+                </Button>
               </div>
             </div>
           )}

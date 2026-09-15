@@ -23,6 +23,8 @@ const ChannelCurationByCategory = React.lazy(() => import('./components/ChannelC
 const FilteringTab = React.lazy(() => import('./components/FilteringTab').then((m) => ({ default: m.FilteringTab })));
 const SavedVideosTab = React.lazy(() => import('./components/SavedVideosTab').then((m) => ({ default: m.SavedVideosTab })));
 const TimerTestCard = React.lazy(() => import('./components/TimerTestCard'));
+import { Button as HeroUIButton } from '@heroui/react';
+const Button = HeroUIButton as any;
 import {
   Database,
   Cloud,
@@ -698,25 +700,29 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 id="back-to-kids-header-btn"
                 type="button"
                 onClick={() => setViewMode('kids')}
                 className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>شاشة الأطفال</span>
-              </button>
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>شاشة الأطفال</span>
+                </>
+              </Button>
 
               {viewMode === 'dashboard' ? (
-                <button
+                <Button
                   id="lock-dashboard-btn"
                   onClick={handleLockDashboard}
                   className="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
                 >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>قفل الداشبورد</span>
-                </button>
+                  <>
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>قفل الداشبورد</span>
+                  </>
+                </Button>
               ) : null}
 
               <PWAInstallButton />

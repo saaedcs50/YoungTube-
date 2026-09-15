@@ -2,6 +2,9 @@ import React from 'react';
 import { FeedItem } from '../db';
 import { VolumeX, Heart } from 'lucide-react';
 import { TasteReactionBar } from './TasteReactionBar';
+import { Card as HeroUICard, Chip as HeroUIChip } from '@heroui/react';
+const Card = HeroUICard as any;
+const Chip = HeroUIChip as any;
 
 export interface VideoCardProps {
   video: FeedItem;
@@ -44,12 +47,12 @@ export const VideoCard = React.memo(
     };
 
     return (
-      <div
+      <Card
         id={isFavorite ? `favorite-card-${video.videoId}` : `video-card-${video.videoId}`}
         onClick={handleClick}
-        className="group bg-white flex flex-col text-right cursor-pointer"
+        className="group bg-white flex flex-col text-right cursor-pointer rounded-2xl overflow-hidden border border-slate-100 shadow-2xs hover:shadow-md transition-all duration-300"
       >
-        {/* Thumbnail: edge-to-edge, no rounded corners, no play overlay, fixed aspect-ratio */}
+        {/* Thumbnail: edge-to-edge, no play overlay, fixed aspect-ratio */}
         <div className="relative aspect-video w-full bg-stone-100 overflow-hidden">
           <img
             src={thumbnailUrl}
@@ -69,10 +72,16 @@ export const VideoCard = React.memo(
           {isFavorite && (
             <div
               id={`favorite-badge-${video.videoId}`}
-              className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-rose-500/90 text-white text-[10px] font-bold shadow-xs backdrop-blur-xs flex items-center gap-1 pointer-events-none z-10"
+              className="absolute top-2.5 right-2.5 z-10 pointer-events-none"
             >
-              <Heart className="w-3 h-3 fill-white" />
-              <span>مفضلة</span>
+              <Chip
+                className="bg-rose-500/90 text-white text-[10px] font-bold shadow-xs backdrop-blur-xs flex items-center gap-1 px-2 py-0.5 border-none"
+              >
+                <div className="flex items-center gap-1">
+                  <Heart className="w-3 h-3 fill-white" />
+                  <span>مفضلة</span>
+                </div>
+              </Chip>
             </div>
           )}
 
@@ -80,22 +89,28 @@ export const VideoCard = React.memo(
           {!isFavorite && isTasteShiftTarget && (
             <div
               id={`taste-shift-badge-${video.videoId}`}
-              className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-white/90 text-stone-800 text-[10px] font-bold shadow-xs backdrop-blur-xs border border-white/60 pointer-events-none z-10"
+              className="absolute top-2.5 right-2.5 z-10 pointer-events-none"
             >
-              ✨ جديد
+              <Chip className="bg-white/90 text-stone-800 text-[10px] font-bold shadow-xs backdrop-blur-xs border border-white/60">
+                ✨ جديد
+              </Chip>
             </div>
           )}
 
           {/* Optional No Music Badge */}
           {video.hasMusic === false && (
-            <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-md bg-stone-900/80 text-emerald-300 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs pointer-events-none z-10">
-              <VolumeX className="w-3 h-3" />
-              <span>بدون موسيقى</span>
+            <div className="absolute bottom-2.5 right-2.5 z-10 pointer-events-none">
+              <Chip className="bg-stone-900/80 text-emerald-300 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs border-none">
+                <div className="flex items-center gap-1">
+                  <VolumeX className="w-3 h-3" />
+                  <span>بدون موسيقى</span>
+                </div>
+              </Chip>
             </div>
           )}
         </div>
 
-        {/* Video Details: keep small internal padding so text isn't flush against the edges */}
+        {/* Video Details */}
         <div className="px-3.5 pt-2.5 pb-3 flex flex-col justify-between grow space-y-1.5">
           <h3
             className={`text-sm sm:text-base font-bold text-stone-800 line-clamp-2 leading-snug transition ${
@@ -122,7 +137,7 @@ export const VideoCard = React.memo(
             />
           )}
         </div>
-      </div>
+      </Card>
     );
   },
   (prev, next) => {
