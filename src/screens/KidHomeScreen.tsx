@@ -599,24 +599,24 @@ export default function KidHomeScreen({
   return (
     <div
       id="kid-home-screen"
-      className="min-h-screen bg-[#FAF8F5] text-stone-800 flex flex-col select-none font-sans"
+      className="min-h-screen bg-gradient-to-b from-[#FFFDF9] via-[#FFF9F0] to-[#F2F8FD] text-stone-800 flex flex-col select-none font-sans"
     >
       {/* 1. Header Bar: Friendly Brand + Small Parent Access Icon */}
-      <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-stone-200/60 px-4 sm:px-8 py-3.5">
+      <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-amber-100/70 px-4 sm:px-8 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.02)]">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* Logo & Brand: Distinct Warm Palette, No Red, No YouTube Branding */}
+          {/* Logo & Brand: Distinct Warm Cheerful Palette, Child-first */}
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 via-orange-400 to-amber-500 text-white flex items-center justify-center shadow-sm shadow-amber-200/60">
               <Sparkles className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-bold text-stone-800 tracking-tight flex items-center gap-1.5">
+              <h1 className="text-base sm:text-lg font-black text-stone-850 tracking-tight flex items-center gap-2">
                 <span>{childName ? `عالم ${childName}` : 'عالم الصغار'}</span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                   آمن ونظيف
                 </span>
               </h1>
-              <p className="text-xs text-stone-500 hidden sm:block">
+              <p className="text-xs text-stone-400 hidden sm:block font-medium">
                 محتوى مختار بعناية وبدون إعلانات مزعجة
               </p>
             </div>
@@ -629,10 +629,10 @@ export default function KidHomeScreen({
                 id="kid-header-demo-player-btn"
                 type="button"
                 onClick={onOpenDemoPlayer}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-900 hover:bg-black text-white text-xs font-bold transition shadow-xs active:scale-95 cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100/80 hover:bg-amber-200 text-amber-900 border border-amber-200 text-xs font-bold transition shadow-2xs active:scale-95 cursor-pointer"
                 title="تجربة المشغل (Player Shell)"
               >
-                <Play className="w-3.5 h-3.5 fill-current text-amber-400" />
+                <Play className="w-3.5 h-3.5 fill-current text-amber-500" />
                 <span>تجربة المشغل</span>
               </button>
             )}
@@ -641,7 +641,7 @@ export default function KidHomeScreen({
               id="parent-dashboard-lock-btn"
               type="button"
               onClick={onOpenParentDashboard}
-              className="p-2.5 rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 active:scale-95 transition cursor-pointer"
+              className="p-2.5 rounded-full text-stone-400 hover:text-stone-700 bg-white/80 hover:bg-stone-100 border border-stone-200/60 shadow-2xs active:scale-95 transition cursor-pointer"
               title="منطقة الوالدين (PIN)"
               aria-label="منطقة الوالدين"
             >
@@ -652,7 +652,7 @@ export default function KidHomeScreen({
       </header>
 
       {/* 2. Category Filter Chips (13 Built-in + Custom Categories + All) */}
-      <section className="bg-[#FAF8F5] border-b border-stone-200/40 px-4 sm:px-8 py-3">
+      <section className="border-b border-amber-100/50 px-4 sm:px-8 py-3.5">
         <div className="max-w-7xl mx-auto space-y-3">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {/* Child-facing "المفضلة" (Favorites) button */}
@@ -662,10 +662,10 @@ export default function KidHomeScreen({
               onClick={() => {
                 setShowFavorites((prev) => !prev);
               }}
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer shadow-xs ${
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-extrabold transition active:scale-95 cursor-pointer ${
                 showFavorites
-                  ? 'bg-rose-500 text-white shadow-rose-200 ring-2 ring-rose-300'
-                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-sm shadow-rose-200 ring-2 ring-rose-300'
+                  : 'bg-white/95 hover:bg-rose-50/80 text-rose-700 border border-rose-200/80 shadow-2xs'
               }`}
               title="فيديوهاتي المفضلة"
             >
@@ -678,7 +678,7 @@ export default function KidHomeScreen({
               {favoritesCount > 0 && (
                 <span
                   className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
-                    showFavorites ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-800'
+                    showFavorites ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800'
                   }`}
                 >
                   {favoritesCount}
@@ -697,10 +697,10 @@ export default function KidHomeScreen({
                     setShowFavorites(false);
                     setSelectedCategory(cat.id);
                   }}
-                  className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition active:scale-95 cursor-pointer ${
+                  className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer ${
                     isActive
-                      ? 'bg-amber-500 text-white shadow-xs'
-                      : 'bg-white text-stone-600 border border-stone-200/80 hover:bg-amber-50/50 hover:border-amber-300'
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-400 text-white shadow-xs shadow-amber-200 ring-2 ring-amber-300/60'
+                      : 'bg-white/95 text-stone-700 border border-amber-100/90 hover:bg-amber-50/70 hover:border-amber-200 shadow-2xs'
                   }`}
                 >
                   <span>{cat.emoji}</span>
@@ -711,7 +711,7 @@ export default function KidHomeScreen({
           </div>
 
           {/* 2.5 In-Feed Search Bar (Client-side Only on Allowed Cached Videos) */}
-          <div className="relative max-w-lg">
+          <div className="relative max-w-md">
             <div className="relative flex items-center">
               <input
                 id="kid-feed-search-input"
@@ -719,7 +719,7 @@ export default function KidHomeScreen({
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="ابحث في الفيديوهات المسموحة..."
-                className="w-full pl-10 pr-10 py-2 rounded-2xl bg-white border border-stone-200/90 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-hidden focus:ring-2 focus:ring-amber-400/80 focus:border-amber-400 transition shadow-2xs"
+                className="w-full pl-10 pr-10 py-2.5 rounded-2xl bg-white/95 border border-amber-100/90 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-hidden focus:ring-2 focus:ring-amber-400/60 focus:border-amber-400 shadow-2xs transition-all"
               />
               <div className="absolute right-3.5 text-stone-400 pointer-events-none flex items-center justify-center">
                 <Search className="w-4 h-4" />
@@ -748,14 +748,14 @@ export default function KidHomeScreen({
         {showFavorites ? (
           <div id="kid-favorites-view" className="space-y-6">
             {/* Header banner with back button */}
-            <div className="px-4 sm:px-8">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-rose-100 shadow-2xs">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/95 p-4 sm:p-5 rounded-3xl border border-rose-100 shadow-[0_2px_12px_rgba(244,63,94,0.05)]">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 border border-rose-100">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 border border-rose-100 shadow-2xs">
                     <Heart className="w-6 h-6 fill-rose-500" />
                   </div>
                   <div>
-                    <h2 className="text-base sm:text-lg font-bold text-stone-800 flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-black text-stone-850 flex items-center gap-2">
                       <span>فيديوهاتي المفضلة ❤️</span>
                       <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold border border-rose-200">
                         {filteredFavorites.length} فيديو
@@ -771,7 +771,7 @@ export default function KidHomeScreen({
                   id="back-to-home-feed-btn"
                   type="button"
                   onClick={() => setShowFavorites(false)}
-                  className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer"
+                  className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer shadow-2xs"
                 >
                   <ArrowRight className="w-4 h-4" />
                   <span>العودة للفيديوهات</span>
@@ -782,134 +782,162 @@ export default function KidHomeScreen({
             {/* Favorites Video Grid or Empty State */}
             {filteredFavorites.length === 0 ? (
               debouncedSearch ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 px-4 sm:px-8">
-                  <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto">
-                    <Search className="w-8 h-8" />
+                <div className="max-w-lg mx-auto my-6 px-4">
+                  <div className="bg-white/90 rounded-3xl border border-rose-100 p-8 text-center space-y-4 shadow-xs">
+                    <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto shadow-2xs">
+                      <Search className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-base sm:text-lg font-black text-stone-850">
+                        مفيش فيديو مفضل بهذا الاسم
+                      </h3>
+                      <p className="text-xs text-stone-500 max-w-md mx-auto">
+                        تأكد من كتابة الاسم بشكل صحيح أو امسح البحث لمشاهدة كل مفضلاتك.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchInput('');
+                        setDebouncedSearch('');
+                      }}
+                      className="px-5 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+                    >
+                      عرض كل الفيديوهات المفضلة ❤️
+                    </button>
                   </div>
-                  <div className="space-y-1">
-                    <h3 className="text-base sm:text-lg font-bold text-stone-800">
-                      مفيش فيديو مفضل بهذا الاسم
-                    </h3>
-                    <p className="text-xs text-stone-500 max-w-md mx-auto">
-                      تأكد من كتابة الاسم بشكل صحيح أو امسح البحث لمشاهدة كل مفضلاتك.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchInput('');
-                      setDebouncedSearch('');
-                    }}
-                    className="px-5 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                  >
-                    عرض كل الفيديوهات المفضلة ❤️
-                  </button>
                 </div>
               ) : (
                 /* Empty state, kid-friendly tone specified by user */
                 <div
                   id="kid-favorites-empty-state"
-                  className="flex flex-col items-center justify-center py-20 text-center space-y-4 px-4 sm:px-8"
+                  className="max-w-lg mx-auto my-8 px-4"
                 >
-                  <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto border border-rose-100 shadow-xs">
-                    <Heart className="w-8 h-8 fill-rose-500" />
+                  <div className="bg-white/90 rounded-3xl border border-rose-100 p-8 sm:p-10 text-center space-y-4 shadow-xs flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto border border-rose-100 shadow-2xs">
+                      <Heart className="w-8 h-8 fill-rose-500" />
+                    </div>
+                    <div className="space-y-1.5 max-w-md mx-auto">
+                      <h3 className="text-base sm:text-lg font-black text-stone-850">
+                        لسه مفيش فيديوهات حبيتها ❤️
+                      </h3>
+                      <p className="text-xs sm:text-sm text-stone-500 leading-relaxed">
+                        اضغط على القلب وانت بتتفرج عشان تحفظها هنا!
+                      </p>
+                    </div>
+                    <button
+                      id="back-to-feed-from-empty-favorites-btn"
+                      type="button"
+                      onClick={() => setShowFavorites(false)}
+                      className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-xs cursor-pointer active:scale-95 flex items-center gap-1.5"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                      <span>العودة للفيديوهات</span>
+                    </button>
                   </div>
-                  <div className="space-y-1.5 max-w-md mx-auto">
-                    <h3 className="text-base sm:text-lg font-bold text-stone-800">
-                      لسه مفيش فيديوهات حبيتها ❤️
-                    </h3>
-                    <p className="text-xs sm:text-sm text-stone-500 leading-relaxed">
-                      اضغط على القلب وانت بتتفرج عشان تحفظها هنا!
-                    </p>
-                  </div>
-                  <button
-                    id="back-to-feed-from-empty-favorites-btn"
-                    type="button"
-                    onClick={() => setShowFavorites(false)}
-                    className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-xs cursor-pointer active:scale-95 flex items-center gap-1.5"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                    <span>العودة للفيديوهات</span>
-                  </button>
                 </div>
               )
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6">
-                {filteredFavorites.map((video) => {
-                  const channelInfo = channelMap.get(video.channelId);
-                  return (
-                    <VideoCard
-                      key={video.videoId}
-                      video={video}
-                      channelTitle={channelInfo?.title || 'قناة أطفال'}
-                      isFavorite={true}
-                      onSelectVideo={onSelectVideo}
-                      onOpenDemoPlayer={onOpenDemoPlayer}
-                    />
-                  );
-                })}
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+                  {filteredFavorites.map((video) => {
+                    const channelInfo = channelMap.get(video.channelId);
+                    return (
+                      <VideoCard
+                        key={video.videoId}
+                        video={video}
+                        channelTitle={channelInfo?.title || 'قناة أطفال'}
+                        isFavorite={true}
+                        onSelectVideo={onSelectVideo}
+                        onOpenDemoPlayer={onOpenDemoPlayer}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
         ) : loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-stone-400 gap-3">
-            <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
-            <span className="text-sm font-medium">جاري تحضير الفيديوهات الممتعة...</span>
+          /* Playful Skeleton Pulse matching warm palette */
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-6">
+            <div className="flex items-center justify-center gap-2 text-amber-800 font-bold text-xs sm:text-sm bg-white/80 py-2 px-5 rounded-full w-fit mx-auto border border-amber-100 shadow-2xs">
+              <Sparkles className="w-4 h-4 text-amber-500 animate-spin" />
+              <span>جاري تحضير الفيديوهات الممتعة...</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div
+                  key={`skeleton-card-${idx}`}
+                  className="bg-white/85 rounded-2xl sm:rounded-3xl overflow-hidden border border-amber-100/60 shadow-2xs flex flex-col animate-pulse"
+                >
+                  <div className="aspect-video w-full bg-amber-100/40" />
+                  <div className="p-4 space-y-2.5">
+                    <div className="h-4 bg-amber-100/60 rounded-full w-4/5" />
+                    <div className="h-4 bg-amber-100/30 rounded-full w-3/5" />
+                    <div className="h-3 bg-stone-200/50 rounded-full w-1/3 pt-1" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : filteredVideos.length === 0 ? (
           debouncedSearch ? (
             /* Part A: Friendly Search Empty State */
-            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 px-4 sm:px-8">
-              <div className="w-16 h-16 rounded-3xl bg-amber-100/70 text-amber-700 flex items-center justify-center mx-auto">
-                <Search className="w-8 h-8" />
+            <div className="max-w-lg mx-auto my-8 sm:my-12 px-4">
+              <div className="bg-white/90 rounded-3xl border border-amber-100 p-8 sm:p-10 text-center space-y-4 shadow-[0_4px_20px_rgba(245,158,11,0.05)]">
+                <div className="w-16 h-16 rounded-3xl bg-amber-100/70 text-amber-600 flex items-center justify-center mx-auto shadow-2xs">
+                  <Search className="w-8 h-8" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-base sm:text-lg font-black text-stone-850">
+                    مفيش فيديوهات بالاسم ده جوه القنوات المسموحة
+                  </h3>
+                  <p className="text-xs sm:text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+                    هذا البحث يعمل فقط داخل مكتبة القنوات الآمنة المصرح بها للطفل ولا يبحث في الإنترنت الخارجي.
+                  </p>
+                </div>
+                <button
+                  id="clear-search-empty-btn"
+                  type="button"
+                  onClick={() => {
+                    setSearchInput('');
+                    setDebouncedSearch('');
+                  }}
+                  className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-xs cursor-pointer active:scale-95"
+                >
+                  مسح البحث وعرض كل الفيديوهات ✨
+                </button>
               </div>
-              <div className="space-y-1">
-                <h3 className="text-base sm:text-lg font-bold text-stone-800">
-                  مفيش فيديوهات بالاسم ده جوه القنوات المسموحة
-                </h3>
-                <p className="text-xs text-stone-500 max-w-md mx-auto leading-relaxed">
-                  هذا البحث يعمل فقط داخل مكتبة القنوات الآمنة المصرح بها للطفل ولا يبحث في الإنترنت الخارجي.
-                </p>
-              </div>
-              <button
-                id="clear-search-empty-btn"
-                type="button"
-                onClick={() => {
-                  setSearchInput('');
-                  setDebouncedSearch('');
-                }}
-                className="px-5 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-              >
-                مسح البحث وعرض كل الفيديوهات ✨
-              </button>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 px-4 sm:px-8">
-              <div className="w-16 h-16 rounded-3xl bg-amber-100/60 text-amber-600 flex items-center justify-center mx-auto">
-                <Film className="w-8 h-8" />
+            <div className="max-w-lg mx-auto my-8 sm:my-12 px-4">
+              <div className="bg-white/90 rounded-3xl border border-amber-100 p-8 sm:p-10 text-center space-y-4 shadow-[0_4px_20px_rgba(245,158,11,0.05)]">
+                <div className="w-16 h-16 rounded-3xl bg-amber-100/70 text-amber-600 flex items-center justify-center mx-auto shadow-2xs">
+                  <Film className="w-8 h-8" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-base sm:text-lg font-black text-stone-850">
+                    لا توجد فيديوهات في هذا القسم حالياً
+                  </h3>
+                  <p className="text-xs sm:text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+                    يمكنك تصفح باقي الأقسام الممتعة أو العودة لقسم &quot;الكل&quot; لمشاهدة جميع الفيديوهات.
+                  </p>
+                </div>
+                <button
+                  id="reset-filter-btn"
+                  type="button"
+                  onClick={() => setSelectedCategory('all')}
+                  className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-xs cursor-pointer active:scale-95"
+                >
+                  عرض جميع الفيديوهات ✨
+                </button>
               </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-stone-800">
-                  لا توجد فيديوهات في هذا القسم حالياً
-                </h3>
-                <p className="text-xs text-stone-500 max-w-md mx-auto">
-                  يمكنك تصفح باقي الأقسام الممتعة أو العودة لقسم &quot;الكل&quot; لمشاهدة جميع الفيديوهات.
-                </p>
-              </div>
-              <button
-                id="reset-filter-btn"
-                type="button"
-                onClick={() => setSelectedCategory('all')}
-                className="px-5 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-              >
-                عرض جميع الفيديوهات ✨
-              </button>
             </div>
           )
         ) : (
           <div>
             {showWeeklyChoiceCard && tasteShiftConfig && (
-              <div className="px-4 sm:px-8 mb-4 sm:mb-6">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-5 sm:mb-6">
                 <WeeklyChoiceCard
                   targetCategories={tasteShiftConfig.targetCategories}
                   currentWeek={tasteShiftConfig.currentWeek}
@@ -920,83 +948,87 @@ export default function KidHomeScreen({
 
             {filteredVideos.length <= 12 ? (
               /* Non-virtualized small list */
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6">
-                {filteredVideos.map((video) => {
-                  const channelInfo = channelMap.get(video.channelId);
-                  const channelTitle = channelInfo?.title || 'قناة أطفال';
-                  const videoCats =
-                    channelInfo?.categories ||
-                    (video as any).categories ||
-                    (video as any).category ||
-                    [];
-                  const isTasteShiftTarget = Boolean(
-                    tasteTargetSet &&
-                      (Array.isArray(videoCats) ? videoCats : [videoCats]).some((cat: string) =>
-                        tasteTargetSet.has(cat)
-                      )
-                  );
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+                  {filteredVideos.map((video) => {
+                    const channelInfo = channelMap.get(video.channelId);
+                    const channelTitle = channelInfo?.title || 'قناة أطفال';
+                    const videoCats =
+                      channelInfo?.categories ||
+                      (video as any).categories ||
+                      (video as any).category ||
+                      [];
+                    const isTasteShiftTarget = Boolean(
+                      tasteTargetSet &&
+                        (Array.isArray(videoCats) ? videoCats : [videoCats]).some((cat: string) =>
+                          tasteTargetSet.has(cat)
+                        )
+                    );
 
-                  return (
-                    <VideoCard
-                      key={video.videoId}
-                      video={video}
-                      channelTitle={channelTitle}
-                      isTasteShiftTarget={isTasteShiftTarget}
-                      activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
-                      onSelectVideo={onSelectVideo}
-                      onOpenDemoPlayer={onOpenDemoPlayer}
-                      onTasteReacted={() => void loadVideos(true)}
-                    />
-                  );
-                })}
+                    return (
+                      <VideoCard
+                        key={video.videoId}
+                        video={video}
+                        channelTitle={channelTitle}
+                        isTasteShiftTarget={isTasteShiftTarget}
+                        activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
+                        onSelectVideo={onSelectVideo}
+                        onOpenDemoPlayer={onOpenDemoPlayer}
+                        onTasteReacted={() => void loadVideos(true)}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               /* Virtualized unbounded feed using virtua WindowVirtualizer */
-              <WindowVirtualizer bufferSize={600} itemSize={300} shift={false}>
-                {videoRows.map((row, rowIndex) => (
-                  <div
-                    key={`row-${row[0]?.videoId || rowIndex}`}
-                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6 pb-4 sm:pb-6"
-                  >
-                    {row.map((video) => {
-                      const channelInfo = channelMap.get(video.channelId);
-                      const channelTitle = channelInfo?.title || 'قناة أطفال';
-                      const videoCats =
-                        channelInfo?.categories ||
-                        (video as any).categories ||
-                        (video as any).category ||
-                        [];
-                      const isTasteShiftTarget = Boolean(
-                        tasteTargetSet &&
-                          (Array.isArray(videoCats) ? videoCats : [videoCats]).some((cat: string) =>
-                            tasteTargetSet.has(cat)
-                          )
-                      );
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <WindowVirtualizer bufferSize={600} itemSize={320} shift={false}>
+                  {videoRows.map((row, rowIndex) => (
+                    <div
+                      key={`row-${row[0]?.videoId || rowIndex}`}
+                      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 pb-4 sm:pb-5 lg:pb-6"
+                    >
+                      {row.map((video) => {
+                        const channelInfo = channelMap.get(video.channelId);
+                        const channelTitle = channelInfo?.title || 'قناة أطفال';
+                        const videoCats =
+                          channelInfo?.categories ||
+                          (video as any).categories ||
+                          (video as any).category ||
+                          [];
+                        const isTasteShiftTarget = Boolean(
+                          tasteTargetSet &&
+                            (Array.isArray(videoCats) ? videoCats : [videoCats]).some((cat: string) =>
+                              tasteTargetSet.has(cat)
+                            )
+                        );
 
-                      return (
-                        <VideoCard
-                          key={video.videoId}
-                          video={video}
-                          channelTitle={channelTitle}
-                          isTasteShiftTarget={isTasteShiftTarget}
-                          activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
-                          onSelectVideo={onSelectVideo}
-                          onOpenDemoPlayer={onOpenDemoPlayer}
-                          onTasteReacted={() => void loadVideos(true)}
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
-              </WindowVirtualizer>
+                        return (
+                          <VideoCard
+                            key={video.videoId}
+                            video={video}
+                            channelTitle={channelTitle}
+                            isTasteShiftTarget={isTasteShiftTarget}
+                            activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
+                            onSelectVideo={onSelectVideo}
+                            onOpenDemoPlayer={onOpenDemoPlayer}
+                            onTasteReacted={() => void loadVideos(true)}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </WindowVirtualizer>
+              </div>
             )}
           </div>
         )}
       </main>
 
       {/* Friendly Bottom Footer (No YouTube Wordmark) */}
-      <footer className="py-4 border-t border-stone-200/60 text-center text-xs text-stone-400">
-        مساحة ترفيهية وتعليمية آمنة للصغار
+      <footer className="py-5 border-t border-amber-100/60 text-center text-xs font-medium text-stone-400">
+        مساحة ترفيهية وتعليمية آمنة للصغار 🌟
       </footer>
     </div>
   );

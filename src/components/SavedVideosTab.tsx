@@ -103,25 +103,28 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
   };
 
   return (
-    <div id="saved-videos-tab" className="space-y-4 text-right" dir="rtl">
+    <div id="saved-videos-tab" className="space-y-4 max-w-4xl mx-auto text-right" dir="rtl">
       {/* Header / Intro */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-stone-200">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h4 className="text-sm font-bold text-slate-800">
-              الفيديوهات المحفوظة للأهل
+            <h4 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-800 flex items-center justify-center shrink-0">
+                <Bookmark className="w-4 h-4 text-indigo-700" />
+              </span>
+              <span>الفيديوهات المحفوظة للأهل</span>
             </h4>
-            <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-200">
+            <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-800 text-xs font-bold border border-indigo-200">
               {savedVideos.length} فيديو
             </span>
           </div>
-          <p className="text-xs text-slate-500">
-            فيديوهات تم حفظها من شاشة المشغل للرجوع إليها أو مراجعتها في أي وقت.
+          <p className="text-xs sm:text-sm text-stone-500">
+            فيديوهات تم حفظها من شاشة المشغل للرجوع إليها أو مراجعته في أي وقت.
           </p>
         </div>
 
         {feedbackMessage && (
-          <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 animate-fade-in">
+          <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 animate-fade-in self-start sm:self-auto">
             {feedbackMessage}
           </span>
         )}
@@ -129,22 +132,22 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
 
       {/* Content */}
       {isLoading ? (
-        <div className="p-8 text-center text-xs text-slate-400">
+        <div className="p-12 text-center text-xs text-stone-400">
           جاري تحميل الفيديوهات المحفوظة...
         </div>
       ) : savedVideos.length > 0 ? (
-        <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+        <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-2xs">
           {savedVideos.map((video) => (
             <div
               key={video.videoId}
               id={`saved-video-row-${video.videoId}`}
               onClick={() => onSelectVideo?.(video.videoId, video.title, video.channelTitle, video.channelId)}
-              className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition cursor-pointer group"
+              className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-stone-50/80 transition cursor-pointer group"
               title="انقر لتشغيل الفيديو في المشغل"
             >
               {/* Thumbnail + Video Info */}
               <div className="flex items-center gap-3 min-w-0">
-                <div className="relative w-16 h-11 rounded-xl overflow-hidden shrink-0 bg-slate-200 border border-slate-200">
+                <div className="relative w-16 h-11 sm:w-20 sm:h-13 rounded-xl overflow-hidden shrink-0 bg-stone-200 border border-stone-200">
                   <img
                     src={video.thumbnail}
                     alt={video.title}
@@ -164,15 +167,15 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
 
                 <div className="min-w-0">
                   <h5
-                    className="text-xs font-bold text-slate-800 truncate group-hover:text-indigo-600 transition"
+                    className="text-xs sm:text-sm font-bold text-stone-900 truncate group-hover:text-indigo-600 transition"
                     title={video.title}
                   >
                     {video.title}
                   </h5>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                  <div className="flex items-center gap-2 text-[11px] text-stone-500 mt-0.5">
                     <span className="truncate">{video.channelTitle}</span>
                     <span>•</span>
-                    <span className="text-indigo-600 font-medium text-[10px]">انقر للمشاهدة</span>
+                    <span className="text-indigo-600 font-medium text-[11px]">انقر للمشاهدة</span>
                   </div>
                 </div>
               </div>
@@ -182,7 +185,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
                 type="button"
                 id={`remove-saved-${video.videoId}-btn`}
                 onClick={(e) => handleRemoveSaved(e, video.videoId, video.title)}
-                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 text-xs font-semibold flex items-center gap-1.5 transition shrink-0 border border-slate-200 hover:border-rose-200 cursor-pointer"
+                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-700 text-xs font-semibold flex items-center gap-1.5 transition shrink-0 border border-stone-200 hover:border-rose-200 cursor-pointer shadow-2xs"
                 title="إزالة من المحفوظات"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -195,15 +198,15 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
         /* Empty State */
         <div
           id="saved-videos-empty-state"
-          className="p-8 rounded-2xl bg-slate-50 border border-slate-200/70 text-center space-y-2"
+          className="p-10 rounded-2xl bg-stone-50 border border-stone-200 text-center space-y-2"
         >
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mx-auto mb-2 border border-indigo-100">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3 border border-indigo-100">
             <Bookmark className="w-6 h-6" />
           </div>
-          <h5 className="text-xs sm:text-sm font-bold text-slate-700">
-            لسه مفيش فيديوهات محفوظة
+          <h5 className="text-xs sm:text-sm font-bold text-stone-800">
+            لا توجد فيديوهات محفوظة بعد
           </h5>
-          <p className="text-[11px] text-slate-500 max-w-sm mx-auto leading-relaxed">
+          <p className="text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
             أثناء مشاهدة أي فيديو في المشغل، يمكنك الضغط على زر &quot;حفظ&quot; ليظهر هنا مباشرة لمراجعته في أي وقت.
           </p>
         </div>

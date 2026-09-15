@@ -248,30 +248,30 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
   };
 
   return (
-    <div id="taste-shift-card" className="rounded-3xl border border-indigo-200 bg-white p-6 shadow-xs">
+    <div id="taste-shift-card" className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs max-w-4xl mx-auto">
       {/* Top Header with Title and Main Toggle Switch */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 border border-indigo-100">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-bold text-stone-900">
                 التحول التدريجي في الاهتمامات (Taste Shift)
               </h3>
               {saveStatus === 'saving' && (
-                <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full animate-pulse">
+                <span className="text-[11px] text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 animate-pulse">
                   جاري الحفظ...
                 </span>
               )}
               {saveStatus === 'saved' && (
-                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-0.5">
                   <Check className="w-3 h-3" /> تم الحفظ
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-stone-500 mt-0.5">
               إدخال أقسام واهتمامات جديدة تدريجياً لفتح آفاق الطفل بنسب تتصاعد أسبوعياً
             </p>
           </div>
@@ -281,7 +281,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
         <div className="flex items-center gap-2 shrink-0">
           <span
             className={`text-xs font-semibold hidden sm:inline ${
-              enabled ? 'text-indigo-700' : 'text-slate-400'
+              enabled ? 'text-indigo-700' : 'text-stone-400'
             }`}
           >
             {enabled ? 'مفعل' : 'معطل'}
@@ -293,12 +293,12 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
             aria-checked={enabled}
             onClick={handleToggle}
             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-              enabled ? 'bg-indigo-600' : 'bg-slate-300'
+              enabled ? 'bg-indigo-600' : 'bg-stone-300'
             }`}
           >
             <span
               aria-hidden="true"
-              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
                 enabled ? '-translate-x-5' : 'translate-x-0'
               }`}
             />
@@ -308,22 +308,22 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
 
       {/* Rest of the card: visually disabled (opacity-50, non-interactive) when off */}
       <div
-        className={`mt-6 pt-5 border-t border-slate-100 space-y-6 transition-opacity duration-200 ${
+        className={`mt-6 pt-5 border-t border-stone-100 space-y-6 transition-opacity duration-200 ${
           !enabled ? 'opacity-50 pointer-events-none select-none' : ''
         }`}
       >
         {/* 2. Multi-select category chips for targetCategories */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-indigo-600" />
               <span>الأقسام المستهدفة للتحول (Target Categories)</span>
             </label>
-            <span className="text-[11px] font-medium text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-md">
+            <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-100">
               {targetCategories.length} قسم
             </span>
           </div>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-xs text-stone-500">
             اختر المجالات الجديدة التي ترغب في إدخالها للطفل تدريجياً ليتعود عليها ويستكشفها.
           </p>
 
@@ -336,15 +336,15 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                   id={`chip-taste-${cat.id}`}
                   type="button"
                   onClick={() => toggleCategory(cat.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition active:scale-95 cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition active:scale-95 cursor-pointer min-h-[38px] ${
                     isSelected
-                      ? 'bg-indigo-600 text-white border border-indigo-600 shadow-xs'
-                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-indigo-50/60 hover:border-indigo-300'
+                      ? 'bg-indigo-600 text-white border border-indigo-600 shadow-2xs'
+                      : 'bg-stone-50 text-stone-700 border border-stone-200 hover:bg-indigo-50/60 hover:border-indigo-300'
                   }`}
                 >
                   <span>{cat.emoji}</span>
                   <span>{cat.label}</span>
-                  {isSelected && <Check className="w-3 h-3 ml-0.5" />}
+                  {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
                 </button>
               );
             })}
@@ -352,16 +352,16 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
         </div>
 
         {/* Controls Grid: Speed & Cap Segmented Controls */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-stone-100">
           {/* 3. 3-option segmented control "سرعة التغيير": بطيء (5) / متوسط (10) / سريع (20) */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+            <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+              <Sliders className="w-4 h-4 text-indigo-600" />
               <span>سرعة التغيير (الزيادة الأسبوعية)</span>
             </label>
             <div
               id="segmented-speed"
-              className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl border border-slate-200/80 gap-1"
+              className="grid grid-cols-3 p-1 bg-stone-100 rounded-xl border border-stone-200 gap-1"
             >
               {SPEED_OPTIONS.map((opt) => {
                 const isActive = weeklyStepPercent === opt.percent;
@@ -371,10 +371,10 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                     id={`speed-opt-${opt.percent}`}
                     type="button"
                     onClick={() => setWeeklyStepPercent(opt.percent)}
-                    className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer ${
+                    className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
                       isActive
-                        ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/60 font-bold'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-indigo-700 shadow-2xs border border-stone-200 font-bold'
+                        : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
                     <div>{opt.label}</div>
@@ -387,13 +387,13 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
 
           {/* 4. Second 3-option segmented control "أقصى نسبة": خفيف (20) / متوسط (40) / كبير (60) */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+            <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+              <Sliders className="w-4 h-4 text-indigo-600" />
               <span>أقصى نسبة للمحتوى المقترح (Cap)</span>
             </label>
             <div
               id="segmented-cap"
-              className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl border border-slate-200/80 gap-1"
+              className="grid grid-cols-3 p-1 bg-stone-100 rounded-xl border border-stone-200 gap-1"
             >
               {CAP_OPTIONS.map((opt) => {
                 const isActive = capPercent === opt.percent;
@@ -403,10 +403,10 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                     id={`cap-opt-${opt.percent}`}
                     type="button"
                     onClick={() => setCapPercent(opt.percent)}
-                    className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer ${
+                    className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
                       isActive
-                        ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/60 font-bold'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-indigo-700 shadow-2xs border border-stone-200 font-bold'
+                        : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
                     <div>{opt.label}</div>
@@ -421,7 +421,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
         {/* 5. Read-only status line, computed live (not stored) */}
         <div
           id="taste-shift-status-line"
-          className="rounded-2xl bg-indigo-50/70 border border-indigo-100 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-indigo-950"
+          className="rounded-2xl bg-indigo-50/70 border border-indigo-200/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-indigo-950"
         >
           <div className="space-y-0.5">
             <div className="text-xs font-bold text-indigo-900">حالة خطة التحول:</div>
@@ -438,24 +438,24 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
         {reactionStats && (
           <div
             id="taste-shift-reaction-summary"
-            className="rounded-2xl bg-slate-50 border border-slate-200/80 p-4 space-y-1.5 text-xs text-slate-700"
+            className="rounded-2xl bg-stone-50 border border-stone-200 p-4 space-y-1.5 text-xs text-stone-700"
           >
-            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+            <div className="font-bold text-stone-900 flex items-center gap-1.5">
               <span>تفاعل الطفل مع المحتوى الجديد المقترح</span>
             </div>
             <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
-              <div className="flex items-center gap-1 font-semibold text-slate-800">
+              <div className="flex items-center gap-1.5 font-semibold text-stone-800">
                 <span>تقييم الطفل هذا الأسبوع:</span>
-                <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  <ThumbsUp className="w-3 h-3" /> {reactionStats.likedCount}
+                <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                  <ThumbsUp className="w-3.5 h-3.5" /> {reactionStats.likedCount}
                 </span>
                 <span>/</span>
-                <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
-                  <ThumbsDown className="w-3 h-3" /> {reactionStats.dislikedCount}
+                <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200">
+                  <ThumbsDown className="w-3.5 h-3.5" /> {reactionStats.dislikedCount}
                 </span>
               </div>
-              <div className="text-slate-600 bg-white px-2.5 py-0.5 rounded-md border border-slate-200">
-                عدد الفيديوهات الجديدة المعروضة: <span className="font-bold text-slate-900">{reactionStats.distinctCount}</span>
+              <div className="text-stone-600 bg-white px-2.5 py-0.5 rounded-lg border border-stone-200">
+                عدد الفيديوهات الجديدة المعروضة: <span className="font-bold text-stone-900">{reactionStats.distinctCount}</span>
               </div>
             </div>
           </div>
@@ -465,9 +465,9 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
         {categoryStats.length > 0 && (
           <div
             id="taste-shift-per-category-stats"
-            className="rounded-2xl bg-white border border-slate-200 p-4 space-y-2"
+            className="rounded-2xl bg-white border border-stone-200 p-4 space-y-2"
           >
-            <div className="text-xs font-bold text-slate-900">إحصائيات الأقسام المستهدفة</div>
+            <div className="text-xs font-bold text-stone-900">إحصائيات الأقسام المستهدفة</div>
             <div className="space-y-2">
               {categoryStats.map((s) => {
                 const cat = curationCategories.find((c) => c.id === s.id);
@@ -475,18 +475,18 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                 return (
                   <div
                     key={s.id}
-                    className="flex flex-wrap items-center justify-between gap-2 text-xs border border-slate-100 rounded-xl px-3 py-2 bg-slate-50/80"
+                    className="flex flex-wrap items-center justify-between gap-2 text-xs border border-stone-200 rounded-xl px-3.5 py-2.5 bg-stone-50/80"
                   >
-                    <span className="font-semibold text-slate-800">
+                    <span className="font-semibold text-stone-800">
                       {cat ? `${cat.emoji} ${cat.label}` : s.id}
                     </span>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
-                      <span className="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded-md font-bold">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
+                      <span className="bg-indigo-50 text-indigo-800 border border-indigo-100 px-2 py-0.5 rounded-md font-bold">
                         نسبة فعّالة {s.effectiveShare}%
                       </span>
                       <span className="text-emerald-700">✓ {s.totalAccepted}</span>
                       <span className="text-rose-700">✗ {s.totalRejected}</span>
-                      <span className="text-slate-500">عُرض {s.totalShown}</span>
+                      <span className="text-stone-500">عُرض {s.totalShown}</span>
                       {onCooldown && (
                         <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-semibold">
                           متوقف مؤقتًا

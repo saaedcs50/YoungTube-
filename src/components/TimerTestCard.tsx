@@ -48,18 +48,18 @@ export default function TimerTestCard({
   return (
     <div
       id="timer-test-card"
-      className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col justify-between"
+      className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
     >
       <div>
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">اختبار التايمر (Phase 8: Timers)</h2>
-              <span className="text-xs text-slate-500 font-mono">db.usage & useSessionTimer</span>
+              <h2 className="text-base font-bold text-stone-900">اختبار التايمر (Phase 8: Timers)</h2>
+              <span className="text-xs text-stone-400 font-mono">db.usage & useSessionTimer</span>
             </div>
           </div>
 
@@ -68,7 +68,7 @@ export default function TimerTestCard({
             type="button"
             onClick={handleReset}
             disabled={resetting}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition cursor-pointer disabled:opacity-50 self-start sm:self-auto border border-stone-200 shadow-2xs"
             title="تصفير عداد اليوم للاختبار فقط"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${resetting ? 'animate-spin' : ''}`} />
@@ -79,30 +79,30 @@ export default function TimerTestCard({
         {/* Live Counters Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {/* Seconds Used Today */}
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+          <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500 font-medium">الوقت المستهلك اليوم (حي)</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+              <span className="text-xs text-stone-500 font-medium">الوقت المستهلك اليوم (حي)</span>
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                 Live +1s
               </span>
             </div>
-            <div className="text-lg font-black text-slate-800 font-mono">
+            <div className="text-lg font-black text-stone-900 font-mono">
               {formatSeconds(secondsUsedToday)}
             </div>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[11px] text-stone-400">
               يُحفظ في Dexie (جدول usage) كل 5 ثوانٍ، ويتوقف عند تصغير التطبيق.
             </p>
           </div>
 
           {/* Session Limit Minutes */}
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-            <span className="text-xs text-slate-500 font-medium block">الحد اليومي المسموح به</span>
-            <div className="text-lg font-black text-slate-800 font-mono">
+          <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-1">
+            <span className="text-xs text-stone-500 font-medium block">الحد اليومي المسموح به</span>
+            <div className="text-lg font-black text-stone-900 font-mono">
               {sessionLimitMinutes} دقيقة ({sessionLimitMinutes * 60} ثانية)
             </div>
-            <p className="text-[10px] text-slate-400">
-              مأخوذ من <code className="font-mono bg-slate-200/60 px-1 py-0.5 rounded">settings.main.sessionLimitMinutes</code>
+            <p className="text-[11px] text-stone-400">
+              مأخوذ من <code className="font-mono bg-stone-200/70 px-1 py-0.5 rounded text-stone-800">settings.main.sessionLimitMinutes</code>
             </p>
           </div>
         </div>
@@ -114,12 +114,12 @@ export default function TimerTestCard({
             className={`p-3.5 rounded-xl border flex items-center justify-between ${
               isLimitReached
                 ? 'bg-rose-50 border-rose-200 text-rose-900'
-                : 'bg-slate-50 border-slate-100 text-slate-800'
+                : 'bg-stone-50 border-stone-200 text-stone-800'
             }`}
           >
             <div className="space-y-0.5">
               <span className="text-xs font-semibold block">هل تم بلوغ الحد اليومي؟ (isLimitReached)</span>
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[11px] text-stone-500">
                 {secondsUsedToday} / {sessionLimitMinutes * 60} ثانية
               </span>
             </div>
@@ -139,12 +139,12 @@ export default function TimerTestCard({
             className={`p-3.5 rounded-xl border flex items-center justify-between ${
               !isWithinScheduleWindow
                 ? 'bg-amber-50 border-amber-200 text-amber-900'
-                : 'bg-slate-50 border-slate-100 text-slate-800'
+                : 'bg-stone-50 border-stone-200 text-stone-800'
             }`}
           >
             <div className="space-y-0.5">
               <span className="text-xs font-semibold block">داخل نافذة التشغيل؟ (isWithinScheduleWindow)</span>
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[11px] text-stone-500">
                 النافذة: {scheduleWindow.start} إلى {scheduleWindow.end}
               </span>
             </div>
@@ -161,8 +161,8 @@ export default function TimerTestCard({
         </div>
 
         {/* Developer Action Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-          <div className="text-xs text-slate-600 flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-stone-50 border border-stone-200">
+          <div className="text-xs text-stone-600 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>اختبار شاشة الإغلاق فوراً:</span>
           </div>
@@ -173,7 +173,7 @@ export default function TimerTestCard({
                 id="simulate-limit-btn"
                 type="button"
                 onClick={onSimulateLimit}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition cursor-pointer border border-indigo-200"
+                className="inline-flex items-center gap-1.5 min-h-[36px] px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition cursor-pointer border border-indigo-200 shadow-2xs"
                 title="يضبط العداد فوراً على الحد الأقصى لتجربة شاشة الإغلاق"
               >
                 <FastForward className="w-3.5 h-3.5" />
@@ -185,13 +185,13 @@ export default function TimerTestCard({
       </div>
 
       {/* Footer */}
-      <div className="mt-4 pt-3 border-t border-slate-100">
-        <div className="flex items-center justify-between text-[11px] text-slate-500">
-          <span className="flex items-center gap-1 text-slate-600 font-medium">
+      <div className="mt-4 pt-3 border-t border-stone-100">
+        <div className="flex items-center justify-between text-[11px] text-stone-500">
+          <span className="flex items-center gap-1.5 text-stone-600 font-medium">
             <Clock className="w-3.5 h-3.5 text-emerald-600" />
             <span>تتبع الوقت النشط + إيقاف عند حجب التاب (visibilityState)</span>
           </span>
-          <span className="font-mono text-[10px] text-slate-400">Phase 8</span>
+          <span className="font-mono text-[10px] text-stone-400">Phase 8</span>
         </div>
       </div>
     </div>

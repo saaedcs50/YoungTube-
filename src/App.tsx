@@ -23,6 +23,8 @@ const ChannelCurationByCategory = React.lazy(() => import('./components/ChannelC
 const FilteringTab = React.lazy(() => import('./components/FilteringTab').then((m) => ({ default: m.FilteringTab })));
 const SavedVideosTab = React.lazy(() => import('./components/SavedVideosTab').then((m) => ({ default: m.SavedVideosTab })));
 const TimerTestCard = React.lazy(() => import('./components/TimerTestCard'));
+import { DashboardShell } from './components/dashboard/DashboardShell';
+import { DashboardSectionId } from './components/dashboard/DashboardNav';
 import {
   Database,
   Cloud,
@@ -252,11 +254,8 @@ export default function App() {
   const [scheduleEndInput, setScheduleEndInput] = useState<string>('23:59');
   const [timerSettingsSaved, setTimerSettingsSaved] = useState(false);
 
-  // Setup Screen Part A & B: Collapsible Dashboard Sections
-  const [isChildProfileOpen, setIsChildProfileOpen] = useState(true);
-  const [isChannelCurationOpen, setIsChannelCurationOpen] = useState(true);
-  const [isFilteringOpen, setIsFilteringOpen] = useState(true);
-  const [isSavedVideosOpen, setIsSavedVideosOpen] = useState(true);
+  // Parent Dashboard Navigation Section
+  const [dashboardSection, setDashboardSection] = useState<DashboardSectionId>('child');
 
   // Check if main settings record exists
   const checkMainSettings = useCallback(async () => {
@@ -417,7 +416,7 @@ export default function App() {
   }, [checkMainSettings, runStoragePersistenceTest]);
 
   useEffect(() => {
-    if (viewMode !== 'dev' && !isDevModeParam) return;
+    if (viewMode !== 'dev' && dashboardSection !== 'tools' && !isDevModeParam) return;
     runDatabaseTest();
     runWorkerTest();
 
@@ -526,7 +525,7 @@ export default function App() {
   }, [isSessionEnded, updatePlayerMinimized, updatePlayerFullscreen]);
 
   return (
-    <div className={`min-h-screen font-sans ${viewMode === 'kids' ? 'bg-[#FAF8F5]' : 'bg-slate-50 text-slate-800 flex flex-col justify-between p-4 sm:p-8'}`}>
+    <div className="min-h-screen font-sans">
       {/* Onboarding Modal */}
       {showOnboarding && (
         <Suspense fallback={null}>
@@ -646,7 +645,10 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode('dev')}
+                onClick={() => {
+                  setDashboardSection('tools');
+                  setViewMode('dashboard');
+                }}
                 className="px-3 py-1.5 rounded-full bg-stone-900/80 hover:bg-stone-900 text-amber-300 text-xs font-mono shadow-md backdrop-blur-xs transition cursor-pointer"
                 title="لوحة المطور وفحص الأنظمة (?dev=1)"
               >
@@ -656,55 +658,16 @@ export default function App() {
           )}
         </>
       ) : (
-        <>
-          {/* App Header for Parent Dashboard / Dev Mode */}
-          <header className="max-w-5xl w-full mx-auto flex items-center justify-between py-4 border-b border-slate-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-600 flex items-center justify-center text-white shadow-sm shadow-amber-200">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-slate-900">يوتيوب الأطفال</h1>
-                <p className="text-xs text-slate-500">
-                  {viewMode === 'dashboard'
-                    ? 'لوحة تحكم الوالدين (الداشبورد)'
-                    : 'لوحة فحص النظام والمطور (?dev=1)'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                id="back-to-kids-header-btn"
-                type="button"
-                onClick={() => setViewMode('kids')}
-                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>شاشة الأطفال</span>
-              </button>
-
-              {viewMode === 'dashboard' ? (
-                <button
-                  id="lock-dashboard-btn"
-                  onClick={handleLockDashboard}
-                  className="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>قفل الداشبورد</span>
-                </button>
-              ) : null}
-
-              <PWAInstallButton />
-            </div>
-          </header>
-
-          {/* Main Content Area */}
-          <main className="max-w-5xl w-full mx-auto my-8 space-y-6">
-            {/* VIEW 1: PARENT DASHBOARD */}
-            {viewMode === 'dashboard' ? (
-          <div id="parent-dashboard-view" className="space-y-6">
-            {/* First-Run Welcome / Guidance Banner */}
+        <DashboardShell
+          activeSection={dashboardSection}
+          onSelectSection={setDashboardSection}
+          onClose={() => setViewMode('kids')}
+          onLock={handleLockDashboard}
+          onOpenDemoPlayer={handleOpenDemoPlayer}
+          hasIncompleteSetup={!mainSettings?.hasCompletedFirstSetup}
+          headerSlot={<PWAInstallButton />}
+        >
+          {/* First-Run Welcome / Guidance Banner */}
             {!mainSettings?.hasCompletedFirstSetup && (
               <div
                 id="first-run-setup-banner"
@@ -736,113 +699,43 @@ export default function App() {
               </div>
             )}
 
-            <div className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <SlidersHorizontal className="w-5 h-5" />
-                  </div>
+          {/* SECTION: ملف الطفل */}
+          {dashboardSection === 'child' && (
+            <div id="section-child" className="space-y-6">
+              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل ملف الطفل...</div>}>
+                <ChildProfileSection onSaved={checkMainSettings} />
+              </Suspense>
+            </div>
+          )}
+
+          {/* SECTION: مواعيد التشغيل */}
+          {dashboardSection === 'timer' && (
+            <div id="section-timer" className="space-y-6 max-w-4xl mx-auto">
+              <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-stone-200 mb-5">
                   <div>
-                    <h2 className="text-base font-bold text-slate-900">
-                      لوحة تحكم الوالدين (الداشبورد مفتوح)
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      إدارة أمان التطبيق والكلمات المحظورة
+                    <h3 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                        <Clock className="w-4 h-4 text-emerald-700" />
+                      </span>
+                      <span>مواعيد التشغيل والحد اليومي</span>
+                    </h3>
+                    <p className="text-xs sm:text-sm text-stone-500 mt-1">
+                      تحديد المدة اليومية القصوى المسموحة وساعات المشاهدة المصرح بها للطفل.
                     </p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    id="dashboard-open-demo-player-btn"
-                    type="button"
-                    onClick={handleOpenDemoPlayer}
-                    className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1 transition shadow-xs cursor-pointer"
-                  >
-                    ▶ تجربة المشغل
-                  </button>
-                  <button
-                    onClick={() => setViewMode('kids')}
-                    className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition cursor-pointer"
-                  >
-                    العودة لشاشة الأطفال
-                  </button>
-                  {isDevModeParam && (
-                    <button
-                      onClick={() => setViewMode('dev')}
-                      className="px-3 py-1.5 rounded-xl border border-amber-300 text-amber-800 hover:bg-amber-50 text-xs font-semibold transition cursor-pointer"
-                    >
-                      أدوات المطور (?dev=1)
-                    </button>
-                  )}
-                  <button
-                    onClick={handleLockDashboard}
-                    className="px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
-                  >
-                    <Lock className="w-3 h-3" />
-                    <span>قفل الآن</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Status Grid in Dashboard */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 my-6">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
-                  <span className="text-xs text-slate-400 block">حالة قفل الـ PIN</span>
-                  <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                    <KeyRound className="w-4 h-4 text-sky-600" />
-                    <span>مُفعّل (مشفر بـ SHA-256)</span>
-                  </div>
-                  <span className="text-[11px] text-emerald-600 block">
-                    المحاولات الفاشلة: {mainSettings?.pinAttempts || 0} من 5
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
-                  <span className="text-xs text-slate-400 block">سؤال الأمان السري</span>
-                  <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                    <HelpCircle className="w-4 h-4 text-indigo-600" />
-                    <span className="truncate">{mainSettings?.securityQuestion || 'مُعد'}</span>
-                  </div>
-                  <span className="text-[11px] text-indigo-600 block">
-                    الإجابة مشفرة (Hash)
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
-                  <span className="text-xs text-slate-400 block">الكلمات المحظورة (Blacklist)</span>
-                  <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                    <ShieldAlert className="w-4 h-4 text-amber-600" />
-                    <span>{mainSettings?.blacklistWords?.length || 0} كلمات مسجلة</span>
-                  </div>
-                  <span className="text-[11px] text-slate-500 block">
-                    مُدارة عبر قسم الفلترة والحجب بالأسفل
-                  </span>
-                </div>
-              </div>
-
-              {/* Phase 8: Screen Time & Schedule Management Section */}
-              <div className="mt-6 pt-5 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-emerald-600" />
-                    <span>مواعيد التشغيل والحد اليومي (Screen Time & Schedule)</span>
-                  </h3>
                   {timerSettingsSaved && (
-                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 animate-fade-in self-start sm:self-auto">
                       تم حفظ الإعدادات بنجاح ✅
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mb-4">
-                  تحديد المدة اليومية القصوى المسموحة وساعات المشاهدة المصرح بها للطفل.
-                </p>
 
-                <form onSubmit={handleSaveTimerSettings} className="space-y-4 max-w-xl">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <form onSubmit={handleSaveTimerSettings} className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {/* Session Limit Minutes */}
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 block">
+                    <div className="space-y-1.5">
+                      <label htmlFor="session-limit-input" className="text-xs font-bold text-stone-700 block">
                         الحد اليومي (بالدقائق)
                       </label>
                       <input
@@ -852,14 +745,14 @@ export default function App() {
                         max="720"
                         value={timerLimitInput}
                         onChange={(e) => setTimerLimitInput(Math.max(1, Number(e.target.value) || 1))}
-                        className="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono"
+                        className="w-full p-2.5 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono text-stone-900"
                       />
-                      <span className="text-[10px] text-slate-400">الافتراضي: 60 دقيقة</span>
+                      <span className="text-[10px] text-stone-400">الافتراضي: 60 دقيقة</span>
                     </div>
 
                     {/* Window Start */}
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 block">
+                    <div className="space-y-1.5">
+                      <label htmlFor="schedule-start-input" className="text-xs font-bold text-stone-700 block">
                         بداية الوقت المسموح
                       </label>
                       <input
@@ -867,14 +760,14 @@ export default function App() {
                         type="time"
                         value={scheduleStartInput}
                         onChange={(e) => setScheduleStartInput(e.target.value)}
-                        className="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono"
+                        className="w-full p-2.5 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono text-stone-900"
                       />
-                      <span className="text-[10px] text-slate-400">مثل: 08:00</span>
+                      <span className="text-[10px] text-stone-400">مثل: 08:00</span>
                     </div>
 
                     {/* Window End */}
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 block">
+                    <div className="space-y-1.5">
+                      <label htmlFor="schedule-end-input" className="text-xs font-bold text-stone-700 block">
                         نهاية الوقت المسموح
                       </label>
                       <input
@@ -882,17 +775,17 @@ export default function App() {
                         type="time"
                         value={scheduleEndInput}
                         onChange={(e) => setScheduleEndInput(e.target.value)}
-                        className="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono"
+                        className="w-full p-2.5 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-mono text-stone-900"
                       />
-                      <span className="text-[10px] text-slate-400">مثل: 20:00</span>
+                      <span className="text-[10px] text-stone-400">مثل: 20:00</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button
                       id="save-timer-settings-btn"
                       type="submit"
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
+                      className="min-h-[38px] px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
                     >
                       <Clock className="w-3.5 h-3.5" />
                       <span>حفظ إعدادات الوقت</span>
@@ -901,370 +794,146 @@ export default function App() {
                     <button
                       type="button"
                       onClick={sessionTimer.resetTodayUsage}
-                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                      className="min-h-[38px] px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition cursor-pointer border border-stone-200 shadow-2xs"
                       title="تصفير عداد اليوم للاختبار"
                     >
                       تصفير استهلاك اليوم (الحالي: {sessionTimer.secondsUsedToday} ثانية)
                     </button>
                   </div>
                 </form>
-              </div>
 
-              {/* Phase 9: Ad-blocking DNS Notice Permanent Row */}
-              <div className="mt-6 pt-5 border-t border-slate-100">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-sky-50/70 border border-sky-200">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-sky-600" />
-                      <span>حجب إعلانات يوتيوب (Private DNS)</span>
-                    </h3>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      حجب غالبية الإعلانات مجاناً على مستوى الجهاز بالكامل (أندرويد و iOS) بدون تطبيقات إضافية.
-                    </p>
+                {/* Phase 9: Ad-blocking DNS Notice Permanent Row */}
+                <div className="mt-8 pt-5 border-t border-stone-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-stone-50 border border-stone-200">
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-sky-600" />
+                        <span>حجب إعلانات يوتيوب (Private DNS)</span>
+                      </h4>
+                      <p className="text-xs text-stone-600 leading-relaxed">
+                        حجب غالبية الإعلانات مجاناً على مستوى الجهاز بالكامل (أندرويد و iOS) بدون تطبيقات إضافية.
+                      </p>
+                    </div>
+                    <button
+                      id="open-adblock-notice-btn"
+                      type="button"
+                      onClick={() => setShowAdBlockModal(true)}
+                      className="min-h-[38px] px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold shrink-0 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <span>عرض إرشادات ورمز QR</span>
+                    </button>
                   </div>
-                  <button
-                    id="open-adblock-notice-btn"
-                    type="button"
-                    onClick={() => setShowAdBlockModal(true)}
-                    className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shrink-0 transition flex items-center justify-center gap-1.5 shadow-xs"
-                  >
-                    <span>عرض إرشادات ورمز QR</span>
-                  </button>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Developer / Testing Helper */}
-              <div className="mt-8 pt-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400">
-                <span>سجل الإعدادات الثابت: <code className="font-mono">settings.get('main')</code></span>
+          {/* SECTION: تعديل الذوق (Taste Shift) */}
+          {dashboardSection === 'taste' && (
+            <div id="section-taste" className="space-y-6">
+              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل خريطة الذوق...</div>}>
+                <TasteShiftCard onSaved={checkMainSettings} />
+              </Suspense>
+            </div>
+          )}
+
+          {/* SECTION: تنظيم وتصنيف القنوات */}
+          {dashboardSection === 'channels' && (
+            <div id="section-channels" className="space-y-6">
+              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل القنوات...</div>}>
+                <ChannelCurationByCategory
+                  onChannelChanged={() => setChannelsRefreshTrigger((prev) => prev + 1)}
+                />
+              </Suspense>
+            </div>
+          )}
+
+          {/* SECTION: الفلترة والحجب */}
+          {dashboardSection === 'filtering' && (
+            <div id="section-filtering" className="space-y-6">
+              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل إعدادات الفلترة...</div>}>
+                <FilteringTab
+                  onFilterChanged={() => {
+                    checkMainSettings();
+                    setChannelsRefreshTrigger((prev) => prev + 1);
+                  }}
+                />
+              </Suspense>
+            </div>
+          )}
+
+          {/* SECTION: الفيديوهات المحفوظة */}
+          {dashboardSection === 'saved' && (
+            <div id="section-saved" className="space-y-6">
+              <Suspense fallback={<div className="p-8 text-center text-xs text-stone-400">جاري تحميل الفيديوهات المحفوظة...</div>}>
+                <SavedVideosTab onSelectVideo={handleSelectVideo} />
+              </Suspense>
+            </div>
+          )}
+
+          {/* Prominent Bottom Button for First-Run Setup */}
+          {!mainSettings?.hasCompletedFirstSetup && (
+            <div id="first-run-bottom-action" className="p-6 rounded-3xl bg-amber-50 border-2 border-amber-300 text-center space-y-3 shadow-xs">
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-amber-950">
+                  هل انتهيت من ضبط الإعدادات والقنوات؟
+                </h4>
+                <p className="text-xs text-amber-800">
+                  يمكنك العودة إلى هنا في أي وقت لاحقاً بإدخال رمز الـ PIN عبر أيقونة القفل.
+                </p>
+              </div>
+              <button
+                id="first-run-bottom-start-btn"
+                type="button"
+                onClick={handleFinishFirstSetup}
+                className="px-8 py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-sm sm:text-base font-bold shadow-md hover:shadow-lg transition cursor-pointer inline-flex items-center gap-2"
+              >
+                <span>ابدأ استخدام الطفل →</span>
+              </button>
+            </div>
+          )}
+
+          {/* 7. SECTION: أدوات النظام والتشخيص */}
+          {dashboardSection === 'tools' && (
+            <div id="section-tools" className="space-y-6">
+              {/* Helper Bar */}
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 text-xs text-stone-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-stone-700">سجل الإعدادات الثابت:</span>
+                  <code className="font-mono bg-stone-100 px-2 py-0.5 rounded text-stone-800">settings.get('main')</code>
+                </div>
                 <button
                   id="reset-onboarding-test-btn"
                   onClick={handleResetForOnboardingTest}
-                  className="text-slate-500 hover:text-red-600 underline text-[11px]"
+                  className="text-stone-600 hover:text-rose-600 underline font-semibold cursor-pointer"
                 >
                   إعادة تجربة شاشة التهيئة (Reset Onboarding)
                 </button>
               </div>
-            </div>
 
-            {/* Setup Screen Part A: Child Profile & Interests */}
-            <div id="child-profile-card" className="rounded-3xl border border-amber-200 bg-white p-6 shadow-xs">
-              <button
-                type="button"
-                onClick={() => setIsChildProfileOpen(!isChildProfileOpen)}
-                className="w-full flex items-center justify-between text-right cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                    <User className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      ملف الطفل والاهتمامات (Child Profile & Interests)
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      تخصيص الاسم، العمر، والاهتمامات الإيجابية والسلبية للطفل
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <span className="text-xs font-medium hidden sm:inline">
-                    {isChildProfileOpen ? 'طي القسم' : 'توسيع القسم'}
-                  </span>
-                  {isChildProfileOpen ? (
-                    <ChevronUp className="w-5 h-5" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5" />
-                  )}
-                </div>
-              </button>
-
-              {isChildProfileOpen && (
-                <div className="mt-6 pt-5 border-t border-slate-100">
-                  <Suspense fallback={null}>
-                    <ChildProfileSection onSaved={checkMainSettings} />
-                  </Suspense>
-                </div>
-              )}
-            </div>
-
-            {/* Taste Shift Feature Card */}
-            <Suspense fallback={null}>
-              <TasteShiftCard onSaved={checkMainSettings} />
-            </Suspense>
-
-            {/* Setup Screen Part A: Channel Curation & YouTube Search */}
-            <div id="channel-curation-card" className="rounded-3xl border border-sky-200 bg-white p-6 shadow-xs">
-              <button
-                type="button"
-                onClick={() => setIsChannelCurationOpen(!isChannelCurationOpen)}
-                className="w-full flex items-center justify-between text-right cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                    <FolderKanban className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      تنظيم وتصنيف القنوات والبحث (Channel Curation & Search)
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      البحث بمفتاح YouTube الخاص بالعائلة، تنظيم القنوات حسب الأقسام، وتفعيل أو تعطيل أي قناة
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <span className="text-xs font-medium hidden sm:inline">
-                    {isChannelCurationOpen ? 'طي القسم' : 'توسيع القسم'}
-                  </span>
-                  {isChannelCurationOpen ? (
-                    <ChevronUp className="w-5 h-5" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5" />
-                  )}
-                </div>
-              </button>
-
-              {isChannelCurationOpen && (
-                <div className="mt-6 pt-5 border-t border-slate-100">
-                  <Suspense fallback={null}>
-                    <ChannelCurationByCategory
-                      onChannelChanged={() => setChannelsRefreshTrigger((prev) => prev + 1)}
-                    />
-                  </Suspense>
-                </div>
-              )}
-            </div>
-
-            {/* Setup Screen Part B: Filtering Tab (Blocked Channels, Hidden Videos, Blacklist Words) */}
-            <div id="filtering-tab-card" className="rounded-3xl border border-rose-200 bg-white p-6 shadow-xs">
-              <button
-                type="button"
-                onClick={() => setIsFilteringOpen(!isFilteringOpen)}
-                className="w-full flex items-center justify-between text-right cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                    <ShieldAlert className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      إدارة الفلترة والحجب (Filtering & Blocklist)
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      الكلمات المحظورة، القنوات الموقوفة، والفيديوهات المخفية يدوياً
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <span className="text-xs font-medium hidden sm:inline">
-                    {isFilteringOpen ? 'طي القسم' : 'توسيع القسم'}
-                  </span>
-                  {isFilteringOpen ? (
-                    <ChevronUp className="w-5 h-5" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5" />
-                  )}
-                </div>
-              </button>
-
-              {isFilteringOpen && (
-                <div className="mt-6 pt-5 border-t border-slate-100">
-                  <Suspense fallback={null}>
-                    <FilteringTab
-                      onFilterChanged={() => {
-                        checkMainSettings();
-                        setChannelsRefreshTrigger((prev) => prev + 1);
-                      }}
-                    />
-                  </Suspense>
-                </div>
-              )}
-            </div>
-
-            {/* Setup Screen Part C: Saved Videos (الفيديوهات المحفوظة) */}
-            <div id="saved-videos-card" className="rounded-3xl border border-indigo-200 bg-white p-6 shadow-xs">
-              <button
-                type="button"
-                onClick={() => setIsSavedVideosOpen(!isSavedVideosOpen)}
-                className="w-full flex items-center justify-between text-right cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                    <Bookmark className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      الفيديوهات المحفوظة
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      قائمة الفيديوهات المحفوظة للأهل للمراجعة والتشغيل المباشر
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-400">
-                  <span className="text-xs font-medium hidden sm:inline">
-                    {isSavedVideosOpen ? 'طي القسم' : 'توسيع القسم'}
-                  </span>
-                  {isSavedVideosOpen ? (
-                    <ChevronUp className="w-5 h-5" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5" />
-                  )}
-                </div>
-              </button>
-
-              {isSavedVideosOpen && (
-                <div className="mt-6 pt-5 border-t border-slate-100">
-                  <Suspense fallback={null}>
-                    <SavedVideosTab onSelectVideo={handleSelectVideo} />
-                  </Suspense>
-                </div>
-              )}
-            </div>
-
-            {/* Prominent Bottom Button for First-Run Setup */}
-            {!mainSettings?.hasCompletedFirstSetup && (
-              <div id="first-run-bottom-action" className="p-6 rounded-3xl bg-amber-50 border-2 border-amber-300 text-center space-y-3 shadow-xs">
-                <div className="space-y-1">
-                  <h4 className="text-base font-bold text-amber-950">
-                    هل انتهيت من ضبط الإعدادات والقنوات؟
-                  </h4>
-                  <p className="text-xs text-amber-800">
-                    يمكنك العودة إلى هنا في أي وقت لاحقاً بإدخال رمز الـ PIN عبر أيقونة القفل.
-                  </p>
-                </div>
-                <button
-                  id="first-run-bottom-start-btn"
-                  type="button"
-                  onClick={handleFinishFirstSetup}
-                  className="px-8 py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-sm sm:text-base font-bold shadow-md hover:shadow-lg transition cursor-pointer inline-flex items-center gap-2"
-                >
-                  <span>ابدأ استخدام الطفل →</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* VIEW 2: STATUS & CHECKS DASHBOARD (Dev mode ?dev=1) */
-          <>
-            {/* Dev Mode Banner */}
-            <div
-              id="dev-mode-banner"
-              className="rounded-2xl border border-amber-300 bg-amber-50/80 p-4 sm:p-5 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-amber-950">
-                    وضع المطور والتشخيص (?dev=1)
-                  </h2>
-                  <p className="text-xs text-amber-800 mt-0.5">
-                    هذه الواجهة مخصصة لفحص واختبار الأنظمة وقواعد البيانات والمشغل.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  id="open-demo-player-banner-btn"
-                  type="button"
-                  onClick={handleOpenDemoPlayer}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                >
-                  ▶ افتح شاشة المشغل التجريبية
-                </button>
-                <button
-                  id="back-to-kids-btn"
-                  type="button"
-                  onClick={() => setViewMode('kids')}
-                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                >
-                  العودة لواجهة الأطفال الرئيسية ✨
-                </button>
-              </div>
-            </div>
-
-            {/* Parent Onboarding & Settings Banner */}
-            <div
-              id="settings-main-banner"
-              className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 sm:p-5 text-indigo-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <KeyRound className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-indigo-950">
-                      قفل الوالدين وسجل الإعدادات (settings: 'main')
-                    </h2>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-200 text-indigo-900">
-                      مرحلة 4 مكتملة
-                    </span>
-                  </div>
-                  <p className="text-xs text-indigo-700 mt-0.5">
-                    الـ PIN وسؤال الأمان مشفران بـ SHA-256، والعداد يغلق بعد 5 محاولات متتالية.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  id="header-open-dashboard-btn"
-                  onClick={handleOpenDashboard}
-                  className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>فتح الداشبورد</span>
-                </button>
-              </div>
-            </div>
-
-            {/* PWA Architecture Banner */}
-            <div
-              id="pwa-architecture-banner"
-              className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4 text-sky-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
-            >
-              <div className="flex items-center gap-2.5">
-                <Layers className="w-4 h-4 text-sky-600 shrink-0" />
-                <span>
-                  <strong>Workbox Runtime Caching:</strong> استراتيجية NetworkFirst لدومين workers.dev مع كاش "worker-api-cache" (بدون اتصال fallback فوري).
-                </span>
-              </div>
-              <span className="shrink-0 px-2 py-0.5 rounded-md font-semibold bg-sky-200/80 text-sky-800 text-[11px]">
-                Workbox Active
-              </span>
-            </div>
-
-            {/* Status Dashboard Grid (4 Cards: Database, Worker, Storage, Channels Count) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {/* Status Dashboard Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {/* Card 1: Database Test Card */}
               <div
                 id="db-test-card"
-                className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col justify-between"
+                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
                         <Database className="w-5 h-5" />
                       </div>
                       <div>
-                        <h2 className="text-base font-bold text-slate-900">قاعدة البيانات</h2>
-                        <span className="text-xs text-slate-500 font-mono">Dexie • v1</span>
+                        <h2 className="text-base font-bold text-stone-900">قاعدة البيانات</h2>
+                        <span className="text-xs text-stone-400 font-mono">Dexie • v1</span>
                       </div>
                     </div>
                     <button
                       id="retest-db-btn"
                       onClick={runDatabaseTest}
                       disabled={dbResult.loading}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
+                      className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition disabled:opacity-50 cursor-pointer"
                       title="إعادة الفحص"
                     >
                       <RefreshCw className={`w-4 h-4 ${dbResult.loading ? 'animate-spin' : ''}`} />
@@ -1273,29 +942,29 @@ export default function App() {
 
                   {/* Status Display */}
                   {dbResult.loading ? (
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-500 animate-pulse flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-slate-400 shrink-0" />
+                    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 animate-pulse flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin text-stone-400 shrink-0" />
                       جاري اختبار عمليات IndexedDB...
                     </div>
                   ) : dbResult.success ? (
-                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1.5">
+                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-1.5">
                       <div className="flex items-center gap-1.5 font-semibold text-emerald-800 text-xs">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                         <span>الكتابة والقراءة والحذف ناجحة</span>
                       </div>
-                      <p className="text-[11px] text-emerald-700 leading-relaxed">{dbResult.message}</p>
-                      <div className="text-[10px] text-emerald-600 font-mono pt-0.5">
+                      <p className="text-[11px] text-emerald-800 leading-relaxed">{dbResult.message}</p>
+                      <div className="text-[10px] text-emerald-700 font-mono pt-0.5">
                         آخر فحص: {dbResult.timestamp}
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1.5">
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-1.5">
                       <div className="flex items-center gap-1.5 font-semibold text-amber-800 text-xs">
                         <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                         <span>فشل في الفحص</span>
                       </div>
-                      <p className="text-[11px] text-amber-700 leading-relaxed">{dbResult.error}</p>
-                      <div className="text-[10px] text-amber-600 font-mono pt-0.5">
+                      <p className="text-[11px] text-amber-800 leading-relaxed">{dbResult.error}</p>
+                      <div className="text-[10px] text-amber-700 font-mono pt-0.5">
                         آخر فحص: {dbResult.timestamp}
                       </div>
                     </div>
@@ -1303,18 +972,18 @@ export default function App() {
                 </div>
 
                 {/* Tables Checklist */}
-                <div className="mt-4 pt-3 border-t border-slate-100">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 mb-1.5">
+                <div className="mt-4 pt-3 border-t border-stone-100">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-stone-600 mb-1.5">
                     <TableProperties className="w-3.5 h-3.5" />
                     <span>6 جداول سكيما معتمدة</span>
                   </div>
                   <div className="flex flex-wrap gap-1 text-[10px] font-mono">
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">settings</span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">channels</span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">usage</span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">feedCache</span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">interactions</span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">downloads</span>
+                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">settings</span>
+                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">channels</span>
+                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">usage</span>
+                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">feedCache</span>
+                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">interactions</span>
+                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">downloads</span>
                   </div>
                 </div>
               </div>
@@ -1322,30 +991,30 @@ export default function App() {
               {/* Card 2: Cloudflare Worker Card (with Cache vs Online distinction) */}
               <div
                 id="worker-test-card"
-                className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col justify-between"
+                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2.5">
                       <div
-                        className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
                           workerResult.isFromCache
-                            ? 'bg-amber-50 text-amber-600'
-                            : 'bg-sky-50 text-sky-600'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-sky-50 text-sky-700 border-sky-200'
                         }`}
                       >
                         <Cloud className="w-5 h-5" />
                       </div>
                       <div>
-                        <h2 className="text-base font-bold text-slate-900">الـ Worker</h2>
-                        <span className="text-xs text-slate-500 font-mono">youngtube-worker</span>
+                        <h2 className="text-base font-bold text-stone-900">الـ Worker</h2>
+                        <span className="text-xs text-stone-400 font-mono">youngtube-worker</span>
                       </div>
                     </div>
                     <button
                       id="retest-worker-btn"
                       onClick={runWorkerTest}
                       disabled={workerResult.loading}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
+                      className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition disabled:opacity-50 cursor-pointer"
                       title="إعادة فحص الـ Worker"
                     >
                       <RefreshCw className={`w-4 h-4 ${workerResult.loading ? 'animate-spin' : ''}`} />
@@ -1354,16 +1023,16 @@ export default function App() {
 
                   {/* Worker Status Display with Cache Distinction */}
                   {workerResult.loading ? (
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-500 animate-pulse flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-slate-400 shrink-0" />
+                    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 animate-pulse flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin text-stone-400 shrink-0" />
                       جاري فحص استجابة الـ Worker...
                     </div>
                   ) : workerResult.success ? (
                     <div
                       className={`p-3.5 rounded-xl border space-y-1.5 ${
                         workerResult.isFromCache
-                          ? 'bg-amber-50/80 border-amber-200 text-amber-900'
-                          : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                          ? 'bg-amber-50/80 border-amber-200 text-amber-950'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-950'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -1406,29 +1075,29 @@ export default function App() {
                       </pre>
                       <div
                         className={`text-[10px] font-mono pt-0.5 ${
-                          workerResult.isFromCache ? 'text-amber-700' : 'text-emerald-600'
+                          workerResult.isFromCache ? 'text-amber-700' : 'text-emerald-700'
                         }`}
                       >
                         آخر استجابة: {workerResult.timestamp}
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1.5">
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-1.5">
                       <div className="flex items-center gap-1.5 font-semibold text-amber-800 text-xs">
                         <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                         <span>تعذر الاتصال بالـ Worker</span>
                       </div>
-                      <p className="text-[11px] text-amber-700 leading-relaxed">{workerResult.error}</p>
-                      <div className="text-[10px] text-amber-600 font-mono pt-0.5">
+                      <p className="text-[11px] text-amber-800 leading-relaxed">{workerResult.error}</p>
+                      <div className="text-[10px] text-amber-700 font-mono pt-0.5">
                         آخر محاولة: {workerResult.timestamp}
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100">
-                  <div className="text-[11px] text-slate-500 truncate">
-                    <span className="font-semibold text-slate-600">الرابط: </span>
+                <div className="mt-4 pt-3 border-t border-stone-100">
+                  <div className="text-[11px] text-stone-500 truncate">
+                    <span className="font-semibold text-stone-600">الرابط: </span>
                     <span className="font-mono text-[10px]">{WORKER_URL}</span>
                   </div>
                 </div>
@@ -1437,24 +1106,24 @@ export default function App() {
               {/* Card 3: Storage Persistence Card */}
               <div
                 id="storage-persistence-card"
-                className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col justify-between"
+                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-100 shrink-0">
                         <HardDrive className="w-5 h-5" />
                       </div>
                       <div>
-                        <h2 className="text-base font-bold text-slate-900">التخزين الدائم</h2>
-                        <span className="text-xs text-slate-500 font-mono">storage.persist()</span>
+                        <h2 className="text-base font-bold text-stone-900">التخزين الدائم</h2>
+                        <span className="text-xs text-stone-400 font-mono">storage.persist()</span>
                       </div>
                     </div>
                     <button
                       id="retest-storage-btn"
                       onClick={runStoragePersistenceTest}
                       disabled={storageResult.loading}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
+                      className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition disabled:opacity-50 cursor-pointer"
                       title="إعادة طلب التخزين الدائم"
                     >
                       <RefreshCw className={`w-4 h-4 ${storageResult.loading ? 'animate-spin' : ''}`} />
@@ -1463,12 +1132,12 @@ export default function App() {
 
                   {/* Storage Status Display */}
                   {storageResult.loading ? (
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-500 animate-pulse flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-slate-400 shrink-0" />
+                    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 animate-pulse flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin text-stone-400 shrink-0" />
                       جاري فحص صلاحية التخزين الدائم...
                     </div>
                   ) : storageResult.result?.status === 'granted' ? (
-                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-2">
+                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5 font-semibold text-emerald-800 text-xs">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1478,7 +1147,7 @@ export default function App() {
                           محمي
                         </span>
                       </div>
-                      <p className="text-[11px] text-emerald-700 leading-relaxed">
+                      <p className="text-[11px] text-emerald-800 leading-relaxed">
                         {storageResult.result.message}
                       </p>
                       {storageResult.result.quota && (
@@ -1486,12 +1155,12 @@ export default function App() {
                           المساحة: {storageResult.result.quota.quotaMb} MB (المستخدم: {storageResult.result.quota.usageMb} MB)
                         </div>
                       )}
-                      <div className="text-[10px] text-emerald-600 font-mono pt-0.5">
+                      <div className="text-[10px] text-emerald-700 font-mono pt-0.5">
                         آخر فحص: {storageResult.result.timestamp}
                       </div>
                     </div>
                   ) : storageResult.result?.status === 'denied' ? (
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5 font-semibold text-amber-800 text-xs">
                           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -1501,7 +1170,7 @@ export default function App() {
                           افتراضي
                         </span>
                       </div>
-                      <p className="text-[11px] text-amber-700 leading-relaxed">
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
                         {storageResult.result.message}
                       </p>
                       {storageResult.result.quota && (
@@ -1509,34 +1178,34 @@ export default function App() {
                           المساحة: {storageResult.result.quota.quotaMb} MB (المستخدم: {storageResult.result.quota.usageMb} MB)
                         </div>
                       )}
-                      <div className="text-[10px] text-amber-600 font-mono pt-0.5">
+                      <div className="text-[10px] text-amber-700 font-mono pt-0.5">
                         آخر فحص: {storageResult.result.timestamp}
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 space-y-1.5">
+                    <div className="p-3.5 rounded-xl bg-stone-100 border border-stone-200 text-stone-800 space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 font-semibold text-slate-700 text-xs">
-                          <AlertCircle className="w-4 h-4 text-slate-500 shrink-0" />
+                        <div className="flex items-center gap-1.5 font-semibold text-stone-700 text-xs">
+                          <AlertCircle className="w-4 h-4 text-stone-500 shrink-0" />
                           <span>الحالة: غير مدعومة (Unsupported)</span>
                         </div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-200 text-stone-700">
                           غير متاح
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                      <p className="text-[11px] text-stone-600 leading-relaxed">
                         {storageResult.result?.message}
                       </p>
-                      <div className="text-[10px] text-slate-500 font-mono pt-0.5">
+                      <div className="text-[10px] text-stone-500 font-mono pt-0.5">
                         آخر فحص: {storageResult.result?.timestamp}
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100">
-                  <div className="text-[11px] text-slate-500">
-                    <span className="font-semibold text-slate-600">سياسة البيانات: </span>
+                <div className="mt-4 pt-3 border-t border-stone-100">
+                  <div className="text-[11px] text-stone-500">
+                    <span className="font-semibold text-stone-600">سياسة البيانات: </span>
                     <span>حماية قاعدة بيانات Dexie والملفات من الحذف التلقائي</span>
                   </div>
                 </div>
@@ -1580,16 +1249,10 @@ export default function App() {
                 onBackfillSuccess={handleBackfillSuccess}
               />
             </Suspense>
-          </>
+          </div>
         )}
-      </main>
-
-      {/* Footer */}
-      <footer className="max-w-5xl w-full mx-auto text-center py-4 border-t border-slate-200 text-xs text-slate-400">
-        يوتيوب الأطفال PWA — المرحلة 9: إرشادات حجب الإعلانات (Ad-blocking DNS Notice)
-      </footer>
-        </>
-      )}
+      </DashboardShell>
+    )}
 
       <OfflineIndicator />
     </div>

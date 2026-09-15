@@ -110,93 +110,109 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
   };
 
   return (
-    <div id="child-profile-section" className="space-y-6">
-      {/* Header with save status indicator */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+    <div id="child-profile-section" className="space-y-6 max-w-4xl mx-auto">
+      {/* Panel Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-200">
         <div>
-          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <User className="w-4 h-4 text-amber-600" />
-            <span>ملف الطفل والاهتمامات (Child Profile & Interests)</span>
+          <h3 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+              <User className="w-4 h-4 text-amber-600" />
+            </span>
+            <span>ملف الطفل والاهتمامات</span>
           </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            خصص تجربة التطبيق بحسب عمر الطفل وتفضيلاته لتوجيه المحتوى المناسب وتفضيل أو تجنب مجالات معينة.
+          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+            خصص اسم الطفل وعمره واهتماماته المفضلة أو المستبعدة لتوجيه المحتوى والأنشطة المناسبة له.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           {saveStatus === 'saving' && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               جاري الحفظ...
             </span>
           )}
           {saveStatus === 'saved' && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 animate-fade-in">
-              <Check className="w-3 h-3 text-emerald-600" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 animate-fade-in">
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
               تم الحفظ تلقائياً
+            </span>
+          )}
+          {saveStatus === 'idle' && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium text-stone-400 bg-stone-100">
+              حفظ فوري في الجهاز
             </span>
           )}
         </div>
       </div>
 
-      {/* Name and Age Inputs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/80 p-4 rounded-2xl border border-slate-100">
-        <div className="space-y-1.5">
-          <label htmlFor="child-name-input" className="text-xs font-semibold text-slate-700 block">
-            اسم الطفل
-          </label>
-          <input
-            id="child-name-input"
-            type="text"
-            value={childName}
-            onChange={(e) => setChildName(e.target.value)}
-            placeholder="مثال: يوسف، سارة..."
-            className="w-full p-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500 transition"
-          />
-          <span className="text-[10px] text-slate-400 block">
-            يظهر في الترحيب وشاشات التشجيع
-          </span>
-        </div>
+      {/* Card 1: Name and Age Inputs */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
+        <h4 className="text-xs sm:text-sm font-bold text-stone-800 flex items-center gap-2">
+          <span>البيانات الأساسية للطفل</span>
+        </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label htmlFor="child-name-input" className="text-xs font-bold text-stone-700 block">
+              اسم الطفل
+            </label>
+            <input
+              id="child-name-input"
+              type="text"
+              value={childName}
+              onChange={(e) => setChildName(e.target.value)}
+              placeholder="مثال: يوسف، سارة..."
+              className="w-full min-h-[44px] px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-300 bg-stone-50/40 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition"
+            />
+            <span className="text-[11px] text-stone-400 block">
+              يظهر في عبارات الترحيب والتشجيع
+            </span>
+          </div>
 
-        <div className="space-y-1.5">
-          <label htmlFor="child-age-input" className="text-xs font-semibold text-slate-700 block">
-            عمر الطفل (بالسنوات)
-          </label>
-          <input
-            id="child-age-input"
-            type="number"
-            min="2"
-            max="16"
-            value={childAge}
-            onChange={(e) => {
-              const val = e.target.value;
-              setChildAge(val === '' ? '' : Math.max(1, Math.min(18, Number(val))));
-            }}
-            placeholder="مثال: 6"
-            className="w-full p-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500 font-mono transition"
-          />
-          <span className="text-[10px] text-slate-400 block">
-            يساعد في موائمة نوعية الألعاب والأنشطة المناسبة
-          </span>
+          <div className="space-y-1.5">
+            <label htmlFor="child-age-input" className="text-xs font-bold text-stone-700 block">
+              عمر الطفل (بالسنوات)
+            </label>
+            <input
+              id="child-age-input"
+              type="number"
+              min="2"
+              max="16"
+              value={childAge}
+              onChange={(e) => {
+                const val = e.target.value;
+                setChildAge(val === '' ? '' : Math.max(1, Math.min(18, Number(val))));
+              }}
+              placeholder="مثال: 6"
+              className="w-full min-h-[44px] px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-300 bg-stone-50/40 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-mono transition"
+            />
+            <span className="text-[11px] text-stone-400 block">
+              يساعد في موائمة طبيعة المحتوى والأنشطة المناسبة للمرحلة العمرية
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Positive Interests Multi-select */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-            <Heart className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600/20" />
-            <span>اهتمامات إيجابية (يُنصح بها وتظهر في الصدارة)</span>
-          </label>
-          <span className="text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+      {/* Card 2: Positive Interests Multi-select */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="space-y-1">
+            <label className="text-xs sm:text-sm font-bold text-stone-800 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <Heart className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600/30" />
+              </span>
+              <span>اهتمامات مفضلة وموصى بها</span>
+            </label>
+            <p className="text-xs text-stone-500">
+              المجالات التي ترغب في تشجيع طفلك عليها لمضاعفة ظهورها واقتراحها في الخلاصة.
+            </p>
+          </div>
+          <span className="self-start sm:self-auto text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
             {positiveInterests.length} محددة
           </span>
         </div>
-        <p className="text-[11px] text-slate-500">
-          اختر المجالات التي ترغب في تشجيع طفلك عليها لمضاعفة ظهورها واقتراحها.
-        </p>
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-2">
           {curationCategories.map((cat) => {
             const isSelected = positiveInterests.includes(cat.id);
             return (
@@ -205,37 +221,41 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
                 id={`chip-pos-${cat.id}`}
                 type="button"
                 onClick={() => togglePositive(cat.id)}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition active:scale-95 cursor-pointer ${
+                className={`min-h-[42px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition active:scale-95 cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-emerald-600 text-white border border-emerald-600 shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-emerald-50/60 hover:border-emerald-300'
+                    ? 'bg-emerald-600 text-white border border-emerald-600 shadow-xs ring-2 ring-emerald-500/20'
+                    : 'bg-stone-50/70 text-stone-700 border border-stone-200 hover:bg-emerald-50/60 hover:border-emerald-300'
                 }`}
               >
-                <span>{cat.emoji}</span>
+                <span className="text-base">{cat.emoji}</span>
                 <span>{cat.label}</span>
-                {isSelected && <Check className="w-3 h-3 ml-0.5" />}
+                {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Negative Interests Multi-select */}
-      <div className="space-y-2.5 pt-2 border-t border-slate-100">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-            <ShieldX className="w-3.5 h-3.5 text-rose-600" />
-            <span>اهتمامات سلبية (مستبعدة أو غير مرغوبة)</span>
-          </label>
-          <span className="text-[11px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">
+      {/* Card 3: Negative Interests Multi-select */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="space-y-1">
+            <label className="text-xs sm:text-sm font-bold text-stone-800 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <ShieldX className="w-3.5 h-3.5 text-rose-600" />
+              </span>
+              <span>اهتمامات مستبعدة أو غير مرغوبة</span>
+            </label>
+            <p className="text-xs text-stone-500">
+              المجالات التي ترغب في تجنبها أو عدم ظهور قنواتها لطفلك (اختيار قسم هنا يزيله من المفضلة تلقائياً).
+            </p>
+          </div>
+          <span className="self-start sm:self-auto text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
             {negativeInterests.length} محددة
           </span>
         </div>
-        <p className="text-[11px] text-slate-500">
-          اختر المجالات التي ترغب في تقليلها أو عدم عرض قنواتها لطفلك (اختيار قسم هنا يزيله تلقائياً من الإيجابي).
-        </p>
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-2">
           {curationCategories.map((cat) => {
             const isSelected = negativeInterests.includes(cat.id);
             return (
@@ -244,15 +264,15 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
                 id={`chip-neg-${cat.id}`}
                 type="button"
                 onClick={() => toggleNegative(cat.id)}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition active:scale-95 cursor-pointer ${
+                className={`min-h-[42px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition active:scale-95 cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-rose-600 text-white border border-rose-600 shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-rose-50/60 hover:border-rose-300'
+                    ? 'bg-rose-600 text-white border border-rose-600 shadow-xs ring-2 ring-rose-500/20'
+                    : 'bg-stone-50/70 text-stone-700 border border-stone-200 hover:bg-rose-50/60 hover:border-rose-300'
                 }`}
               >
-                <span>{cat.emoji}</span>
+                <span className="text-base">{cat.emoji}</span>
                 <span>{cat.label}</span>
-                {isSelected && <Check className="w-3 h-3 ml-0.5" />}
+                {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
               </button>
             );
           })}

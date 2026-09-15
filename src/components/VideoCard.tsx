@@ -47,14 +47,14 @@ export const VideoCard = React.memo(
       <div
         id={isFavorite ? `favorite-card-${video.videoId}` : `video-card-${video.videoId}`}
         onClick={handleClick}
-        className="group bg-white flex flex-col text-right cursor-pointer"
+        className="group bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-amber-100/60 shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_22px_rgba(245,158,11,0.08)] hover:border-amber-200/90 transition-all duration-200 active:scale-[0.98] flex flex-col text-right cursor-pointer"
       >
-        {/* Thumbnail: edge-to-edge, no rounded corners, no play overlay, fixed aspect-ratio */}
-        <div className="relative aspect-video w-full bg-stone-100 overflow-hidden">
+        {/* Thumbnail: dominant, fixed aspect-ratio with soft rounded top container */}
+        <div className="relative aspect-video w-full bg-amber-50/50 overflow-hidden">
           <img
             src={thumbnailUrl}
             alt={video.title}
-            className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
+            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
             referrerPolicy="no-referrer"
             loading="lazy"
             decoding="async"
@@ -69,7 +69,7 @@ export const VideoCard = React.memo(
           {isFavorite && (
             <div
               id={`favorite-badge-${video.videoId}`}
-              className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-rose-500/90 text-white text-[10px] font-bold shadow-xs backdrop-blur-xs flex items-center gap-1 pointer-events-none z-10"
+              className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full bg-rose-500/95 text-white text-[11px] font-extrabold shadow-sm backdrop-blur-xs flex items-center gap-1 pointer-events-none z-10"
             >
               <Heart className="w-3 h-3 fill-white" />
               <span>مفضلة</span>
@@ -80,34 +80,34 @@ export const VideoCard = React.memo(
           {!isFavorite && isTasteShiftTarget && (
             <div
               id={`taste-shift-badge-${video.videoId}`}
-              className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-white/90 text-stone-800 text-[10px] font-bold shadow-xs backdrop-blur-xs border border-white/60 pointer-events-none z-10"
+              className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full bg-amber-400/95 text-amber-950 text-[11px] font-black shadow-sm backdrop-blur-xs border border-amber-200 pointer-events-none z-10 flex items-center gap-1"
             >
-              ✨ جديد
+              <span>✨ جديد</span>
             </div>
           )}
 
           {/* Optional No Music Badge */}
           {video.hasMusic === false && (
-            <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-md bg-stone-900/80 text-emerald-300 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs pointer-events-none z-10">
+            <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-full bg-stone-900/85 text-emerald-300 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs pointer-events-none z-10">
               <VolumeX className="w-3 h-3" />
               <span>بدون موسيقى</span>
             </div>
           )}
         </div>
 
-        {/* Video Details: keep small internal padding so text isn't flush against the edges */}
-        <div className="px-3.5 pt-2.5 pb-3 flex flex-col justify-between grow space-y-1.5">
+        {/* Video Details: generous breathing room and clear hierarchy */}
+        <div className="p-3.5 sm:p-4 flex flex-col justify-between grow space-y-2">
           <h3
-            className={`text-sm sm:text-base font-bold text-stone-800 line-clamp-2 leading-snug transition ${
-              isFavorite ? 'group-hover:text-rose-700' : 'group-hover:text-amber-800'
+            className={`text-sm sm:text-[15px] font-extrabold text-stone-850 line-clamp-2 leading-snug transition-colors duration-150 ${
+              isFavorite ? 'group-hover:text-rose-600' : 'group-hover:text-amber-700'
             }`}
             title={video.title}
           >
             {video.title}
           </h3>
 
-          <div className="flex items-center justify-between text-xs text-stone-500 font-medium pt-0.5">
-            <span className="truncate max-w-[85%] text-stone-600">
+          <div className="flex items-center justify-between text-xs text-stone-400 font-medium pt-0.5">
+            <span className="truncate max-w-[90%] text-stone-500 hover:text-stone-700 transition-colors">
               {channelTitle}
             </span>
           </div>
