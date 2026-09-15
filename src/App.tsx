@@ -1,26 +1,28 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, startTransition, Suspense } from 'react';
 import db, { Settings } from './db';
 import { WORKER_URL } from './config';
 import { checkAndRequestStoragePersistence, StoragePersistenceResult } from './storage';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import Onboarding from './components/Onboarding';
-import PinLockModal from './components/PinLockModal';
-import ChannelsCountCard from './components/ChannelsCountCard';
-import FilteringResultCard from './components/FilteringResultCard';
-import TempAdminTool from './components/TempAdminTool';
 import { useSessionTimer } from './hooks/useSessionTimer';
 import { ensureChannelsArchiveSynced } from './filtering';
-import SessionEndScreen from './components/SessionEndScreen';
-import TimerTestCard from './components/TimerTestCard';
-import AdBlockNotice from './components/AdBlockNotice';
 import KidHomeScreen from './screens/KidHomeScreen';
-import { PlayerView } from './screens/PlayerView';
-import { ChildProfileSection } from './components/ChildProfileSection';
-import { TasteShiftCard } from './components/TasteShiftCard';
-import { ChannelCurationByCategory } from './components/ChannelCurationByCategory';
-import { FilteringTab } from './components/FilteringTab';
-import { SavedVideosTab } from './components/SavedVideosTab';
+
+// Lazy-load heavy surfaces so kid-facing feed route starts immediately
+const PlayerView = React.lazy(() => import('./screens/PlayerView').then((m) => ({ default: m.PlayerView })));
+const Onboarding = React.lazy(() => import('./components/Onboarding'));
+const PinLockModal = React.lazy(() => import('./components/PinLockModal'));
+const AdBlockNotice = React.lazy(() => import('./components/AdBlockNotice'));
+const SessionEndScreen = React.lazy(() => import('./components/SessionEndScreen'));
+const ChannelsCountCard = React.lazy(() => import('./components/ChannelsCountCard'));
+const FilteringResultCard = React.lazy(() => import('./components/FilteringResultCard'));
+const TempAdminTool = React.lazy(() => import('./components/TempAdminTool'));
+const ChildProfileSection = React.lazy(() => import('./components/ChildProfileSection').then((m) => ({ default: m.ChildProfileSection })));
+const TasteShiftCard = React.lazy(() => import('./components/TasteShiftCard').then((m) => ({ default: m.TasteShiftCard })));
+const ChannelCurationByCategory = React.lazy(() => import('./components/ChannelCurationByCategory').then((m) => ({ default: m.ChannelCurationByCategory })));
+const FilteringTab = React.lazy(() => import('./components/FilteringTab').then((m) => ({ default: m.FilteringTab })));
+const SavedVideosTab = React.lazy(() => import('./components/SavedVideosTab').then((m) => ({ default: m.SavedVideosTab })));
+const TimerTestCard = React.lazy(() => import('./components/TimerTestCard'));
 import {
   Database,
   Cloud,
@@ -146,7 +148,9 @@ export default function App() {
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
     }
-    setShowDemoPlayer(true);
+    startTransition(() => {
+      setShowDemoPlayer(true);
+    });
   }, [updatePlayerMinimized]);
 
   const handleSelectVideo = useCallback((videoId: string, title?: string, channelName?: string, channelId?: string) => {
@@ -154,7 +158,9 @@ export default function App() {
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
     }
-    setActivePlaybackVideo({ videoId, title, channelName, channelId });
+    startTransition(() => {
+      setActivePlaybackVideo({ videoId, title, channelName, channelId });
+    });
   }, [updatePlayerMinimized]);
 
   const handlePlayerEnterFullscreen = useCallback(() => {
@@ -230,8 +236,10 @@ export default function App() {
 
       // 3. Otherwise, pop means "close the player entirely": clear playingVideoId, return to KidHomeScreen.
       if (!e.state?.ytPlayer) {
-        setActivePlaybackVideo(null);
-        setShowDemoPlayer(false);
+        startTransition(() => {
+          setActivePlaybackVideo(null);
+          setShowDemoPlayer(false);
+        });
         updatePlayerFullscreen(false);
         updatePlayerMinimized(false);
       }
@@ -462,7 +470,9 @@ export default function App() {
   // Open Dashboard handler
   const handleOpenDashboard = () => {
     if (isDashboardUnlocked) {
-      setViewMode('dashboard');
+      startTransition(() => {
+        setViewMode('dashboard');
+      });
     } else {
       setShowPinModal(true);
     }
@@ -471,13 +481,17 @@ export default function App() {
   const handleUnlockSuccess = () => {
     setIsDashboardUnlocked(true);
     setShowPinModal(false);
-    setViewMode('dashboard');
+    startTransition(() => {
+      setViewMode('dashboard');
+    });
     checkMainSettings();
   };
 
   const handleLockDashboard = () => {
     setIsDashboardUnlocked(false);
-    setViewMode('kids');
+    startTransition(() => {
+      setViewMode('kids');
+    });
   };
 
   // Finish first-run setup & navigate to KidHomeScreen
@@ -488,11 +502,15 @@ export default function App() {
         setMainSettings({ ...mainSettings, hasCompletedFirstSetup: true });
       }
       setIsDashboardUnlocked(false);
-      setViewMode('kids');
+      startTransition(() => {
+        setViewMode('kids');
+      });
     } catch (err) {
       console.error('Failed to finish first setup:', err);
       setIsDashboardUnlocked(false);
-      setViewMode('kids');
+      startTransition(() => {
+        setViewMode('kids');
+      });
     }
   };
 
@@ -527,65 +545,77 @@ export default function App() {
     <div className={`min-h-screen font-sans ${viewMode === 'kids' ? 'bg-[#FAF8F5]' : 'bg-slate-50 text-slate-800 flex flex-col justify-between p-4 sm:p-8'}`}>
       {/* Onboarding Modal */}
       {showOnboarding && (
-        <Onboarding
-          onComplete={async () => {
-            setShowOnboarding(false);
-            await checkMainSettings();
-            // First-run flow: land directly on Dashboard with first-run guidance banner
-            setIsDashboardUnlocked(true);
-            setViewMode('dashboard');
-          }}
-        />
+        <Suspense fallback={null}>
+          <Onboarding
+            onComplete={async () => {
+              setShowOnboarding(false);
+              await checkMainSettings();
+              // First-run flow: land directly on Dashboard with first-run guidance banner
+              setIsDashboardUnlocked(true);
+              startTransition(() => {
+                setViewMode('dashboard');
+              });
+            }}
+          />
+        </Suspense>
       )}
 
       {/* PIN Lock Modal */}
-      <PinLockModal
-        isOpen={showPinModal}
-        onClose={() => setShowPinModal(false)}
-        onUnlockSuccess={handleUnlockSuccess}
-      />
+      <Suspense fallback={null}>
+        <PinLockModal
+          isOpen={showPinModal}
+          onClose={() => setShowPinModal(false)}
+          onUnlockSuccess={handleUnlockSuccess}
+        />
+      </Suspense>
 
       {/* Phase 9: AdBlock Notice Modal */}
       {showAdBlockModal && (
-        <AdBlockNotice
-          mode="modal"
-          onClose={() => setShowAdBlockModal(false)}
-        />
+        <Suspense fallback={null}>
+          <AdBlockNotice
+            mode="modal"
+            onClose={() => setShowAdBlockModal(false)}
+          />
+        </Suspense>
       )}
 
       {/* Real Video Player Overlay */}
       {(activePlaybackVideo || showDemoPlayer) && (
-        <PlayerView
-          videoId={activePlaybackVideo?.videoId || 's6X_Q54_PBs'}
-          videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
-          channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
-          channelId={activePlaybackVideo?.channelId}
-          onVideoHidden={handleVideoHidden}
-          onChannelBlocked={handleBackfillSuccess}
-          onClose={() => {
-            updatePlayerMinimized(false);
-            updatePlayerFullscreen(false);
-            setActivePlaybackVideo(null);
-            setShowDemoPlayer(false);
-            if (typeof window !== 'undefined') {
-              if (window.history.state?.minimized) {
-                window.history.go(-2);
-              } else if (window.history.state?.ytPlayer) {
-                window.history.back();
+        <Suspense fallback={null}>
+          <PlayerView
+            videoId={activePlaybackVideo?.videoId || 's6X_Q54_PBs'}
+            videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
+            channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
+            channelId={activePlaybackVideo?.channelId}
+            onVideoHidden={handleVideoHidden}
+            onChannelBlocked={handleBackfillSuccess}
+            onClose={() => {
+              updatePlayerMinimized(false);
+              updatePlayerFullscreen(false);
+              startTransition(() => {
+                setActivePlaybackVideo(null);
+                setShowDemoPlayer(false);
+              });
+              if (typeof window !== 'undefined') {
+                if (window.history.state?.minimized) {
+                  window.history.go(-2);
+                } else if (window.history.state?.ytPlayer) {
+                  window.history.back();
+                }
               }
-            }
-          }}
-          onEnded={() => {
-            console.log('Video finished playing cleanly');
-          }}
-          forceStop={isSessionEnded || devForceStop}
-          isFullscreen={isPlayerFullscreen}
-          onEnterFullscreen={handlePlayerEnterFullscreen}
-          onExitFullscreen={handlePlayerExitFullscreen}
-          isMinimized={isPlayerMinimized}
-          onEnterMinimized={handlePlayerEnterMinimized}
-          onExitMinimized={handlePlayerExitMinimized}
-        />
+            }}
+            onEnded={() => {
+              console.log('Video finished playing cleanly');
+            }}
+            forceStop={isSessionEnded || devForceStop}
+            isFullscreen={isPlayerFullscreen}
+            onEnterFullscreen={handlePlayerEnterFullscreen}
+            onExitFullscreen={handlePlayerExitFullscreen}
+            isMinimized={isPlayerMinimized}
+            onEnterMinimized={handlePlayerEnterMinimized}
+            onExitMinimized={handlePlayerExitMinimized}
+          />
+        </Suspense>
       )}
 
       {/* Background archive sync lives in ensureChannelsArchiveSynced (kids + dashboard).
@@ -594,12 +624,14 @@ export default function App() {
 
       {/* Phase 8: Full-Screen Session Takeover when limit reached or outside schedule window */}
       {isSessionEnded && viewMode !== 'dashboard' ? (
-        <SessionEndScreen
-          isLimitReached={sessionTimer.isLimitReached}
-          isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
-          onParentUnlock={handleOpenDashboard}
-          onResetForTesting={sessionTimer.resetTodayUsage}
-        />
+        <Suspense fallback={null}>
+          <SessionEndScreen
+            isLimitReached={sessionTimer.isLimitReached}
+            isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
+            onParentUnlock={handleOpenDashboard}
+            onResetForTesting={sessionTimer.resetTodayUsage}
+          />
+        </Suspense>
       ) : viewMode === 'kids' ? (
         <>
           {/* VIEW 0: REAL KID-FACING UI (Default View) */}
@@ -973,13 +1005,17 @@ export default function App() {
 
               {isChildProfileOpen && (
                 <div className="mt-6 pt-5 border-t border-slate-100">
-                  <ChildProfileSection onSaved={checkMainSettings} />
+                  <Suspense fallback={null}>
+                    <ChildProfileSection onSaved={checkMainSettings} />
+                  </Suspense>
                 </div>
               )}
             </div>
 
             {/* Taste Shift Feature Card */}
-            <TasteShiftCard onSaved={checkMainSettings} />
+            <Suspense fallback={null}>
+              <TasteShiftCard onSaved={checkMainSettings} />
+            </Suspense>
 
             {/* Setup Screen Part A: Channel Curation & YouTube Search */}
             <div id="channel-curation-card" className="rounded-3xl border border-sky-200 bg-white p-6 shadow-xs">
@@ -1016,9 +1052,11 @@ export default function App() {
 
               {isChannelCurationOpen && (
                 <div className="mt-6 pt-5 border-t border-slate-100">
-                  <ChannelCurationByCategory
-                    onChannelChanged={() => setChannelsRefreshTrigger((prev) => prev + 1)}
-                  />
+                  <Suspense fallback={null}>
+                    <ChannelCurationByCategory
+                      onChannelChanged={() => setChannelsRefreshTrigger((prev) => prev + 1)}
+                    />
+                  </Suspense>
                 </div>
               )}
             </div>
@@ -1058,12 +1096,14 @@ export default function App() {
 
               {isFilteringOpen && (
                 <div className="mt-6 pt-5 border-t border-slate-100">
-                  <FilteringTab
-                    onFilterChanged={() => {
-                      checkMainSettings();
-                      setChannelsRefreshTrigger((prev) => prev + 1);
-                    }}
-                  />
+                  <Suspense fallback={null}>
+                    <FilteringTab
+                      onFilterChanged={() => {
+                        checkMainSettings();
+                        setChannelsRefreshTrigger((prev) => prev + 1);
+                      }}
+                    />
+                  </Suspense>
                 </div>
               )}
             </div>
@@ -1103,7 +1143,9 @@ export default function App() {
 
               {isSavedVideosOpen && (
                 <div className="mt-6 pt-5 border-t border-slate-100">
-                  <SavedVideosTab onSelectVideo={handleSelectVideo} />
+                  <Suspense fallback={null}>
+                    <SavedVideosTab onSelectVideo={handleSelectVideo} />
+                  </Suspense>
                 </div>
               )}
             </div>
@@ -1525,35 +1567,43 @@ export default function App() {
               </div>
 
               {/* Card 4: Channels Count Card (Stage 5) */}
-              <ChannelsCountCard
-                refreshTrigger={channelsRefreshTrigger}
-                onChannelsLoaded={handleChannelsLoaded}
-              />
+              <Suspense fallback={null}>
+                <ChannelsCountCard
+                  refreshTrigger={channelsRefreshTrigger}
+                  onChannelsLoaded={handleChannelsLoaded}
+                />
+              </Suspense>
 
               {/* Card 5: Filtering Result Card (Part 2) */}
-              <FilteringResultCard
-                channels={channelsData}
-                refreshTrigger={channelsRefreshTrigger}
-              />
+              <Suspense fallback={null}>
+                <FilteringResultCard
+                  channels={channelsData}
+                  refreshTrigger={channelsRefreshTrigger}
+                />
+              </Suspense>
 
               {/* Card 7: Timer Test Card (Phase 8: Timers) */}
               <div className="md:col-span-2 lg:col-span-3">
-                <TimerTestCard
-                  secondsUsedToday={sessionTimer.secondsUsedToday}
-                  sessionLimitMinutes={sessionTimer.sessionLimitMinutes}
-                  isLimitReached={sessionTimer.isLimitReached}
-                  isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
-                  scheduleWindow={sessionTimer.scheduleWindow}
-                  onResetToday={sessionTimer.resetTodayUsage}
-                  onSimulateLimit={sessionTimer.simulateLimitReached}
-                />
+                <Suspense fallback={null}>
+                  <TimerTestCard
+                    secondsUsedToday={sessionTimer.secondsUsedToday}
+                    sessionLimitMinutes={sessionTimer.sessionLimitMinutes}
+                    isLimitReached={sessionTimer.isLimitReached}
+                    isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
+                    scheduleWindow={sessionTimer.scheduleWindow}
+                    onResetToday={sessionTimer.resetTodayUsage}
+                    onSimulateLimit={sessionTimer.simulateLimitReached}
+                  />
+                </Suspense>
               </div>
             </div>
 
             {/* Stage 5: Temporary Admin Tool for Backfilling Channels */}
-            <TempAdminTool
-              onBackfillSuccess={handleBackfillSuccess}
-            />
+            <Suspense fallback={null}>
+              <TempAdminTool
+                onBackfillSuccess={handleBackfillSuccess}
+              />
+            </Suspense>
           </>
         )}
       </main>

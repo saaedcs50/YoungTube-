@@ -5,6 +5,8 @@ import { useAllCategories } from '../hooks/useAllCategories';
 import { ensureChannelsArchiveSynced } from '../filtering';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
 import { TasteReactionBar } from '../components/TasteReactionBar';
+import { VideoCard } from '../components/VideoCard';
+import { WindowVirtualizer } from 'virtua';
 import {
   computeBaseShare,
   resolveEffectiveShare,
@@ -146,7 +148,7 @@ async function loadBoundedFeed(
     const rows = await db.feedCache.where('channelId').anyOf(chunk).toArray();
     const byChannel = new Map<string, FeedItem[]>();
     for (const row of rows) {
-      if (row.hidden === true) continue;
+      if (row.hidden === true || row.isPortrait === true) continue;
       if (hideMusicVideos && row.hasMusic === true) continue;
       const list = byChannel.get(row.channelId);
       if (list) list.push(row);
@@ -169,6 +171,33 @@ async function loadBoundedFeed(
   return result;
 }
 
+function useColumnCount(): number {
+  const [cols, setCols] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    const width = window.innerWidth;
+    if (width >= 1024) return 4;
+    if (width >= 768) return 3;
+    if (width >= 640) return 2;
+    return 1;
+  });
+
+  useEffect(() => {
+    const onResize = () => {
+      const width = window.innerWidth;
+      let newCols = 1;
+      if (width >= 1024) newCols = 4;
+      else if (width >= 768) newCols = 3;
+      else if (width >= 640) newCols = 2;
+      else newCols = 1;
+      setCols(newCols);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  return cols;
+}
+
 export default function KidHomeScreen({
   onOpenParentDashboard,
   onOpenDemoPlayer,
@@ -176,6 +205,7 @@ export default function KidHomeScreen({
   refreshTrigger = 0,
   suppressedVideoIds = [],
 }: KidHomeScreenProps) {
+  const columnCount = useColumnCount();
   const { kidCategories } = useAllCategories();
   const [videos, setVideos] = useState<FeedItem[]>([]);
   const [dbChannelsList, setDbChannelsList] = useState<Channel[]>([]);
@@ -557,6 +587,15 @@ export default function KidHomeScreen({
     });
   }, [favoritesVideos, debouncedSearch, channelMap]);
 
+  // Chunk filtered videos into rows for virtualization
+  const videoRows = useMemo(() => {
+    const rows: FeedItem[][] = [];
+    for (let i = 0; i < filteredVideos.length; i += columnCount) {
+      rows.push(filteredVideos.slice(i, i + columnCount));
+    }
+    return rows;
+  }, [filteredVideos, columnCount]);
+
   return (
     <div
       id="kid-home-screen"
@@ -798,69 +837,15 @@ export default function KidHomeScreen({
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6">
                 {filteredFavorites.map((video) => {
                   const channelInfo = channelMap.get(video.channelId);
-                  const channelTitle = channelInfo?.title || 'قناة أطفال';
-                  const thumbnailUrl = `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`;
-
                   return (
-                    <div
+                    <VideoCard
                       key={video.videoId}
-                      id={`favorite-card-${video.videoId}`}
-                      onClick={() => {
-                        if (onSelectVideo) {
-                          onSelectVideo(video.videoId, video.title, channelInfo?.title, video.channelId);
-                        } else if (onOpenDemoPlayer) {
-                          onOpenDemoPlayer();
-                        }
-                      }}
-                      className="group bg-white flex flex-col text-right cursor-pointer"
-                    >
-                      {/* Thumbnail: edge-to-edge, no rounded corners, no play overlay */}
-                      <div className="relative aspect-video w-full bg-stone-100 overflow-hidden">
-                        <img
-                          src={thumbnailUrl}
-                          alt={video.title}
-                          className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
-                          referrerPolicy="no-referrer"
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`;
-                          }}
-                        />
-
-                        {/* Favorite Heart Badge */}
-                        <div
-                          id={`favorite-badge-${video.videoId}`}
-                          className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-rose-500/90 text-white text-[10px] font-bold shadow-xs backdrop-blur-xs flex items-center gap-1 pointer-events-none z-10"
-                        >
-                          <Heart className="w-3 h-3 fill-white" />
-                          <span>مفضلة</span>
-                        </div>
-
-                        {/* Optional No Music Badge */}
-                        {video.hasMusic === false && (
-                          <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-md bg-stone-900/80 text-emerald-300 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs">
-                            <VolumeX className="w-3 h-3" />
-                            <span>بدون موسيقى</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Video Details: keep small internal padding so text isn't flush against the edges */}
-                      <div className="px-3.5 pt-2.5 pb-3 flex flex-col justify-between grow space-y-1.5">
-                        <h3
-                          className="text-sm sm:text-base font-bold text-stone-800 line-clamp-2 leading-snug group-hover:text-rose-700 transition"
-                          title={video.title}
-                        >
-                          {video.title}
-                        </h3>
-
-                        <div className="flex items-center justify-between text-xs text-stone-500 font-medium pt-0.5">
-                          <span className="truncate max-w-[85%] text-stone-600">
-                            {channelTitle}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                      video={video}
+                      channelTitle={channelInfo?.title || 'قناة أطفال'}
+                      isFavorite={true}
+                      onSelectVideo={onSelectVideo}
+                      onOpenDemoPlayer={onOpenDemoPlayer}
+                    />
                   );
                 })}
               </div>
@@ -922,9 +907,9 @@ export default function KidHomeScreen({
             </div>
           )
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6">
+          <div>
             {showWeeklyChoiceCard && tasteShiftConfig && (
-              <div className="col-span-full px-4 sm:px-8 mb-2">
+              <div className="px-4 sm:px-8 mb-4 sm:mb-6">
                 <WeeklyChoiceCard
                   targetCategories={tasteShiftConfig.targetCategories}
                   currentWeek={tasteShiftConfig.currentWeek}
@@ -932,99 +917,79 @@ export default function KidHomeScreen({
                 />
               </div>
             )}
-            {filteredVideos.map((video) => {
-              const channelInfo = channelMap.get(video.channelId);
-              const channelTitle = channelInfo?.title || 'قناة أطفال';
-              const thumbnailUrl = `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`;
 
-              const videoCats =
-                channelInfo?.categories ||
-                (video as any).categories ||
-                (video as any).category ||
-                [];
-              const isTasteShiftTarget = Boolean(
-                tasteTargetSet &&
-                  (Array.isArray(videoCats) ? videoCats : [videoCats]).some((cat: string) =>
-                    tasteTargetSet.has(cat)
-                  )
-              );
+            {filteredVideos.length <= 12 ? (
+              /* Non-virtualized small list */
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6">
+                {filteredVideos.map((video) => {
+                  const channelInfo = channelMap.get(video.channelId);
+                  const channelTitle = channelInfo?.title || 'قناة أطفال';
+                  const videoCats =
+                    channelInfo?.categories ||
+                    (video as any).categories ||
+                    (video as any).category ||
+                    [];
+                  const isTasteShiftTarget = Boolean(
+                    tasteTargetSet &&
+                      (Array.isArray(videoCats) ? videoCats : [videoCats]).some((cat: string) =>
+                        tasteTargetSet.has(cat)
+                      )
+                  );
 
-              return (
-                <div
-                  key={video.videoId}
-                  id={`video-card-${video.videoId}`}
-                  onClick={() => {
-                    if (onSelectVideo) {
-                      onSelectVideo(video.videoId, video.title, channelInfo?.title, video.channelId);
-                    } else if (onOpenDemoPlayer) {
-                      onOpenDemoPlayer();
-                    }
-                  }}
-                  className="group bg-white flex flex-col text-right cursor-pointer"
-                >
-                  {/* Thumbnail: edge-to-edge, no rounded corners, no play overlay */}
-                  <div className="relative aspect-video w-full bg-stone-100 overflow-hidden">
-                    <img
-                      src={thumbnailUrl}
-                      alt={video.title}
-                      className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                      onError={(e) => {
-                        // Fallback to mqdefault if hqdefault is unavailable
-                        (e.target as HTMLImageElement).src = `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`;
-                      }}
+                  return (
+                    <VideoCard
+                      key={video.videoId}
+                      video={video}
+                      channelTitle={channelTitle}
+                      isTasteShiftTarget={isTasteShiftTarget}
+                      activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
+                      onSelectVideo={onSelectVideo}
+                      onOpenDemoPlayer={onOpenDemoPlayer}
+                      onTasteReacted={() => void loadVideos(true)}
                     />
+                  );
+                })}
+              </div>
+            ) : (
+              /* Virtualized unbounded feed using virtua WindowVirtualizer */
+              <WindowVirtualizer bufferSize={600}>
+                {videoRows.map((row, rowIndex) => (
+                  <div
+                    key={`row-${row[0]?.videoId || rowIndex}`}
+                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-0 gap-y-4 sm:gap-y-6 mb-4 sm:mb-6"
+                  >
+                    {row.map((video) => {
+                      const channelInfo = channelMap.get(video.channelId);
+                      const channelTitle = channelInfo?.title || 'قناة أطفال';
+                      const videoCats =
+                        channelInfo?.categories ||
+                        (video as any).categories ||
+                        (video as any).category ||
+                        [];
+                      const isTasteShiftTarget = Boolean(
+                        tasteTargetSet &&
+                          (Array.isArray(videoCats) ? videoCats : [videoCats]).some((cat: string) =>
+                            tasteTargetSet.has(cat)
+                          )
+                      );
 
-                    {/* Taste Shift "✨ جديد" Badge */}
-                    {isTasteShiftTarget && (
-                      <div
-                        id={`taste-shift-badge-${video.videoId}`}
-                        className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-white/90 text-stone-800 text-[10px] font-bold shadow-xs backdrop-blur-xs border border-white/60 pointer-events-none z-10"
-                      >
-                        ✨ جديد
-                      </div>
-                    )}
-
-                    {/* Optional No Music Badge */}
-                    {video.hasMusic === false && (
-                      <div className="absolute bottom-2.5 right-2.5 px-2 py-1 rounded-md bg-stone-900/80 text-emerald-300 text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs">
-                        <VolumeX className="w-3 h-3" />
-                        <span>بدون موسيقى</span>
-                      </div>
-                    )}
+                      return (
+                        <VideoCard
+                          key={video.videoId}
+                          video={video}
+                          channelTitle={channelTitle}
+                          isTasteShiftTarget={isTasteShiftTarget}
+                          activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
+                          onSelectVideo={onSelectVideo}
+                          onOpenDemoPlayer={onOpenDemoPlayer}
+                          onTasteReacted={() => void loadVideos(true)}
+                        />
+                      );
+                    })}
                   </div>
-
-                  {/* Video Details: keep small internal padding so text isn't flush against the edges */}
-                  <div className="px-3.5 pt-2.5 pb-3 flex flex-col justify-between grow space-y-1.5">
-                    <h3
-                      className="text-sm sm:text-base font-bold text-stone-800 line-clamp-2 leading-snug group-hover:text-amber-800 transition"
-                      title={video.title}
-                    >
-                      {video.title}
-                    </h3>
-
-                    <div className="flex items-center justify-between text-xs text-stone-500 font-medium pt-0.5">
-                      <span className="truncate max-w-[85%] text-stone-600">
-                        {channelTitle}
-                      </span>
-                    </div>
-                    {isTasteShiftTarget && tasteShiftConfig?.activeCategoryThisWeek && (
-                      <TasteReactionBar
-                        videoId={video.videoId}
-                        channelId={video.channelId}
-                        title={video.title}
-                        categoryId={tasteShiftConfig.activeCategoryThisWeek}
-                        onReacted={() => {
-                          // Soft refresh so effectiveShare updates on next mix
-                          void loadVideos(true);
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                ))}
+              </WindowVirtualizer>
+            )}
           </div>
         )}
       </main>

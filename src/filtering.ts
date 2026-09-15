@@ -113,6 +113,93 @@ export function checkIsPortraitVideo(videoId: string): Promise<boolean> {
   });
 }
 
+let isProcessingPortraitQueue = false;
+
+/**
+ * Background queue to detect portrait/vertical videos without blocking initial feed load or archive sync.
+ * Concurrency is capped at 4.
+ * Updates FeedItem in Dexie with `isPortrait: boolean`. If portrait, marks `hidden: true` or `isPortrait: true`.
+ */
+export async function processBackgroundPortraitQueue(): Promise<void> {
+  if (isProcessingPortraitQueue) return;
+  if (typeof window === 'undefined') return;
+
+  isProcessingPortraitQueue = true;
+  try {
+    // Find uninspected items in feedCache (isPortrait is undefined and not hidden)
+    const uninspected = await db.feedCache
+      .filter((item) => item.isPortrait === undefined && item.hidden !== true)
+      .limit(60) // process in small non-blocking chunks
+      .toArray();
+
+    if (uninspected.length === 0) {
+      isProcessingPortraitQueue = false;
+      return;
+    }
+
+    const CONCURRENCY = 4;
+    let idx = 0;
+
+    const worker = async () => {
+      while (idx < uninspected.length) {
+        const item = uninspected[idx++];
+        if (!item) break;
+        try {
+          const isPortrait = await checkIsPortraitVideo(item.videoId);
+          await db.feedCache.update(item.videoId, {
+            isPortrait,
+            ...(isPortrait ? { hidden: true } : {}),
+          });
+        } catch {
+          await db.feedCache.update(item.videoId, { isPortrait: false });
+        }
+      }
+    };
+
+    const workers = Array.from(
+      { length: Math.min(CONCURRENCY, uninspected.length) },
+      () => worker()
+    );
+    await Promise.all(workers);
+
+    // If there are more items to check, schedule next batch after short delay during idle time
+    const remainingCount = await db.feedCache
+      .filter((item) => item.isPortrait === undefined && item.hidden !== true)
+      .count();
+
+    if (remainingCount > 0) {
+      setTimeout(() => {
+        isProcessingPortraitQueue = false;
+        void processBackgroundPortraitQueue();
+      }, 1500);
+      return;
+    }
+  } catch (err) {
+    console.warn('Background portrait queue error:', err);
+  } finally {
+    isProcessingPortraitQueue = false;
+  }
+}
+
+/**
+ * Schedule background portrait queue with requestIdleCallback or setTimeout
+ */
+export function scheduleBackgroundPortraitCheck(): void {
+  if (typeof window === 'undefined') return;
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(
+      () => {
+        void processBackgroundPortraitQueue();
+      },
+      { timeout: 5000 }
+    );
+  } else {
+    setTimeout(() => {
+      void processBackgroundPortraitQueue();
+    }, 1500);
+  }
+}
+
 /**
  * Fetch the Worker KV archive once per successful session and write filtered rows into Dexie.
  * Empty KV (`[]`) and network failures do NOT lock the session — callers can retry.
@@ -164,7 +251,9 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
   // 1. Single query for all existing feedCache items to batch reconciliation in memory
   const allExisting = await db.feedCache.toArray();
   const hiddenIds = new Set(
-    allExisting.filter((item) => item.hidden === true).map((item) => item.videoId)
+    allExisting
+      .filter((item) => item.hidden === true || item.isPortrait === true)
+      .map((item) => item.videoId)
   );
 
   // 2. Group allExisting by channelId in memory
@@ -197,12 +286,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     const channelId = channel.sourceId || '';
     if (!channelId) continue;
 
-    const preliminaryVideos: Array<{
-      videoId: string;
-      title: string;
-      publishedAt?: string;
-      hasMusic: boolean;
-    }> = [];
+    const channelPassedItems: FeedItem[] = [];
 
     for (const video of channel.videos) {
       if (!video || !video.videoId || !video.title) continue;
@@ -210,7 +294,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
       totalBefore++;
       const titleLower = video.title.toLowerCase();
 
-      // 0. Manual Hidden check: if previously marked hidden by user -> exclude
+      // 0. Manual Hidden / Portrait check: if previously marked hidden/portrait -> exclude
       if (hiddenIds.has(video.videoId)) {
         hiddenExcluded++;
         continue;
@@ -235,45 +319,19 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
         titleLower.includes('no music') || titleLower.includes('بدون موسيقى');
       const hasMusic = !hasNoMusicPhrase;
 
-      preliminaryVideos.push({
-        videoId: video.videoId,
-        title: video.title,
-        publishedAt: video.publishedAt,
-        hasMusic,
-      });
-    }
-
-    // 4. Portrait orientation check for preliminary passing videos:
-    // Load thumbnail once per video, read naturalWidth/naturalHeight, exclude if height > width.
-    const orientationChecks = await Promise.all(
-      preliminaryVideos.map(async (v) => {
-        const isPortrait = await checkIsPortraitVideo(v.videoId);
-        return { ...v, isPortrait };
-      })
-    );
-
-    const channelPassedItems: FeedItem[] = [];
-
-    for (const item of orientationChecks) {
-      if (item.isPortrait) {
-        portraitExcluded++;
-        continue;
-      }
-
-      if (item.hasMusic) {
+      if (hasMusic) {
         hasMusicCount++;
       } else {
         noMusicCount++;
       }
 
       const feedItem: FeedItem = {
-        videoId: item.videoId,
+        videoId: video.videoId,
         channelId,
-        title: item.title,
-        hasMusic: item.hasMusic,
-        isPortrait: false,
+        title: video.title,
+        hasMusic,
         fetchedAt: now,
-        publishedAt: item.publishedAt,
+        publishedAt: video.publishedAt,
         hidden: false,
       };
 
@@ -301,7 +359,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
 
     if (shouldPrune) {
       for (const item of existingForChannel) {
-        if (item.hidden === true) continue;
+        if (item.hidden === true || item.isPortrait === true) continue;
         if (!keptIds.has(item.videoId)) {
           allStaleIdsToDelete.push(item.videoId);
         }
