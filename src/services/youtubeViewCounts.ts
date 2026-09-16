@@ -38,22 +38,15 @@ export function formatViewCount(count?: number): string | null {
 }
 
 /**
- * Fetches view counts for a batch of video IDs (up to 50).
- * Priority:
- * 1) ALWAYS try Worker proxy first (/api/videos-views?ids=...)
- * 2) Only if proxy fails or returns empty AND familyYoutubeApiKey is set, fallback to direct Google API
+ * Fetches view counts for a batch of video IDs (up to 50) using worker proxy ONLY.
+ * If worker fails or returns empty, returns {} without inventing numbers.
  */
-async function fetchBatchViewCounts(
-  videoIds: string[],
-  apiKey?: string
-): Promise<ViewCountResult> {
+async function fetchBatchViewCounts(videoIds: string[]): Promise<ViewCountResult> {
   if (videoIds.length === 0) return {};
 
   const idParam = videoIds.slice(0, MAX_BATCH_SIZE).join(',');
-  const results: ViewCountResult = {};
 
   try {
-    // 1. ALWAYS try Worker proxy first (keeps API key secure on server/worker)
     const proxyBase = WORKER_URL || '';
     const proxyUrl = `${proxyBase}/api/videos-views?ids=${encodeURIComponent(idParam)}`;
     const proxyRes = await fetch(proxyUrl);
@@ -69,33 +62,12 @@ async function fetchBatchViewCounts(
         return data as ViewCountResult;
       }
     }
-
-    // 2. Only if proxy failed/returned empty AND familyYoutubeApiKey is set, fallback to direct Google API
-    if (apiKey) {
-      const url = `https://www.googleapis.com/youtube/v3/videos?part=statistics,id&id=${encodeURIComponent(
-        idParam
-      )}&key=${encodeURIComponent(apiKey)}`;
-
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        const items = data.items || [];
-        for (const item of items) {
-          const vId = item.id;
-          const rawViews = item.statistics?.viewCount;
-          if (vId && rawViews !== undefined) {
-            results[vId] = Number(rawViews) || 0;
-          }
-        }
-        return results;
-      }
-    }
   } catch (err) {
     // Fail soft without breaking any UI
-    console.debug('Failed to fetch YouTube view counts batch:', err);
+    console.debug('Failed to fetch YouTube view counts batch via worker proxy:', err);
   }
 
-  return results;
+  return {};
 }
 
 // In-flight fetch lock to prevent redundant duplicate network calls
@@ -137,9 +109,6 @@ export async function enrichFeedItemViewCounts(
   isEnrichingViews = true;
 
   try {
-    const settings = await db.settings.get('main');
-    const apiKey = settings?.familyYoutubeApiKey;
-
     // Process in chunks of max 50 IDs
     const chunks: string[][] = [];
     for (let i = 0; i < neededVideoIds.length; i += MAX_BATCH_SIZE) {
@@ -149,7 +118,7 @@ export async function enrichFeedItemViewCounts(
     const allUpdated: ViewCountResult = {};
 
     for (const chunk of chunks) {
-      const batchResult = await fetchBatchViewCounts(chunk, apiKey);
+      const batchResult = await fetchBatchViewCounts(chunk);
       const batchEntries = Object.entries(batchResult);
 
       if (batchEntries.length > 0) {

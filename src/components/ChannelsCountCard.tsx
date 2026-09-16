@@ -84,12 +84,12 @@ export default function ChannelsCountCard({
   return (
     <div
       id="channels-count-card"
-      className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between space-y-4"
+      className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-4"
     >
       <div>
         <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
               <Tv className="w-5 h-5" />
             </div>
             <div>
@@ -101,7 +101,7 @@ export default function ChannelsCountCard({
             id="retest-channels-btn"
             onClick={fetchChannelsLatest}
             disabled={loading}
-            className="min-h-[44px] sm:min-h-[40px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition duration-150 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-xs shrink-0"
+            className="min-h-[44px] sm:min-h-[40px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition duration-150 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm shrink-0"
             title="تحديث عدد القنوات"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />

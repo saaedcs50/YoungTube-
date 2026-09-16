@@ -47,20 +47,26 @@ export default function FilteringResultCard({
   const loadDexieSummary = useCallback(async () => {
     try {
       setLoadingSummary(true);
-      const [allFeed, settings] = await Promise.all([
-        db.feedCache.toArray(),
+      const [
+        totalCached,
+        hiddenCount,
+        hasMusicCount,
+        noMusicCount,
+        portraitCount,
+        settings,
+      ] = await Promise.all([
+        db.feedCache.count(),
+        db.feedCache.filter((item) => item.hidden === true).count(),
+        db.feedCache.filter((item) => item.hasMusic === true).count(),
+        db.feedCache.filter((item) => item.hasMusic === false).count(),
+        db.feedCache.filter((item) => item.isPortrait === true).count(),
         db.settings.get('main'),
       ]);
 
       const isHide = settings?.hideMusicVideos === true;
       setHideMusic(isHide);
 
-      const totalCached = allFeed.length;
-      const activeCount = allFeed.filter((item) => item.hidden !== true).length;
-      const hiddenCount = allFeed.filter((item) => item.hidden === true).length;
-      const hasMusicCount = allFeed.filter((item) => item.hasMusic === true).length;
-      const noMusicCount = allFeed.filter((item) => item.hasMusic === false).length;
-      const portraitCount = allFeed.filter((item) => item.isPortrait === true).length;
+      const activeCount = Math.max(0, totalCached - hiddenCount);
       const blacklistWordsCount = settings?.blacklistWords?.length || 0;
 
       setSummary({
@@ -146,13 +152,13 @@ export default function FilteringResultCard({
   return (
     <div
       id="filtering-result-card"
-      className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between space-y-4"
+      className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-4"
     >
       <div>
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
               <Filter className="w-5 h-5" />
             </div>
             <div>
@@ -166,7 +172,7 @@ export default function FilteringResultCard({
             type="button"
             onClick={handleExplicitRecalculate}
             disabled={filtering}
-            className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition duration-150 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition duration-150 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
             title="إعادة فحص وتطبيق معايير الفلترة على الفيديوهات"
           >
             <RefreshCw className={`w-4 h-4 ${filtering ? 'animate-spin' : ''}`} />

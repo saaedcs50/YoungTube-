@@ -77,6 +77,7 @@ interface Interaction {
   completed: boolean;
   lastWatched: number;
   savedByParent?: boolean;
+  childLoved?: boolean;
 }
 
 interface DownloadItem {

@@ -255,9 +255,7 @@ export default function App() {
 
       // 3. Layer 3: Hardware Back while fullscreen -> exit fullscreen only
       const wasFullscreen = isPlayerFullscreenRef.current;
-      const isFullscreenExit =
-        (e.state?.ytPlayer && e.state?.fullscreen) ||
-        wasFullscreen;
+      const isFullscreenExit = wasFullscreen && !e.state?.fullscreen;
 
       if (isFullscreenExit) {
         // Exit fullscreen only: stay on PlayerView in Portrait. Do NOT close the player.
@@ -295,8 +293,10 @@ export default function App() {
     };
   }, [updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
-  // Phase 8: Session Timer
-  const sessionTimer = useSessionTimer(viewMode === 'kids');
+  // Phase 8: Session Timer — count playback only (when kid view and a player is open)
+  const isPlayerOpen = Boolean(activePlaybackVideo || showDemoPlayer);
+  const isCountingSession = viewMode === 'kids' && isPlayerOpen;
+  const sessionTimer = useSessionTimer(isCountingSession);
 
   // Parent Dashboard Navigation Section
   const [dashboardSection, setDashboardSection] = useState<DashboardSectionId>('child');

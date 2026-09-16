@@ -115,7 +115,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
         <div>
           <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
               <User className="w-4 h-4" />
             </span>
             <span>ملف الطفل والاهتمامات</span>
@@ -147,7 +147,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
       </div>
 
       {/* Card 1: Name and Age Inputs */}
-      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm space-y-4">
         <h4 className="text-xs sm:text-sm font-bold text-stone-900">
           البيانات الأساسية للطفل
         </h4>
@@ -194,7 +194,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
       </div>
 
       {/* Card 2: Positive Interests Multi-select */}
-      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="space-y-1">
             <label className="text-xs sm:text-sm font-bold text-stone-900 flex items-center gap-2">
@@ -223,7 +223,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
                 onClick={() => togglePositive(cat.id)}
                 className={`min-h-[44px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition active:scale-[0.98] cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-emerald-600 text-white border border-emerald-600 shadow-xs'
+                    ? 'bg-emerald-600 text-white border border-emerald-600 shadow-sm'
                     : 'bg-stone-50 text-stone-700 border border-stone-200 hover:bg-emerald-50/60 hover:border-emerald-300'
                 }`}
               >
@@ -237,7 +237,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
       </div>
 
       {/* Card 3: Negative Interests Multi-select */}
-      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="space-y-1">
             <label className="text-xs sm:text-sm font-bold text-stone-900 flex items-center gap-2">
@@ -266,7 +266,7 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
                 onClick={() => toggleNegative(cat.id)}
                 className={`min-h-[44px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition active:scale-[0.98] cursor-pointer select-none ${
                   isSelected
-                    ? 'bg-rose-600 text-white border border-rose-600 shadow-xs'
+                    ? 'bg-rose-600 text-white border border-rose-600 shadow-sm'
                     : 'bg-stone-50 text-stone-700 border border-stone-200 hover:bg-rose-50/60 hover:border-rose-300'
                 }`}
               >

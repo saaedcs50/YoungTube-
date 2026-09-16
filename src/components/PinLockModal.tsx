@@ -276,7 +276,7 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
                 <button
                   id="submit-recovery-btn"
                   type="submit"
-                  className="grow min-h-[44px] px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs sm:text-sm font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                  className="grow min-h-[44px] px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs sm:text-sm font-bold shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   تأكيد وإعادة تعيين الرمز
                 </button>
@@ -360,7 +360,7 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
                   id="submit-pin-btn"
                   type="submit"
                   disabled={pin.length !== 6 || isVerifying}
-                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-xs cursor-pointer shrink-0"
+                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm cursor-pointer shrink-0"
                 >
                   <span>{isVerifying ? 'جاري التحقق...' : 'تأكيد ودخول'}</span>
                   <ArrowLeft className="w-4 h-4" />

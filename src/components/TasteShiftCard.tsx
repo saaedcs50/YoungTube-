@@ -253,7 +253,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
         <div>
           <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
               <TrendingUp className="w-4 h-4" />
             </span>
             <span>التحول التدريجي في الاهتمامات (Taste Shift)</span>
@@ -278,7 +278,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm space-y-4">
         {/* Main Toggle Banner */}
         <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-stone-50 border border-stone-200/70">
           <div className="flex items-center gap-2.5">
@@ -307,7 +307,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
             >
               <span
                 aria-hidden="true"
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
                   enabled ? '-translate-x-5' : 'translate-x-0'
                 }`}
               />
@@ -347,7 +347,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                     onClick={() => toggleCategory(cat.id)}
                     className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer min-h-[44px] ${
                       isSelected
-                        ? 'bg-amber-500 text-white border border-amber-500 shadow-xs'
+                        ? 'bg-amber-500 text-white border border-amber-500 shadow-sm'
                         : 'bg-stone-50 text-stone-700 border border-stone-200/80 hover:bg-amber-50/60 hover:border-amber-300'
                     }`}
                   >
@@ -382,7 +382,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                       onClick={() => setWeeklyStepPercent(opt.percent)}
                       className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
                         isActive
-                          ? 'bg-white text-amber-900 shadow-xs border border-stone-200/80'
+                          ? 'bg-white text-amber-900 shadow-sm border border-stone-200/80'
                           : 'text-stone-600 hover:text-stone-900'
                       }`}
                     >
@@ -414,7 +414,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                       onClick={() => setCapPercent(opt.percent)}
                       className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
                         isActive
-                          ? 'bg-white text-amber-900 shadow-xs border border-stone-200/80'
+                          ? 'bg-white text-amber-900 shadow-sm border border-stone-200/80'
                           : 'text-stone-600 hover:text-stone-900'
                       }`}
                     >

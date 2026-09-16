@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import db, { FeedItem, Channel } from '../db';
 import channelsSeed from '../../channels_seed.json';
 import { useAllCategories } from '../hooks/useAllCategories';
-import { ensureChannelsArchiveSynced } from '../filtering';
+import { ensureChannelsArchiveSynced, scheduleBackgroundPortraitCheck } from '../filtering';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
 import { TasteReactionBar } from '../components/TasteReactionBar';
 import { VideoCard } from '../components/VideoCard';
@@ -77,14 +77,6 @@ const STARTER_VIDEOS: FeedItem[] = [
     videoId: 'w_gWvL8fN8g',
     channelId: 'UCazFScO30FKY3YoNNDfNY5g', // Arabian Fairy Tales
     title: 'Arabian Fairy Tales - حكاية الشجرة الحكيمة والطيور الملونة',
-    hasMusic: false,
-    fetchedAt: Date.now(),
-    hidden: false,
-  },
-  {
-    videoId: 'X_1g1z1b0a8',
-    channelId: 'UCf_8ZTFvJeS8U60W8C8PGhA', // Puffin Rock (Barefoot Books / calm)
-    title: 'Puffin Rock - حكايات الطبيعة الهادئة والمغامرات الودية الجميلة',
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
@@ -612,6 +604,12 @@ export default function KidHomeScreen({
     };
   }, [feedVideoIdsSignature, loading, handleViewCountsUpdated]);
 
+  // Non-blocking background portrait video check (idle after first paint)
+  useEffect(() => {
+    if (loading) return;
+    scheduleBackgroundPortraitCheck();
+  }, [loading]);
+
   const suppressedSet = useMemo(() => new Set(suppressedVideoIds), [suppressedVideoIds]);
 
   // 2.5 Load favorites videos (liked videos) with strict safety filters
@@ -619,11 +617,25 @@ export default function KidHomeScreen({
     try {
       const [interactions, storedChannels, settings] = await Promise.all([
         db.interactions
-          .filter((i) => i.parentRating === 'liked' || i.childReaction === 'liked')
+          .filter(
+            (i) => i.childLoved === true || i.childReaction === 'liked' || i.parentRating === 'liked'
+          )
           .toArray(),
         db.channels.toArray(),
         db.settings.get('main'),
       ]);
+
+      // One-time migration for legacy parentRating === 'liked' rows -> set childLoved: true, remove parentRating
+      for (const inter of interactions) {
+        if (inter.parentRating === 'liked' && !inter.childLoved) {
+          inter.childLoved = true;
+          inter.parentRating = undefined;
+          void db.interactions.update(inter.videoId, {
+            childLoved: true,
+            parentRating: undefined,
+          });
+        }
+      }
 
       interactions.sort((a, b) => (b.lastWatched || 0) - (a.lastWatched || 0));
 
@@ -729,7 +741,7 @@ export default function KidHomeScreen({
       className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col select-none font-sans"
     >
       {/* 1. Sticky Header Bar: bg-[#FAF8F5]/90, backdrop-blur, border-b border-amber-100 */}
-      <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-amber-100 px-4 sm:px-8 py-3.5 shadow-xs">
+      <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-amber-100 px-4 sm:px-8 py-3.5 shadow-sm">
         <div className="max-w-7xl mx-auto space-y-3">
           <div className="flex items-center justify-between">
             {/* Right side in RTL: 44x44 badge with star icon + small line "مرحباً يا بطل" and extra-bold child name */}
@@ -983,7 +995,7 @@ export default function KidHomeScreen({
             /* Part A: Friendly Search Empty State */
             <div className="max-w-lg mx-auto my-8 sm:my-12 px-4">
               <div className="bg-white rounded-[28px] border border-stone-100 p-8 sm:p-10 text-center space-y-4 shadow-sm">
-                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs border border-amber-100">
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-sm border border-amber-100">
                   <Search className="w-8 h-8" />
                 </div>
                 <div className="space-y-1.5">
@@ -1010,7 +1022,7 @@ export default function KidHomeScreen({
           ) : (
             <div className="max-w-lg mx-auto my-8 sm:my-12 px-4">
               <div className="bg-white rounded-[28px] border border-stone-100 p-8 sm:p-10 text-center space-y-4 shadow-sm">
-                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs border border-amber-100">
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-sm border border-amber-100">
                   <Film className="w-8 h-8" />
                 </div>
                 <div className="space-y-1.5">

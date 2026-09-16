@@ -24,7 +24,7 @@ import { PlayerSeekBar } from '../components/PlayerSeekBar';
 import { PlayerSettingsSheet } from '../components/PlayerSettingsSheet';
 import PinLockModal from '../components/PinLockModal';
 import channelsSeed from '../../channels_seed.json';
-import { recordChildReaction } from '../tasteShiftStorage';
+import { recordChildReaction, logTasteEvent } from '../tasteShiftStorage';
 import db from '../db';
 
 export interface QueuedVideo {
@@ -57,13 +57,7 @@ const DEFAULT_PLAYLIST: QueuedVideo[] = [
     videoId: 'w_gWvL8fN8g',
     title: 'Arabian Fairy Tales - حكاية الشجرة الحكيمة والطيور الملونة',
     channelTitle: 'Arabian Fairy Tales',
-    channelId: 'UCW0Z4L2o9Z7h1X9j9K0w1_g',
-  },
-  {
-    videoId: 'X_1g1z1b0a8',
-    title: 'Puffin Rock - حكايات الطبيعة الهادئة والمغامرات الودية',
-    channelTitle: 'Puffin Rock',
-    channelId: 'UCrNkh63_Lq3f76_X5q7m6gQ',
+    channelId: 'UCazFScO30FKY3YoNNDfNY5g',
   },
   {
     videoId: '02E1468SdHg',
@@ -75,13 +69,13 @@ const DEFAULT_PLAYLIST: QueuedVideo[] = [
     videoId: 'UeF09e7hDbg',
     title: '5-Minute Crafts PLAY - أفكار أشغال يدوية وابتكارات بالورق',
     channelTitle: '5-Minute Crafts PLAY',
-    channelId: 'UC57Zk3kX0hZ9x3sL8s7-j_A',
+    channelId: 'UC57XAjJ04TY8gNxOWf-Sy0Q',
   },
   {
     videoId: 'tbCjkPlsaes',
     title: 'AllAttack - مهارات وتحديات رياضية ممتعة للأبطال',
     channelTitle: 'AllAttack',
-    channelId: 'UCv6Csw_n4r2Xp5Xy8y0v5gA',
+    channelId: 'UC0Ik25PHaiHCbfGrzu-lBFQ',
   },
 ];
 
@@ -167,7 +161,64 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     }
   }, [onEnterMinimized]);
 
+  // Taste Shift phase D event logging refs
+  const openedVideoIdsRef = useRef(new Set<string>());
+  const completedVideoIdsRef = useRef(new Set<string>());
+  const skippedVideoIdsRef = useRef(new Set<string>());
+
+  const getCategoryForVideo = useCallback(
+    async (vidId: string, chId?: string): Promise<string> => {
+      if (chId) {
+        const seedMatch = (channelsSeed as any[]).find((c) => c.sourceId === chId);
+        if (seedMatch?.categories && seedMatch.categories.length > 0) {
+          return seedMatch.categories[0];
+        }
+        const seedCatMatch = (channelsSeed as any[]).find(
+          (c) => c.title === chId || c.originalName === chId
+        );
+        if (seedCatMatch?.categories && seedCatMatch.categories.length > 0) {
+          return seedCatMatch.categories[0];
+        }
+        try {
+          const dbChan = await db.channels.where('sourceId').equals(chId).first();
+          if (dbChan?.category && dbChan.category.length > 0) {
+            return dbChan.category[0];
+          }
+        } catch {}
+      }
+      try {
+        const feedRow = await db.feedCache.get(vidId);
+        if (feedRow?.channelId) {
+          const seedMatch = (channelsSeed as any[]).find((c) => c.sourceId === feedRow.channelId);
+          if (seedMatch?.categories && seedMatch.categories.length > 0) {
+            return seedMatch.categories[0];
+          }
+          const dbChan = await db.channels.where('sourceId').equals(feedRow.channelId).first();
+          if (dbChan?.category && dbChan.category.length > 0) {
+            return dbChan.category[0];
+          }
+        }
+      } catch {}
+      return 'general';
+    },
+    []
+  );
+
+  const checkAndLogSkippedEarly = useCallback(
+    (vId: string, cur: number, dur: number, chId?: string) => {
+      if (dur > 0 && cur > 0 && cur / dur < 0.2 && !skippedVideoIdsRef.current.has(vId)) {
+        skippedVideoIdsRef.current.add(vId);
+        void (async () => {
+          const catId = await getCategoryForVideo(vId, chId || propChannelId);
+          await logTasteEvent(catId, 'skipped_early', vId, { watchMs: Math.round(cur * 1000) });
+        })();
+      }
+    },
+    [getCategoryForVideo, propChannelId]
+  );
+
   const handleMiniPlayerClose = useCallback(() => {
+    checkAndLogSkippedEarly(currentVideo.videoId, currentTime, duration, currentVideo.channelId);
     try {
       playerRef.current?.stopVideo?.();
     } catch (err) {
@@ -177,7 +228,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     setIsMinimizedLocal(false);
     onExitMinimized?.();
     onClose();
-  }, [onClose, onExitMinimized]);
+  }, [checkAndLogSkippedEarly, currentVideo, currentTime, duration, onClose, onExitMinimized]);
 
   // When isMinimized transitions from true -> false, auto-resume video
   const prevMinimizedRef = useRef(isMinimized);
@@ -212,12 +263,11 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
   // Reconciled effective fullscreen state:
   // - propIsFullscreen if controlled from App
-  // - isFullscreenActive from document.fullscreenElement
-  // - isDeviceLandscape if physically landscape (unless user manually exited)
+  // - isFullscreenActive comes strictly from document.fullscreenElement / webkitFullscreenElement
+  // Physical device landscape alone does NOT auto-switch to LandscapeShell
   const isFullscreen =
     (propIsFullscreen ?? false) ||
-    isFullscreenActive ||
-    (isDeviceLandscape && !manuallyExitedInLandscape);
+    isFullscreenActive;
 
   const isFullscreenActiveRef = useRef(isFullscreen);
   isFullscreenActiveRef.current = isFullscreen;
@@ -266,13 +316,47 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     return list;
   });
 
-  // Merge with cached feed if present in Dexie (excluding hidden videos)
+  // Merge with bounded cached feed if present in Dexie (excluding hidden videos)
   useEffect(() => {
+    let isCancelled = false;
     async function loadFeedQueue() {
       try {
-        const feedItems = await db.feedCache.toArray();
-        if (feedItems && feedItems.length > 0) {
-          const mapped: QueuedVideo[] = feedItems
+        const currentItem: QueuedVideo = {
+          videoId,
+          title: videoTitle || 'فيديو أطفال ممتع',
+          channelTitle: channelTitle || 'قناة أطفال موثوقة',
+          channelId: propChannelId,
+        };
+
+        const channelIdToQuery = propChannelId;
+        let sameChannelItems: QueuedVideo[] = [];
+
+        // 1. Fetch up to 20 videos from the same channel if channelId is available
+        if (channelIdToQuery) {
+          try {
+            const rawSame = await db.feedCache
+              .where('channelId')
+              .equals(channelIdToQuery)
+              .limit(20)
+              .toArray();
+            sameChannelItems = (rawSame || [])
+              .filter((f) => !f.hidden)
+              .map((f) => ({
+                videoId: f.videoId,
+                title: f.title,
+                channelTitle: channelTitle || 'قناة أطفال موثوقة',
+                channelId: f.channelId,
+              }));
+          } catch (e) {
+            console.warn('Channel query fallback:', e);
+          }
+        }
+
+        // 2. Fetch up to 30 recent items from feedCache using limit(30)
+        let recentFeedItems: QueuedVideo[] = [];
+        try {
+          const rawRecent = await db.feedCache.limit(30).toArray();
+          recentFeedItems = (rawRecent || [])
             .filter((f) => !f.hidden)
             .map((f) => ({
               videoId: f.videoId,
@@ -280,35 +364,40 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               channelTitle: 'قناة أطفال موثوقة',
               channelId: f.channelId,
             }));
-          const seen = new Set<string>();
-          const merged: QueuedVideo[] = [];
-          for (const item of [
-            {
-              videoId,
-              title: videoTitle || 'فيديو أطفال ممتع',
-              channelTitle: channelTitle || 'قناة أطفال موثوقة',
-              channelId: propChannelId,
-            },
-            ...DEFAULT_PLAYLIST,
-            ...mapped,
-          ]) {
-            if (!seen.has(item.videoId)) {
-              seen.add(item.videoId);
-              merged.push(item);
-            }
-          }
-          setPlaylist(merged);
+        } catch (e) {
+          console.warn('Recent feed query fallback:', e);
         }
+
+        if (isCancelled) return;
+
+        const seen = new Set<string>();
+        const merged: QueuedVideo[] = [];
+        for (const item of [
+          currentItem,
+          ...sameChannelItems,
+          ...recentFeedItems,
+          ...DEFAULT_PLAYLIST,
+        ]) {
+          if (!seen.has(item.videoId)) {
+            seen.add(item.videoId);
+            merged.push(item);
+          }
+        }
+        setPlaylist(merged.slice(0, 50));
       } catch (err) {
-        console.warn('Failed to load feed queue:', err);
+        console.warn('Failed to load bounded feed queue:', err);
       }
     }
     loadFeedQueue();
+    return () => {
+      isCancelled = true;
+    };
   }, [videoId, videoTitle, channelTitle, propChannelId]);
 
-  // Current Time & Duration tracking
+  // Current Time & Duration tracking (optimizing re-renders: setState at most once per second or on seek/change)
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const lastSecondRef = useRef(-1);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -316,15 +405,30 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         try {
           const cur = playerRef.current.getCurrentTime?.() || 0;
           const dur = playerRef.current.getDuration?.() || 0;
-          setCurrentTime(cur);
-          if (dur > 0) {
+          const sec = Math.floor(cur);
+
+          if (sec !== lastSecondRef.current) {
+            lastSecondRef.current = sec;
+            setCurrentTime(cur);
+          }
+          if (dur > 0 && Math.abs(dur - duration) > 0.5) {
             setDuration(dur);
+          }
+          if (dur > 0 && cur / dur >= 0.8) {
+            const vId = currentVideo.videoId;
+            if (!completedVideoIdsRef.current.has(vId)) {
+              completedVideoIdsRef.current.add(vId);
+              void (async () => {
+                const catId = await getCategoryForVideo(vId, currentVideo.channelId || propChannelId);
+                await logTasteEvent(catId, 'completed', vId, { watchMs: Math.round(cur * 1000) });
+              })();
+            }
           }
         } catch {}
       }
     }, 350);
     return () => clearInterval(timer);
-  }, []);
+  }, [duration]);
 
   const handleSeek = useCallback((targetSeconds: number) => {
     if (!playerRef.current) return;
@@ -332,6 +436,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       if (typeof playerRef.current.seekTo === 'function') {
         playerRef.current.seekTo(targetSeconds, true);
       }
+      lastSecondRef.current = Math.floor(targetSeconds);
       setCurrentTime(targetSeconds);
     } catch (err) {
       console.warn('Seek failed:', err);
@@ -340,7 +445,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
   // Video switching via loadVideoById (no black flash, same instance)
   const handlePlayQueuedVideo = useCallback((item: QueuedVideo) => {
+    checkAndLogSkippedEarly(currentVideo.videoId, currentTime, duration, currentVideo.channelId);
     setCurrentVideo(item);
+    lastSecondRef.current = 0;
     setCurrentTime(0);
     try {
       playerRef.current?.loadVideoById?.(item.videoId);
@@ -348,7 +455,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     } catch (err) {
       console.warn('loadVideoById failed:', err);
     }
-  }, []);
+  }, [checkAndLogSkippedEarly, currentVideo, currentTime, duration]);
 
   const handlePrev = useCallback(() => {
     if (playlist.length === 0) return;
@@ -407,7 +514,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       try {
         const interaction = await db.interactions.get(currentVideo.videoId);
         if (isMounted) {
-          setIsLoved(interaction?.parentRating === 'liked');
+          setIsLoved(Boolean(interaction?.childLoved || interaction?.parentRating === 'liked'));
         }
       } catch (err) {
         console.warn('Failed to check interaction:', err);
@@ -427,7 +534,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       const existing = await db.interactions.get(currentVideo.videoId);
       if (existing) {
         await db.interactions.update(currentVideo.videoId, {
-          parentRating: nextLoved ? 'liked' : undefined,
+          childLoved: nextLoved,
+          ...(existing.parentRating === 'liked' ? { parentRating: undefined } : {}),
           lastWatched: Date.now(),
         });
       } else {
@@ -445,13 +553,14 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           videoDuration: 0,
           completed: false,
           lastWatched: Date.now(),
-          parentRating: nextLoved ? 'liked' : undefined,
+          childLoved: nextLoved,
         });
       }
 
       if (nextLoved) {
+        const realCat = await getCategoryForVideo(currentVideo.videoId, currentVideo.channelId || propChannelId);
         void recordChildReaction({
-          categoryId: 'general',
+          categoryId: realCat,
           videoId: currentVideo.videoId,
           channelId: currentVideo.channelTitle,
           title: currentVideo.title,
@@ -461,7 +570,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     } catch (err) {
       console.warn('Failed to record love reaction:', err);
     }
-  }, [isLoved, currentVideo, propChannelId, resolveChannelId]);
+  }, [isLoved, currentVideo, propChannelId, resolveChannelId, getCategoryForVideo]);
 
   // Save (Parent Bookmark) state (persisted via Dexie interactions.savedByParent)
   const [isSavedByParent, setIsSavedByParent] = useState(false);
@@ -683,22 +792,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
       const isLandscapeNow = e.matches;
       setIsDeviceLandscape(isLandscapeNow);
-
-      if (isLandscapeNow) {
-        // Fix 1, Point 3: whenever isDeviceLandscape becomes true while playback is active,
-        // if not already in fullscreen and NOT minimized, AUTOMATICALLY call enterFullscreen
-        setManuallyExitedInLandscape(false);
-        if (!isFullscreenActiveRef.current && !isMinimizedRef.current) {
-          handleEnterFullscreen();
-        }
-      } else {
-        // Fix 1, Point 4: whenever isDeviceLandscape becomes false while isFullscreenActive is still true,
-        // AUTOMATICALLY call exitFullscreen
-        setManuallyExitedInLandscape(false);
-        if (isFullscreenActiveRef.current) {
-          handleExitFullscreen();
-        }
-      }
+      // Device rotation alone does NOT auto-enter fullscreen or switch to LandscapeShell
     };
 
     if (mql) {
@@ -783,6 +877,14 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     // 1: PLAYING
     if (event.data === 1) {
       setIsPlaying(true);
+      const vId = currentVideo.videoId;
+      if (!openedVideoIdsRef.current.has(vId)) {
+        openedVideoIdsRef.current.add(vId);
+        void (async () => {
+          const catId = await getCategoryForVideo(vId, currentVideo.channelId || propChannelId);
+          await logTasteEvent(catId, 'opened', vId);
+        })();
+      }
     }
     // 2: PAUSED
     else if (event.data === 2) {
@@ -800,6 +902,14 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         }
       } else {
         setIsPlaying(false);
+        const vId = currentVideo.videoId;
+        if (!completedVideoIdsRef.current.has(vId)) {
+          completedVideoIdsRef.current.add(vId);
+          void (async () => {
+            const catId = await getCategoryForVideo(vId, currentVideo.channelId || propChannelId);
+            await logTasteEvent(catId, 'completed', vId, { watchMs: Math.round(currentTime * 1000) });
+          })();
+        }
         try {
           event.target?.stopVideo?.();
         } catch {
@@ -811,6 +921,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   };
 
   const handleClose = useCallback(() => {
+    checkAndLogSkippedEarly(currentVideo.videoId, currentTime, duration, currentVideo.channelId);
     if (isFullscreen) {
       handleExitFullscreen();
     } else {
@@ -820,7 +931,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         onClose();
       }
     }
-  }, [isFullscreen, handleExitFullscreen, onClose]);
+  }, [checkAndLogSkippedEarly, currentVideo, currentTime, duration, isFullscreen, handleExitFullscreen, onClose]);
 
   // Hide Video state & handler
   const [hideConfirmed, setHideConfirmed] = useState(false);

@@ -59,7 +59,7 @@ export const TimerSection: React.FC<TimerSectionProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
         <div>
           <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
               <Clock className="w-4 h-4" />
             </span>
             <span>مواعيد التشغيل والحد اليومي</span>
@@ -75,7 +75,7 @@ export const TimerSection: React.FC<TimerSectionProps> = ({
         )}
       </div>
 
-      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm space-y-4">
         <form onSubmit={handleSaveTimerSettings} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Session Limit Minutes */}
@@ -130,7 +130,7 @@ export const TimerSection: React.FC<TimerSectionProps> = ({
             <button
               id="save-timer-settings-btn"
               type="submit"
-              className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition shadow-xs cursor-pointer"
+              className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition shadow-sm cursor-pointer"
             >
               <Clock className="w-4 h-4" />
               <span>حفظ إعدادات الوقت</span>
@@ -163,7 +163,7 @@ export const TimerSection: React.FC<TimerSectionProps> = ({
               id="open-adblock-notice-btn"
               type="button"
               onClick={onOpenAdBlockModal}
-              className="w-full sm:w-auto min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shrink-0 transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+              className="w-full sm:w-auto min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shrink-0 transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
             >
               <span>عرض إرشادات ورمز QR</span>
             </button>

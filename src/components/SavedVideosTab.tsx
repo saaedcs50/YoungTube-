@@ -109,7 +109,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h4 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
                 <Bookmark className="w-4 h-4" />
               </span>
               <span>الفيديوهات المحفوظة للأهل</span>
@@ -136,7 +136,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
           جاري تحميل الفيديوهات المحفوظة...
         </div>
       ) : savedVideos.length > 0 ? (
-        <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs">
+        <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm">
           <div className="divide-y divide-stone-100 rounded-xl border border-stone-200/80 overflow-hidden bg-stone-50/50">
             {savedVideos.map((video) => (
               <div
@@ -160,7 +160,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
                     />
                     {/* Small Play Overlay on hover */}
                     <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 flex items-center justify-center transition">
-                      <div className="w-6 h-6 rounded-full bg-white/90 text-amber-600 flex items-center justify-center shadow-xs">
+                      <div className="w-6 h-6 rounded-full bg-white/90 text-amber-600 flex items-center justify-center shadow-sm">
                         <Play className="w-3 h-3 fill-current translate-x-0.2" />
                       </div>
                     </div>
@@ -200,7 +200,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
         /* Empty State */
         <div
           id="saved-videos-empty-state"
-          className="p-10 rounded-2xl bg-white border border-stone-200/70 shadow-xs text-center space-y-2"
+          className="p-10 rounded-2xl bg-white border border-stone-200/70 shadow-sm text-center space-y-2"
         >
           <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-3 border border-amber-200/60">
             <Bookmark className="w-6 h-6" />

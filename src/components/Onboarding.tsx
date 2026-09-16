@@ -201,7 +201,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   id="onboarding-step1-btn"
                   type="submit"
                   disabled={pin.length !== 6 || confirmPin.length !== 6}
-                  className="w-full min-h-[48px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-xs cursor-pointer"
+                  className="w-full min-h-[48px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm cursor-pointer"
                 >
                   <span>التالي</span>
                   <ArrowLeft className="w-4 h-4" />
@@ -276,7 +276,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   id="onboarding-step2-btn"
                   type="submit"
                   disabled={!securityAnswer.trim()}
-                  className="w-full min-h-[48px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-xs cursor-pointer"
+                  className="w-full min-h-[48px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm cursor-pointer"
                 >
                   <span>التالي</span>
                   <ArrowLeft className="w-4 h-4" />
@@ -330,7 +330,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   type="button"
                   onClick={handleAdvanceToStep4}
                   disabled={isSubmitting}
-                  className="w-full min-h-[48px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-xs cursor-pointer"
+                  className="w-full min-h-[48px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm cursor-pointer"
                 >
                   <span>{isSubmitting ? 'جاري الحفظ...' : 'متابعة وإدخال إعدادات الإعلانات'}</span>
                   <ArrowLeft className="w-4 h-4" />

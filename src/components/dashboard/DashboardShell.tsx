@@ -59,7 +59,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col font-sans"
     >
       {/* 1. Header Bar */}
-      <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-amber-100/80 px-4 sm:px-8 py-3.5 shadow-xs">
+      <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-amber-100/80 px-4 sm:px-8 py-3.5 shadow-sm">
         <div className="max-w-6xl w-full mx-auto flex items-center justify-between gap-4">
           {/* Logo & Title */}
           <div
@@ -67,7 +67,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
             onClick={handleTitleTap}
             title="لوحة الأهل (اضغط 5 مرات لتغيير وضع أدوات النظام)"
           >
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div className="flex items-center gap-2">
@@ -88,7 +88,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               id="dashboard-header-lock-btn"
               type="button"
               onClick={onLock}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 text-xs font-bold transition duration-150 shadow-xs cursor-pointer active:scale-[0.98]"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
               title="قفل لوحة الأهل"
             >
               <Lock className="w-3.5 h-3.5 text-stone-500" />
@@ -99,7 +99,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               id="dashboard-header-back-btn"
               type="button"
               onClick={onClose}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition duration-150 shadow-xs cursor-pointer active:scale-[0.98]"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
               title="العودة لشاشة الأطفال"
             >
               <span>شاشة الأطفال</span>

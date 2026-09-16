@@ -62,7 +62,7 @@ export const DashboardNav: React.FC<DashboardNavProps> = ({
     <nav
       id="dashboard-navigation"
       aria-label="أقسام لوحة الأهل"
-      className="bg-white rounded-2xl border border-stone-200/70 p-1.5 shadow-xs overflow-hidden"
+      className="bg-white rounded-2xl border border-stone-200/70 p-1.5 shadow-sm overflow-hidden"
     >
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5 px-0.5">
         {visibleItems.map((item) => {
@@ -85,7 +85,7 @@ export const DashboardNav: React.FC<DashboardNavProps> = ({
               onClick={() => onSelectSection(item.id)}
               className={`group shrink-0 min-h-[42px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer active:scale-[0.98] ${
                 isActive
-                  ? 'bg-amber-500 text-white shadow-xs'
+                  ? 'bg-amber-500 text-white shadow-sm'
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >

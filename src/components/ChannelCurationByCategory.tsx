@@ -243,7 +243,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
         <div>
           <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
               <FolderKanban className="w-4 h-4" />
             </span>
             <span>تنظيم وتصنيف القنوات والبحث</span>
@@ -254,7 +254,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
         </div>
 
         <div className="flex items-center gap-2 text-xs self-start sm:self-auto">
-          <span className="text-stone-700 bg-white px-3 py-1 rounded-xl font-bold border border-stone-200 shadow-xs">
+          <span className="text-stone-700 bg-white px-3 py-1 rounded-xl font-bold border border-stone-200 shadow-sm">
             إجمالي القنوات: {channels.length}
           </span>
           <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl font-bold">
@@ -267,7 +267,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
       <CustomCategoryManager onChanged={handleChannelAdded} />
 
       {/* 1. YouTube Search Bar Component at Top */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-stone-200/70 shadow-xs">
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-stone-200/70 shadow-sm">
         <YoutubeSearchBar onChannelAdded={handleChannelAdded} />
       </div>
 
@@ -280,7 +280,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             placeholder="تصفية القنوات بالاسم..."
-            className="w-full min-h-[44px] pl-3.5 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-white hover:border-amber-400 focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition shadow-xs"
+            className="w-full min-h-[44px] pl-3.5 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-white hover:border-amber-400 focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition shadow-sm"
           />
           <Search className="w-4 h-4 text-stone-400 absolute right-3 top-3.5 pointer-events-none" />
         </div>
@@ -289,14 +289,14 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
           <button
             type="button"
             onClick={expandAll}
-            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-xs"
+            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-sm"
           >
             فتح الكل
           </button>
           <button
             type="button"
             onClick={collapseAll}
-            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-xs"
+            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-sm"
           >
             طي الكل
           </button>
