@@ -47,7 +47,7 @@ export const TasteReactionBar: React.FC<TasteReactionBarProps> = ({
   return (
     <div
       id={`taste-reaction-${videoId}`}
-      className="flex items-center gap-1.5 pt-1"
+      className="flex items-center gap-2 pt-1"
       onClick={(e) => e.stopPropagation()}
     >
       <button
@@ -55,16 +55,16 @@ export const TasteReactionBar: React.FC<TasteReactionBarProps> = ({
         id={`taste-like-${videoId}`}
         disabled={busy || picked !== null}
         onClick={() => handle('liked')}
-        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition active:scale-95 cursor-pointer shadow-sm ${
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition duration-150 active:scale-[0.98] cursor-pointer shadow-sm ${
           picked === 'liked'
-            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-emerald-500/10'
             : picked
-              ? 'opacity-40 border-stone-200 text-stone-400'
-              : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+              ? 'opacity-40 border-stone-200 text-stone-400 bg-stone-50'
+              : 'bg-white text-emerald-700 border-stone-200 hover:bg-emerald-50 hover:border-emerald-200'
         }`}
         aria-label="أعجبني"
       >
-        <ThumbsUp className="w-3.5 h-3.5" />
+        <ThumbsUp className="w-3.5 h-3.5 text-emerald-600" />
         <span>حلو</span>
       </button>
       <button
@@ -72,16 +72,16 @@ export const TasteReactionBar: React.FC<TasteReactionBarProps> = ({
         id={`taste-dislike-${videoId}`}
         disabled={busy || picked !== null}
         onClick={() => handle('disliked')}
-        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition active:scale-95 cursor-pointer shadow-sm ${
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition duration-150 active:scale-[0.98] cursor-pointer shadow-sm ${
           picked === 'disliked'
-            ? 'bg-rose-100 text-rose-800 border-rose-300'
+            ? 'bg-stone-100 text-stone-800 border-stone-300'
             : picked
-              ? 'opacity-40 border-stone-200 text-stone-400'
-              : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
+              ? 'opacity-40 border-stone-200 text-stone-400 bg-stone-50'
+              : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50 hover:border-stone-300'
         }`}
         aria-label="لم يعجبني"
       >
-        <ThumbsDown className="w-3.5 h-3.5" />
+        <ThumbsDown className="w-3.5 h-3.5 text-stone-500" />
         <span>مش حابب</span>
       </button>
     </div>

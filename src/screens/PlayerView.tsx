@@ -1193,48 +1193,48 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           : 'fixed inset-0 z-50 bg-stone-950 text-white flex flex-col h-screen w-screen overflow-hidden select-none'
       }
     >
-      {/* ================= TOP HALF / VIDEO AREA ================= */}
+      {/* ================= TOP HALF / VIDEO AREA (Portrait: 50% height) ================= */}
       <div
         className={
           isFullscreen
             ? 'fixed inset-0 z-50 w-full h-full bg-black overflow-hidden'
             : isMinimized
             ? 'fixed bottom-5 right-5 z-50 pointer-events-auto w-[160px] h-[90px] sm:w-[200px] sm:h-[112px] rounded-2xl shadow-2xl shadow-black/90 ring-1 ring-white/20 bg-black flex items-center justify-center transition-all duration-300'
-            : 'flex-1 flex flex-col min-h-0 bg-stone-900 border-b border-stone-800'
+            : 'w-full h-1/2 flex flex-col bg-stone-900 border-b border-stone-800'
         }
       >
-        {/* Top Quarter (~25% of top half): Meta & Parent Actions (Portrait only) */}
+        {/* Top Quarter (25% of top half): Meta & Parent Actions (Portrait only) */}
         {!isFullscreen && !isMinimized && (
-          <div className="h-[25%] p-3 sm:p-4 bg-stone-900 flex items-center justify-between border-b border-stone-800/80 gap-3">
+          <div className="h-[25%] px-3 py-2 bg-stone-900 flex items-center justify-between border-b border-stone-800/80 gap-2 shrink-0">
             {/* Back/Close button (top-left / start in RTL) */}
             <button
               type="button"
               id="player-close-btn"
               onClick={handleClose}
-              className="w-10 h-10 rounded-full bg-stone-800 hover:bg-stone-700 flex items-center justify-center text-stone-300 transition shrink-0 cursor-pointer"
+              className="w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 flex items-center justify-center text-stone-300 transition shrink-0 cursor-pointer"
               aria-label="إغلاق المشغل"
             >
               <ArrowRight className="w-5 h-5" />
             </button>
 
-            {/* Title & Channel Info */}
-            <div className="flex-1 min-w-0">
-              <h2 className="font-bold text-sm sm:text-base text-stone-100 truncate">
+            {/* Title & Channel Info (1 line) */}
+            <div className="flex-1 min-w-0 px-1">
+              <h2 className="font-bold text-xs sm:text-sm text-stone-100 truncate">
                 {currentVideo.title}
               </h2>
-              <p className="text-xs text-stone-400 truncate">
+              <p className="text-[11px] text-stone-400 truncate">
                 {currentVideo.channelTitle}
               </p>
             </div>
 
             {/* Parent Action Buttons */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
                 id="player-parent-hide-btn"
                 onClick={handleHideVideo}
                 disabled={hideConfirmed}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 border transition cursor-pointer ${
+                className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 border transition cursor-pointer ${
                   hideConfirmed
                     ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/60 shadow-sm'
                     : 'bg-stone-800 hover:bg-stone-700 text-rose-300 border-stone-700/50'
@@ -1254,7 +1254,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 type="button"
                 id="player-parent-disable-btn"
                 onClick={handleBlockChannelClick}
-                className="px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs text-amber-300 font-medium flex items-center gap-1 border border-stone-700/50 transition cursor-pointer"
+                className="px-2 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs text-amber-300 font-medium flex items-center gap-1 border border-stone-700/50 transition cursor-pointer"
                 title="تعطيل القناة (يتطلب رمز الدخول)"
               >
                 <Ban className="w-3.5 h-3.5" />
@@ -1264,7 +1264,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 type="button"
                 id="player-parent-save-btn"
                 onClick={handleToggleSave}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 border transition cursor-pointer ${
+                className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 border transition cursor-pointer ${
                   isSavedByParent
                     ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/50 ring-1 ring-indigo-400/30'
                     : 'bg-stone-800 hover:bg-stone-700 text-indigo-300 border-stone-700/50'
@@ -1293,20 +1293,20 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                     }
                   }
                 }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 border transition cursor-pointer shrink-0 ${
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 border transition cursor-pointer shrink-0 ${
                   effectiveForceStop
                     ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-500 shadow-md'
                     : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50'
                 }`}
                 title="اختبار إيقاف الفيديو الفوري عبر خاصية forceStop"
               >
-                <span>{effectiveForceStop ? '⛔ تم إيقاف المشغل (forceStop)' : '⚡ تجربة forceStop'}</span>
+                <span>{effectiveForceStop ? '⛔ forceStop' : '⚡ forceStop'}</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* Video Area: The ONE persistent video container in DOM */}
+        {/* Video Area Stage (75% of top half): Full width, no padding, no border-radius */}
         <div
           ref={videoContainerRef}
           id="player-video-container"
@@ -1315,7 +1315,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               ? 'w-full h-full relative bg-black flex items-center justify-center overflow-hidden'
               : isMinimized
               ? 'w-full h-full relative bg-black rounded-2xl overflow-hidden flex items-center justify-center'
-              : 'h-[75%] relative bg-black w-full flex items-center justify-center overflow-hidden'
+              : 'h-[75%] relative bg-black w-full p-0 rounded-none flex items-center justify-center overflow-hidden'
           }
         >
           {/* Exactly ONE YouTube Video Instance across entire lifetime */}
@@ -1397,7 +1397,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               </div>
             </div>
           ) : (
-            /* Portrait Gesture Layer & Fullscreen Button */
+            /* Portrait Gesture Layer & Single Fullscreen Button on stage */
             <>
               {/* Unified Pointer-Event Gesture Layer for Portrait Mode */}
               <div
@@ -1498,10 +1498,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         </div>
       </div>
 
-      {/* ================= BOTTOM HALF (Portrait only) ================= */}
+      {/* ================= BOTTOM HALF (Portrait only: 50% height, stone-950) ================= */}
       {!isFullscreen && !isMinimized && (
-        <div className="flex-1 flex flex-col justify-between p-4 sm:p-6 bg-stone-950 min-h-0 overflow-y-auto overscroll-contain gap-4">
-          {/* Row 1: Seek bar & Time display */}
+        <div className="h-1/2 flex flex-col justify-between p-4 sm:p-5 bg-stone-950 min-h-0 overflow-y-auto overscroll-contain gap-3">
+          {/* 1) Seek bar dir="ltr" + remaining / total time */}
           <div className="w-full">
             <PlayerSeekBar
               id="portrait-player-seek-bar"
@@ -1511,60 +1511,59 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             />
           </div>
 
-          {/* Controls Area: Two-tier hierarchy directly below the seek bar */}
-          <div className="flex flex-col items-center justify-center gap-4 sm:gap-5 my-auto py-2">
-            {/* Primary Row: Previous, Play/Pause, Next (visually grouped, Play/Pause dominant) */}
+          {/* 2) Primary group centered (not spread full width): Prev small · Play/Pause 64px circle · Next small */}
+          <div className="flex flex-col items-center justify-center gap-3 my-auto py-1">
             <div
               dir="ltr"
               className="flex items-center justify-center gap-6 sm:gap-8"
             >
-              {/* Previous (~32px icon, left) */}
+              {/* Previous (small icon button) */}
               <button
                 type="button"
                 id="player-control-prev"
-                className="w-12 h-12 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/90 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition active:scale-95 cursor-pointer shadow-sm"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/90 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition active:scale-95 cursor-pointer shadow-sm"
                 aria-label="السابق"
                 onClick={handlePrev}
               >
-                <SkipBack className="w-7 h-7 sm:w-8 sm:h-8" />
+                <SkipBack className="w-6 h-6" />
               </button>
 
-              {/* Play/Pause (large ~64px circular button, visually dominant, center) */}
+              {/* Play/Pause (64px dominant circular button) */}
               <button
                 type="button"
                 id="player-control-play-pause"
-                className="w-16 h-16 sm:w-20 sm:h-20 min-w-[64px] min-h-[64px] rounded-full bg-white hover:bg-stone-100 text-stone-950 flex items-center justify-center shadow-xl transition active:scale-95 cursor-pointer ring-4 ring-white/10 shrink-0"
+                className="w-[64px] h-[64px] min-w-[64px] min-h-[64px] rounded-full bg-white hover:bg-stone-100 text-stone-950 flex items-center justify-center shadow-xl transition active:scale-95 cursor-pointer ring-4 ring-white/10 shrink-0"
                 aria-label={isPlaying ? 'إيقاف مؤقت' : 'تشغيل'}
                 onClick={handleTogglePlay}
               >
                 {isPlaying ? (
-                  <Pause className="w-8 h-8 sm:w-9 sm:h-9 fill-current" />
+                  <Pause className="w-7 h-7 fill-current" />
                 ) : (
-                  <Play className="w-8 h-8 sm:w-9 sm:h-9 fill-current ml-0.5" />
+                  <Play className="w-7 h-7 fill-current ml-0.5" />
                 )}
               </button>
 
-              {/* Next (~32px icon, right) */}
+              {/* Next (small icon button) */}
               <button
                 type="button"
                 id="player-control-next"
-                className="w-12 h-12 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/90 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition active:scale-95 cursor-pointer shadow-sm"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/90 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition active:scale-95 cursor-pointer shadow-sm"
                 aria-label="التالي"
                 onClick={handleNext}
               >
-                <SkipForward className="w-7 h-7 sm:w-8 sm:h-8" />
+                <SkipForward className="w-6 h-6" />
               </button>
             </div>
 
-            {/* Secondary Row: Settings, Loop, Love, Autoplay (smaller, muted visual weight) */}
-            <div className="flex items-center justify-center gap-6 sm:gap-8 text-stone-400">
-              {/* Settings (consolidates quality, captions, speed) */}
+            {/* 3) Secondary group (lower opacity): settings · loop · love (No volume, no second fullscreen) */}
+            <div className="flex items-center justify-center gap-6 sm:gap-8 text-stone-400 opacity-70">
+              {/* Settings */}
               <button
                 type="button"
                 id="player-control-settings"
-                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
+                className={`w-10 h-10 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
                   isSettingsOpen
-                    ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 ring-2 ring-amber-400/20'
+                    ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 ring-2 ring-amber-400/20 opacity-100'
                     : 'bg-stone-900/60 hover:bg-stone-800/80 hover:text-stone-200 text-stone-400'
                 }`}
                 aria-label="الإعدادات (السرعة، الجودة، الترجمة)"
@@ -1578,9 +1577,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <button
                 type="button"
                 id="player-control-loop"
-                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
+                className={`w-10 h-10 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
                   isLooping
-                    ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50 ring-2 ring-amber-400/20'
+                    ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50 ring-2 ring-amber-400/20 opacity-100'
                     : 'bg-stone-900/60 hover:bg-stone-800/80 hover:text-stone-200 text-stone-400'
                 }`}
                 aria-label="تكرار التشغيل"
@@ -1594,9 +1593,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <button
                 type="button"
                 id="player-control-love"
-                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
+                className={`w-10 h-10 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
                   isLoved
-                    ? 'bg-rose-500/25 text-rose-400 border border-rose-500/50 ring-2 ring-rose-500/30'
+                    ? 'bg-rose-500/25 text-rose-400 border border-rose-500/50 ring-2 ring-rose-500/30 opacity-100'
                     : 'bg-stone-900/60 hover:bg-rose-950/40 hover:text-rose-400 text-stone-400'
                 }`}
                 aria-label={isLoved ? 'إلغاء الإعجاب' : 'إعجاب / مفضلة'}
@@ -1609,25 +1608,11 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                   }`}
                 />
               </button>
-
-              {/* Autoplay Toggle */}
-              <button
-                type="button"
-                id="player-control-autoplay"
-                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/60 hover:bg-stone-800/80 hover:text-stone-200 flex items-center justify-center text-stone-400 transition cursor-pointer"
-                aria-label="التشغيل التلقائي"
-                title="التشغيل التلقائي"
-                onClick={() => {
-                  /* TODO: Autoplay toggle */
-                }}
-              >
-                <SquarePlay className="w-5 h-5" />
-              </button>
             </div>
           </div>
 
-          {/* Row 3: Up Next Strip */}
-          <div className="space-y-2">
+          {/* 4) Label "التالي" + existing UpNextStrip */}
+          <div className="space-y-2 pt-1">
             <div className="text-xs font-bold text-stone-300">التالي</div>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain touch-pan-x">
               {playlist

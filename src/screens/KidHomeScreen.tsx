@@ -30,6 +30,7 @@ import {
   X,
   Heart,
   ArrowRight,
+  Star,
 } from 'lucide-react';
 
 interface KidHomeScreenProps {
@@ -725,133 +726,63 @@ export default function KidHomeScreen({
   return (
     <div
       id="kid-home-screen"
-      className="min-h-screen bg-gradient-to-b from-[#FFFDF8] via-[#F8FBFF] to-[#FFF5F7] text-stone-800 flex flex-col select-none font-sans"
+      className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col select-none font-sans"
     >
-      {/* 1. Header Bar: Friendly Brand + Small Parent Access Icon */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-amber-200/60 px-4 sm:px-8 py-3.5 shadow-[0_2px_12px_rgba(245,158,11,0.04)]">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* Logo & Brand: Distinct Warm Cheerful Palette, Child-first */}
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-amber-400 via-orange-400 to-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-300/40 ring-2 ring-white shrink-0">
-              <Sparkles className="w-6 h-6 sm:w-7 sm:h-7" />
-            </div>
-            <div>
-              <h1 className="text-base sm:text-xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-                <span>{childName ? `عالم ${childName}` : 'عالم الصغار'}</span>
-                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100/90 text-emerald-800 border border-emerald-300/70 shadow-sm">
-                  آمن ونظيف ✨
-                </span>
-              </h1>
-              <p className="text-xs text-stone-500 hidden sm:block font-medium pt-0.5">
-                محتوى هادف وممتع بدون إعلانات مزعجة
-              </p>
-            </div>
-          </div>
-
-          {/* Unobtrusive Header Action Controls */}
-          <div className="flex items-center gap-2">
-            <button
-              id="kid-refresh-feed-btn"
-              type="button"
-              onClick={() => void loadVideos(false)}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold transition shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تجديد الفيديوهات وترتيبها"
-              aria-label="تجديد الفيديوهات وترتيبها"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-amber-600 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">تجديد</span>
-            </button>
-
-            {onOpenDemoPlayer && (
-              <button
-                id="kid-header-demo-player-btn"
-                type="button"
-                onClick={onOpenDemoPlayer}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300/80 text-xs font-bold transition shadow-sm active:scale-95 cursor-pointer"
-                title="تجربة المشغل (Player Shell)"
-              >
-                <Play className="w-3.5 h-3.5 fill-current text-amber-600" />
-                <span>تجربة المشغل</span>
-              </button>
-            )}
-
-            <button
-              id="parent-dashboard-lock-btn"
-              type="button"
-              onClick={onOpenParentDashboard}
-              className="p-2.5 rounded-2xl text-stone-400 hover:text-stone-700 bg-white/90 hover:bg-stone-100 border border-stone-200/80 shadow-sm active:scale-95 transition cursor-pointer"
-              title="منطقة الوالدين (PIN)"
-              aria-label="منطقة الوالدين"
-            >
-              <Lock className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* 2. Category Filter Chips (13 Built-in + Custom Categories + All) */}
-      <section className="border-b border-amber-200/40 px-4 sm:px-8 py-3.5">
+      {/* 1. Sticky Header Bar: bg-[#FAF8F5]/90, backdrop-blur, border-b border-amber-100 */}
+      <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-amber-100 px-4 sm:px-8 py-3.5 shadow-xs">
         <div className="max-w-7xl mx-auto space-y-3">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {/* Child-facing "المفضلة" (Favorites) button */}
-            <button
-              id="kid-favorites-toggle-btn"
-              type="button"
-              onClick={() => {
-                setShowFavorites((prev) => !prev);
-              }}
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-extrabold transition active:scale-95 cursor-pointer ${
-                showFavorites
-                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-md shadow-rose-300/40 ring-2 ring-rose-400/50'
-                  : 'bg-white/95 hover:bg-rose-50/90 text-rose-700 border border-rose-200/90 shadow-sm'
-              }`}
-              title="فيديوهاتي المفضلة"
-            >
-              <Heart
-                className={`w-4 h-4 ${
-                  showFavorites ? 'fill-white text-white' : 'fill-rose-500 text-rose-500'
-                }`}
-              />
-              <span>المفضلة</span>
-              {favoritesCount > 0 && (
-                <span
-                  className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
-                    showFavorites ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800'
-                  }`}
-                >
-                  {favoritesCount}
+          <div className="flex items-center justify-between">
+            {/* Right side in RTL: 44x44 badge with star icon + small line "مرحباً يا بطل" and extra-bold child name */}
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-400 text-white flex items-center justify-center shadow-sm shrink-0">
+                <Star className="w-6 h-6 fill-white" />
+              </div>
+              <div className="flex flex-col text-right">
+                <span className="text-xs font-medium text-stone-500">مرحباً يا بطل</span>
+                <span className="text-xl font-extrabold text-stone-900 tracking-tight leading-tight">
+                  {childName || 'عالم ياسين'}
                 </span>
-              )}
-            </button>
+              </div>
+            </div>
 
-            {kidCategories.map((cat) => {
-              const isActive = !showFavorites && selectedCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  id={`cat-chip-${cat.id}`}
-                  type="button"
-                  onClick={() => {
-                    setShowFavorites(false);
-                    setSelectedCategory(cat.id);
-                    void loadVideos(false);
-                  }}
-                  className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer ${
-                    isActive
-                      ? 'bg-gradient-to-r from-amber-500 via-amber-500 to-orange-500 text-white shadow-md shadow-amber-300/40 ring-2 ring-amber-400/50'
-                      : 'bg-white/95 text-stone-700 border border-amber-200/80 hover:bg-amber-50/90 hover:border-amber-300 shadow-sm'
+            {/* Left side in RTL: Two 44x44 round white buttons (Heart favorites, Lock parents) */}
+            <div className="flex items-center gap-2.5">
+              <button
+                id="kid-favorites-toggle-btn"
+                type="button"
+                onClick={() => {
+                  setShowFavorites((prev) => !prev);
+                }}
+                className={`w-11 h-11 rounded-full bg-white border border-stone-100 shadow-sm flex items-center justify-center transition active:scale-[0.98] cursor-pointer ${
+                  showFavorites
+                    ? 'text-rose-500 ring-2 ring-rose-300'
+                    : 'text-stone-700 hover:text-rose-500 hover:bg-stone-50'
+                }`}
+                title="المفضلة"
+                aria-label="المفضلة"
+              >
+                <Heart
+                  className={`w-5 h-5 ${
+                    showFavorites ? 'fill-rose-500 text-rose-500' : 'text-stone-700'
                   }`}
-                >
-                  <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                </button>
-              );
-            })}
+                />
+              </button>
+
+              <button
+                id="parent-dashboard-lock-btn"
+                type="button"
+                onClick={onOpenParentDashboard}
+                className="w-11 h-11 rounded-full bg-white border border-stone-100 shadow-sm flex items-center justify-center text-stone-700 hover:text-stone-900 hover:bg-stone-50 transition active:scale-[0.98] cursor-pointer"
+                title="منطقة الوالدين"
+                aria-label="منطقة الوالدين"
+              >
+                <Lock className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          {/* 2.5 In-Feed Search Bar (Client-side Only on Allowed Cached Videos) */}
-          <div className="relative max-w-md">
+          {/* Under that: full-width search pill, white, rounded-2xl, amber search icon, keep current search logic */}
+          <div className="relative w-full">
             <div className="relative flex items-center">
               <input
                 id="kid-feed-search-input"
@@ -859,9 +790,9 @@ export default function KidHomeScreen({
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="ابحث في الفيديوهات المسموحة..."
-                className="w-full pl-10 pr-10 py-2.5 rounded-2xl bg-white/95 border border-amber-200/80 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-hidden focus:ring-2 focus:ring-amber-400/60 focus:border-amber-400 shadow-sm transition-all"
+                className="w-full pl-10 pr-11 py-2.5 rounded-2xl bg-white border border-stone-100 text-xs sm:text-sm text-stone-900 placeholder-stone-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 shadow-sm transition-all"
               />
-              <div className="absolute right-3.5 text-stone-400 pointer-events-none flex items-center justify-center">
+              <div className="absolute right-3.5 text-amber-500 pointer-events-none flex items-center justify-center">
                 <Search className="w-4 h-4" />
               </div>
               {searchInput && (
@@ -879,6 +810,37 @@ export default function KidHomeScreen({
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      </header>
+
+      {/* 2. Category Filter Chips (Horizontal scroll, hide scrollbar) */}
+      <section className="px-4 sm:px-8 py-3.5">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none">
+            {kidCategories.map((cat) => {
+              const isActive = !showFavorites && selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  id={`cat-chip-${cat.id}`}
+                  type="button"
+                  onClick={() => {
+                    setShowFavorites(false);
+                    setSelectedCategory(cat.id);
+                    void loadVideos(false);
+                  }}
+                  className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm transition duration-150 active:scale-[0.98] cursor-pointer ${
+                    isActive
+                      ? 'bg-amber-500 text-white font-bold shadow-md shadow-amber-500/25'
+                      : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50'
+                  }`}
+                >
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -998,23 +960,19 @@ export default function KidHomeScreen({
             )}
           </div>
         ) : loading ? (
-          /* Playful Skeleton Pulse matching warm playful palette */
+          /* Shimmer Skeleton matching rounded-[28px], border-stone-100 */
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-6">
-            <div className="flex items-center justify-center gap-2 text-amber-900 font-extrabold text-xs sm:text-sm bg-white/90 py-2.5 px-6 rounded-full w-fit mx-auto border border-amber-200 shadow-sm">
-              <Sparkles className="w-4 h-4 text-amber-500 animate-spin" />
-              <span>جاري تحضير أجمل الفيديوهات... ✨</span>
-            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
               {Array.from({ length: 8 }).map((_, idx) => (
                 <div
                   key={`skeleton-card-${idx}`}
-                  className="bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-amber-100/80 shadow-[0_3px_12px_rgba(0,0,0,0.03)] flex flex-col animate-pulse"
+                  className="bg-white rounded-[28px] overflow-hidden border border-stone-100 shadow-sm flex flex-col animate-pulse"
                 >
-                  <div className="aspect-video w-full bg-gradient-to-br from-amber-100/50 to-orange-100/40" />
+                  <div className="aspect-video w-full bg-stone-200/70" />
                   <div className="p-4 space-y-2.5 bg-white">
-                    <div className="h-4 bg-amber-100/70 rounded-full w-4/5" />
-                    <div className="h-4 bg-amber-100/40 rounded-full w-3/5" />
-                    <div className="h-3 bg-stone-200/60 rounded-full w-1/3 pt-1" />
+                    <div className="h-4 bg-stone-200/80 rounded-full w-4/5" />
+                    <div className="h-4 bg-stone-200/50 rounded-full w-3/5" />
+                    <div className="h-3 bg-stone-100 rounded-full w-1/3 pt-1" />
                   </div>
                 </div>
               ))}
@@ -1024,8 +982,8 @@ export default function KidHomeScreen({
           debouncedSearch ? (
             /* Part A: Friendly Search Empty State */
             <div className="max-w-lg mx-auto my-8 sm:my-12 px-4">
-              <div className="bg-gradient-to-b from-white to-amber-50/50 rounded-3xl border border-amber-200/80 p-8 sm:p-10 text-center space-y-4 shadow-[0_4px_24px_rgba(245,158,11,0.06)]">
-                <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-sm border border-amber-200/60">
+              <div className="bg-white rounded-[28px] border border-stone-100 p-8 sm:p-10 text-center space-y-4 shadow-sm">
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs border border-amber-100">
                   <Search className="w-8 h-8" />
                 </div>
                 <div className="space-y-1.5">
@@ -1051,8 +1009,8 @@ export default function KidHomeScreen({
             </div>
           ) : (
             <div className="max-w-lg mx-auto my-8 sm:my-12 px-4">
-              <div className="bg-gradient-to-b from-white to-amber-50/50 rounded-3xl border border-amber-200/80 p-8 sm:p-10 text-center space-y-4 shadow-[0_4px_24px_rgba(245,158,11,0.06)]">
-                <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-sm border border-amber-200/60">
+              <div className="bg-white rounded-[28px] border border-stone-100 p-8 sm:p-10 text-center space-y-4 shadow-sm">
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs border border-amber-100">
                   <Film className="w-8 h-8" />
                 </div>
                 <div className="space-y-1.5">

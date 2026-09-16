@@ -122,13 +122,13 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
   };
 
   return (
-    <div id="filtering-tab" className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-200">
+    <div id="filtering-tab" className="space-y-5 max-w-4xl mx-auto">
+      {/* Section Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
         <div>
-          <h3 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-              <ShieldAlert className="w-4 h-4 text-amber-700" />
+          <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <ShieldAlert className="w-4 h-4" />
             </span>
             <span>إدارة الفلترة والمحتوى المحجوب</span>
           </h3>
@@ -138,7 +138,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
         </div>
 
         {feedbackMessage && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 animate-fade-in self-start sm:self-auto">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 animate-fade-in self-start sm:self-auto">
             <Check className="w-3.5 h-3.5 text-emerald-600" />
             <span>{feedbackMessage}</span>
           </span>
@@ -146,23 +146,23 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
       </div>
 
       {/* Sub-Tabs Selector */}
-      <div className="flex flex-wrap gap-2 p-1.5 rounded-2xl bg-stone-100 border border-stone-200">
+      <div className="flex flex-wrap gap-2 p-1.5 rounded-2xl bg-white border border-stone-200/80 shadow-xs">
         <button
           type="button"
           onClick={() => setActiveSubTab('blacklist')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer min-h-[42px] ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer min-h-[44px] ${
             activeSubTab === 'blacklist'
-              ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-600 hover:text-stone-900'
+              ? 'bg-amber-500 text-white shadow-xs'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
           }`}
         >
-          <ShieldAlert className="w-4 h-4 text-amber-600" />
+          <ShieldAlert className="w-4 h-4" />
           <span>الكلمات المحظورة</span>
           <span
-            className={`px-2 py-0.5 rounded-full text-[11px] font-mono ${
+            className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
               activeSubTab === 'blacklist'
-                ? 'bg-amber-100 text-amber-900'
-                : 'bg-stone-200 text-stone-700'
+                ? 'bg-amber-600 text-white'
+                : 'bg-stone-100 text-stone-700'
             }`}
           >
             {blacklistWords.length}
@@ -172,19 +172,19 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
         <button
           type="button"
           onClick={() => setActiveSubTab('channels')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer min-h-[42px] ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer min-h-[44px] ${
             activeSubTab === 'channels'
-              ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-600 hover:text-stone-900'
+              ? 'bg-amber-500 text-white shadow-xs'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
           }`}
         >
-          <Tv className="w-4 h-4 text-sky-600" />
+          <Tv className="w-4 h-4" />
           <span>القنوات المحظورة</span>
           <span
-            className={`px-2 py-0.5 rounded-full text-[11px] font-mono ${
+            className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
               activeSubTab === 'channels'
-                ? 'bg-sky-100 text-sky-900'
-                : 'bg-stone-200 text-stone-700'
+                ? 'bg-amber-600 text-white'
+                : 'bg-stone-100 text-stone-700'
             }`}
           >
             {blockedChannels.length}
@@ -194,19 +194,19 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
         <button
           type="button"
           onClick={() => setActiveSubTab('videos')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer min-h-[42px] ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer min-h-[44px] ${
             activeSubTab === 'videos'
-              ? 'bg-white text-stone-900 shadow-sm'
-              : 'text-stone-600 hover:text-stone-900'
+              ? 'bg-amber-500 text-white shadow-xs'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
           }`}
         >
-          <Film className="w-4 h-4 text-indigo-600" />
+          <Film className="w-4 h-4" />
           <span>الفيديوهات المخفية</span>
           <span
-            className={`px-2 py-0.5 rounded-full text-[11px] font-mono ${
+            className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
               activeSubTab === 'videos'
-                ? 'bg-indigo-100 text-indigo-900'
-                : 'bg-stone-200 text-stone-700'
+                ? 'bg-amber-600 text-white'
+                : 'bg-stone-100 text-stone-700'
             }`}
           >
             {hiddenVideos.length}
@@ -222,7 +222,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
         <>
           {/* TAB 1: BLACKLIST WORDS */}
           {activeSubTab === 'blacklist' && (
-            <div className="space-y-4">
+            <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs space-y-4">
               <div className="space-y-1">
                 <h4 className="text-xs sm:text-sm font-bold text-stone-900">
                   إدارة الكلمات المحظورة
@@ -233,23 +233,23 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
               </div>
 
               {/* Add Word Form */}
-              <form onSubmit={handleAddWord} className="flex gap-2 max-w-md">
+              <form onSubmit={handleAddWord} className="flex flex-col sm:flex-row gap-2 max-w-xl">
                 <input
                   id="tab-blacklist-word-input"
                   type="text"
                   value={newWord}
                   onChange={(e) => setNewWord(e.target.value)}
                   placeholder="أدخل كلمة لحظرها (مثال: رعب، مقلب، تحدي)..."
-                  className="grow min-h-[42px] px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-stone-300 bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition"
+                  className="grow min-h-[44px] px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
                 />
                 <button
                   id="tab-add-blacklist-word-btn"
                   type="submit"
                   disabled={!newWord.trim()}
-                  className="min-h-[42px] px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-sm shrink-0"
+                  className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-xs shrink-0"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>إضافة</span>
+                  <span>إضافة للكلمات المحظورة</span>
                 </button>
               </form>
 
@@ -260,7 +260,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                     {blacklistWords.map((word, idx) => (
                       <span
                         key={idx}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100 text-stone-800 text-xs font-semibold border border-stone-200 shadow-sm"
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-stone-50 text-stone-800 text-xs font-bold border border-stone-200/80 shadow-2xs"
                       >
                         <span>{word}</span>
                         <button
@@ -275,8 +275,8 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                     ))}
                   </div>
                 ) : (
-                  <div className="p-8 rounded-2xl bg-stone-50 border border-stone-200 text-center space-y-1">
-                    <p className="text-xs sm:text-sm font-semibold text-stone-600">
+                  <div className="p-8 rounded-2xl bg-stone-50 border border-stone-200/60 text-center space-y-1">
+                    <p className="text-xs sm:text-sm font-bold text-stone-700">
                       لا توجد كلمات محظورة مسجلة حالياً.
                     </p>
                     <p className="text-xs text-stone-400">
@@ -290,7 +290,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
 
           {/* TAB 2: BLOCKED CHANNELS */}
           {activeSubTab === 'channels' && (
-            <div className="space-y-4">
+            <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs space-y-4">
               <div className="space-y-1">
                 <h4 className="text-xs sm:text-sm font-bold text-stone-900">
                   القنوات المحظورة والمعطلة
@@ -301,11 +301,11 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
               </div>
 
               {blockedChannels.length > 0 ? (
-                <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-sm">
+                <div className="divide-y divide-stone-100 rounded-xl border border-stone-200/80 bg-stone-50/50 overflow-hidden">
                   {blockedChannels.map((channel) => (
                     <div
                       key={channel.id}
-                      className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-stone-50/70 transition"
+                      className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-white transition"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {channel.thumbnail ? (
@@ -326,7 +326,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                             {channel.title}
                           </h5>
                           <div className="flex items-center gap-2 text-[11px] text-stone-400 mt-0.5">
-                            <span className="text-rose-600 font-semibold">معطلة حالياً</span>
+                            <span className="text-rose-600 font-bold">معطلة حالياً</span>
                             <span>•</span>
                             <span>{channel.sourceType === 'playlist' ? 'قائمة تشغيل' : 'قناة'}</span>
                           </div>
@@ -336,7 +336,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                       <button
                         type="button"
                         onClick={() => handleReEnableChannel(channel)}
-                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer border border-emerald-200 shadow-sm"
+                        className="min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer border border-emerald-200 shadow-2xs"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>إعادة تفعيل</span>
@@ -345,7 +345,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                   ))}
                 </div>
               ) : (
-                <div className="p-8 rounded-2xl bg-stone-50 border border-stone-200 text-center space-y-1">
+                <div className="p-8 rounded-2xl bg-stone-50 border border-stone-200/60 text-center space-y-1">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2">
                     <Check className="w-5 h-5" />
                   </div>
@@ -362,7 +362,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
 
           {/* TAB 3: HIDDEN VIDEOS */}
           {activeSubTab === 'videos' && (
-            <div className="space-y-4">
+            <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs space-y-4">
               <div className="space-y-1">
                 <h4 className="text-xs sm:text-sm font-bold text-stone-900">
                   الفيديوهات المخفية يدوياً
@@ -373,11 +373,11 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
               </div>
 
               {hiddenVideos.length > 0 ? (
-                <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-sm">
+                <div className="divide-y divide-stone-100 rounded-xl border border-stone-200/80 bg-stone-50/50 overflow-hidden">
                   {hiddenVideos.map((video) => (
                     <div
                       key={video.videoId}
-                      className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-stone-50/70 transition"
+                      className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-white transition"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {video.thumbnail ? (
@@ -397,7 +397,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                           <h5 className="text-xs sm:text-sm font-bold text-stone-900 truncate" title={video.title}>
                             {video.title}
                           </h5>
-                          <span className="text-[11px] text-rose-600 font-medium block mt-0.5">
+                          <span className="text-[11px] text-rose-600 font-bold block mt-0.5">
                             مخفي عن شاشة الطفل
                           </span>
                         </div>
@@ -406,16 +406,16 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                       <button
                         type="button"
                         onClick={() => handleUnhideVideo(video)}
-                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer border border-indigo-200 shadow-sm"
+                        className="min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer border border-amber-200 shadow-2xs"
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <Eye className="w-3.5 h-3.5 text-amber-600" />
                         <span>إظهار مرة أخرى</span>
                       </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="p-8 rounded-2xl bg-stone-50 border border-stone-200 text-center space-y-1">
+                <div className="p-8 rounded-2xl bg-stone-50 border border-stone-200/60 text-center space-y-1">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2">
                     <Check className="w-5 h-5" />
                   </div>

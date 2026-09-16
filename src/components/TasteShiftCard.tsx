@@ -248,258 +248,267 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
   };
 
   return (
-    <div id="taste-shift-card" className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm max-w-4xl mx-auto">
-      {/* Top Header with Title and Main Toggle Switch */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 border border-indigo-100">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-stone-900">
-                التحول التدريجي في الاهتمامات (Taste Shift)
-              </h3>
-              {saveStatus === 'saving' && (
-                <span className="text-[11px] text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 animate-pulse">
-                  جاري الحفظ...
-                </span>
-              )}
-              {saveStatus === 'saved' && (
-                <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-0.5">
-                  <Check className="w-3 h-3" /> تم الحفظ
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-stone-500 mt-0.5">
-              إدخال أقسام واهتمامات جديدة تدريجياً لفتح آفاق الطفل بنسب تتصاعد أسبوعياً
-            </p>
-          </div>
+    <div id="taste-shift-card" className="space-y-5 max-w-4xl mx-auto">
+      {/* Section Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
+        <div>
+          <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <TrendingUp className="w-4 h-4" />
+            </span>
+            <span>التحول التدريجي في الاهتمامات (Taste Shift)</span>
+          </h3>
+          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+            إدخال أقسام واهتمامات جديدة تدريجياً لفتح آفاق الطفل بنسب تتصاعد أسبوعياً.
+          </p>
         </div>
 
-        {/* 1. Toggle switch bound to settings.tasteShift.enabled */}
-        <div className="flex items-center gap-2 shrink-0">
-          <span
-            className={`text-xs font-semibold hidden sm:inline ${
-              enabled ? 'text-indigo-700' : 'text-stone-400'
-            }`}
-          >
-            {enabled ? 'مفعل' : 'معطل'}
-          </span>
-          <button
-            id="toggle-taste-shift"
-            type="button"
-            role="switch"
-            aria-checked={enabled}
-            onClick={handleToggle}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-              enabled ? 'bg-indigo-600' : 'bg-stone-300'
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                enabled ? '-translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
+        {/* Status indicator */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {saveStatus === 'saving' && (
+            <span className="text-[11px] text-amber-900 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 animate-pulse font-bold">
+              جاري الحفظ...
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1 font-bold">
+              <Check className="w-3.5 h-3.5 text-emerald-600" /> تم الحفظ
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Rest of the card: visually disabled (opacity-50, non-interactive) when off */}
-      <div
-        className={`mt-6 pt-5 border-t border-stone-100 space-y-6 transition-opacity duration-200 ${
-          !enabled ? 'opacity-50 pointer-events-none select-none' : ''
-        }`}
-      >
-        {/* 2. Multi-select category chips for targetCategories */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-indigo-600" />
-              <span>الأقسام المستهدفة للتحول (Target Categories)</span>
-            </label>
-            <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-100">
-              {targetCategories.length} قسم
+      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+        {/* Main Toggle Banner */}
+        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-stone-50 border border-stone-200/70">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <span className="text-xs font-extrabold text-stone-900 block">تفعيل خاصية التحول الذكي</span>
+              <span className="text-[11px] text-stone-500 block">تعديل توصيات التنوع تلقائياً في خلاصة الطفل</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`text-xs font-bold ${enabled ? 'text-amber-700' : 'text-stone-400'}`}>
+              {enabled ? 'مفعل' : 'معطل'}
             </span>
-          </div>
-          <p className="text-xs text-stone-500">
-            اختر المجالات الجديدة التي ترغب في إدخالها للطفل تدريجياً ليتعود عليها ويستكشفها.
-          </p>
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            {curationCategories.map((cat) => {
-              const isSelected = targetCategories.includes(cat.id);
-              return (
-                <button
-                  key={`target-${cat.id}`}
-                  id={`chip-taste-${cat.id}`}
-                  type="button"
-                  onClick={() => toggleCategory(cat.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition active:scale-95 cursor-pointer min-h-[38px] ${
-                    isSelected
-                      ? 'bg-indigo-600 text-white border border-indigo-600 shadow-sm'
-                      : 'bg-stone-50 text-stone-700 border border-stone-200 hover:bg-indigo-50/60 hover:border-indigo-300'
-                  }`}
-                >
-                  <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                  {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
-                </button>
-              );
-            })}
+            <button
+              id="toggle-taste-shift"
+              type="button"
+              role="switch"
+              aria-checked={enabled}
+              onClick={handleToggle}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                enabled ? 'bg-amber-500' : 'bg-stone-300'
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                  enabled ? '-translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
         </div>
 
-        {/* Controls Grid: Speed & Cap Segmented Controls */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-stone-100">
-          {/* 3. 3-option segmented control "سرعة التغيير": بطيء (5) / متوسط (10) / سريع (20) */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
-              <Sliders className="w-4 h-4 text-indigo-600" />
-              <span>سرعة التغيير (الزيادة الأسبوعية)</span>
-            </label>
-            <div
-              id="segmented-speed"
-              className="grid grid-cols-3 p-1 bg-stone-100 rounded-xl border border-stone-200 gap-1"
-            >
-              {SPEED_OPTIONS.map((opt) => {
-                const isActive = weeklyStepPercent === opt.percent;
-                return (
-                  <button
-                    key={`speed-${opt.percent}`}
-                    id={`speed-opt-${opt.percent}`}
-                    type="button"
-                    onClick={() => setWeeklyStepPercent(opt.percent)}
-                    className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
-                      isActive
-                        ? 'bg-white text-indigo-700 shadow-sm border border-stone-200 font-bold'
-                        : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  >
-                    <div>{opt.label}</div>
-                    <div className="text-[10px] opacity-75">{opt.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 4. Second 3-option segmented control "أقصى نسبة": خفيف (20) / متوسط (40) / كبير (60) */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
-              <Sliders className="w-4 h-4 text-indigo-600" />
-              <span>أقصى نسبة للمحتوى المقترح (Cap)</span>
-            </label>
-            <div
-              id="segmented-cap"
-              className="grid grid-cols-3 p-1 bg-stone-100 rounded-xl border border-stone-200 gap-1"
-            >
-              {CAP_OPTIONS.map((opt) => {
-                const isActive = capPercent === opt.percent;
-                return (
-                  <button
-                    key={`cap-${opt.percent}`}
-                    id={`cap-opt-${opt.percent}`}
-                    type="button"
-                    onClick={() => setCapPercent(opt.percent)}
-                    className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
-                      isActive
-                        ? 'bg-white text-indigo-700 shadow-sm border border-stone-200 font-bold'
-                        : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  >
-                    <div>{opt.label}</div>
-                    <div className="text-[10px] opacity-75">{opt.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* 5. Read-only status line, computed live (not stored) */}
+        {/* Rest of the card: visually disabled (opacity-50, non-interactive) when off */}
         <div
-          id="taste-shift-status-line"
-          className="rounded-2xl bg-indigo-50/70 border border-indigo-200/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-indigo-950"
+          className={`space-y-4 transition-opacity duration-200 ${
+            !enabled ? 'opacity-50 pointer-events-none select-none' : ''
+          }`}
         >
-          <div className="space-y-0.5">
-            <div className="text-xs font-bold text-indigo-900">حالة خطة التحول:</div>
-            <div className="text-sm font-bold text-indigo-700">
-              الأسبوع {currentWeek + 1} — النسبة الحالية: {currentTargetShare}%
+          {/* 2. Multi-select category chips for targetCategories */}
+          <div className="space-y-2.5 pt-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span>الأقسام المستهدفة للتحول (Target Categories)</span>
+              </label>
+              <span className="text-[11px] font-bold text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                {targetCategories.length} قسم محدد
+              </span>
             </div>
-          </div>
-          <div className="text-xs text-indigo-800/80 font-medium sm:text-left">
-            الحد الأقصى المبرمج: {capPercent}% • معدل النمو: +{weeklyStepPercent}% أسبوعياً
-          </div>
-        </div>
+            <p className="text-xs text-stone-500">
+              اختر المجالات الجديدة التي ترغب في إدخالها للطفل تدريجياً ليتعود عليها ويستكشفها.
+            </p>
 
-        {/* 6. Reaction summary, shown only if there's at least one relevant interaction */}
-        {reactionStats && (
-          <div
-            id="taste-shift-reaction-summary"
-            className="rounded-2xl bg-stone-50 border border-stone-200 p-4 space-y-1.5 text-xs text-stone-700"
-          >
-            <div className="font-bold text-stone-900 flex items-center gap-1.5">
-              <span>تفاعل الطفل مع المحتوى الجديد المقترح</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
-              <div className="flex items-center gap-1.5 font-semibold text-stone-800">
-                <span>تقييم الطفل هذا الأسبوع:</span>
-                <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
-                  <ThumbsUp className="w-3.5 h-3.5" /> {reactionStats.likedCount}
-                </span>
-                <span>/</span>
-                <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200">
-                  <ThumbsDown className="w-3.5 h-3.5" /> {reactionStats.dislikedCount}
-                </span>
-              </div>
-              <div className="text-stone-600 bg-white px-2.5 py-0.5 rounded-lg border border-stone-200">
-                عدد الفيديوهات الجديدة المعروضة: <span className="font-bold text-stone-900">{reactionStats.distinctCount}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 7. Per-category adaptive stats (Phase B) */}
-        {categoryStats.length > 0 && (
-          <div
-            id="taste-shift-per-category-stats"
-            className="rounded-2xl bg-white border border-stone-200 p-4 space-y-2"
-          >
-            <div className="text-xs font-bold text-stone-900">إحصائيات الأقسام المستهدفة</div>
-            <div className="space-y-2">
-              {categoryStats.map((s) => {
-                const cat = curationCategories.find((c) => c.id === s.id);
-                const onCooldown = s.cooldownUntil && s.cooldownUntil > Date.now();
+            <div className="flex flex-wrap gap-2 pt-1">
+              {curationCategories.map((cat) => {
+                const isSelected = targetCategories.includes(cat.id);
                 return (
-                  <div
-                    key={s.id}
-                    className="flex flex-wrap items-center justify-between gap-2 text-xs border border-stone-200 rounded-xl px-3.5 py-2.5 bg-stone-50/80"
+                  <button
+                    key={`target-${cat.id}`}
+                    id={`chip-taste-${cat.id}`}
+                    type="button"
+                    onClick={() => toggleCategory(cat.id)}
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer min-h-[44px] ${
+                      isSelected
+                        ? 'bg-amber-500 text-white border border-amber-500 shadow-xs'
+                        : 'bg-stone-50 text-stone-700 border border-stone-200/80 hover:bg-amber-50/60 hover:border-amber-300'
+                    }`}
                   >
-                    <span className="font-semibold text-stone-800">
-                      {cat ? `${cat.emoji} ${cat.label}` : s.id}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
-                      <span className="bg-indigo-50 text-indigo-800 border border-indigo-100 px-2 py-0.5 rounded-md font-bold">
-                        نسبة فعّالة {s.effectiveShare}%
-                      </span>
-                      <span className="text-emerald-700">✓ {s.totalAccepted}</span>
-                      <span className="text-rose-700">✗ {s.totalRejected}</span>
-                      <span className="text-stone-500">عُرض {s.totalShown}</span>
-                      {onCooldown && (
-                        <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-semibold">
-                          متوقف مؤقتًا
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                    <span>{cat.emoji}</span>
+                    <span>{cat.label}</span>
+                    {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
+                  </button>
                 );
               })}
             </div>
           </div>
-        )}
 
+          {/* Controls Grid: Speed & Cap Segmented Controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-stone-100">
+            {/* 3. 3-option segmented control "سرعة التغيير": بطيء (5) / متوسط (10) / سريع (20) */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                <Sliders className="w-4 h-4 text-amber-600" />
+                <span>سرعة التغيير (الزيادة الأسبوعية)</span>
+              </label>
+              <div
+                id="segmented-speed"
+                className="grid grid-cols-3 p-1 bg-stone-100/80 rounded-xl border border-stone-200/80 gap-1"
+              >
+                {SPEED_OPTIONS.map((opt) => {
+                  const isActive = weeklyStepPercent === opt.percent;
+                  return (
+                    <button
+                      key={`speed-${opt.percent}`}
+                      id={`speed-opt-${opt.percent}`}
+                      type="button"
+                      onClick={() => setWeeklyStepPercent(opt.percent)}
+                      className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
+                        isActive
+                          ? 'bg-white text-amber-900 shadow-xs border border-stone-200/80'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      <div>{opt.label}</div>
+                      <div className="text-[10px] opacity-75">{opt.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 4. Second 3-option segmented control "أقصى نسبة": خفيف (20) / متوسط (40) / كبير (60) */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                <Sliders className="w-4 h-4 text-amber-600" />
+                <span>أقصى نسبة للمحتوى المقترح (Cap)</span>
+              </label>
+              <div
+                id="segmented-cap"
+                className="grid grid-cols-3 p-1 bg-stone-100/80 rounded-xl border border-stone-200/80 gap-1"
+              >
+                {CAP_OPTIONS.map((opt) => {
+                  const isActive = capPercent === opt.percent;
+                  return (
+                    <button
+                      key={`cap-${opt.percent}`}
+                      id={`cap-opt-${opt.percent}`}
+                      type="button"
+                      onClick={() => setCapPercent(opt.percent)}
+                      className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
+                        isActive
+                          ? 'bg-white text-amber-900 shadow-xs border border-stone-200/80'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      <div>{opt.label}</div>
+                      <div className="text-[10px] opacity-75">{opt.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Read-only status line, computed live (not stored) */}
+          <div
+            id="taste-shift-status-line"
+            className="rounded-xl bg-amber-50/70 border border-amber-200/80 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-amber-950"
+          >
+            <div className="space-y-0.5">
+              <div className="text-xs font-bold text-amber-900">حالة خطة التحول:</div>
+              <div className="text-sm font-extrabold text-amber-900">
+                الأسبوع {currentWeek + 1} — النسبة الحالية: {currentTargetShare}%
+              </div>
+            </div>
+            <div className="text-xs text-amber-800/90 font-bold sm:text-left font-mono">
+              الحد الأقصى المبرمج: {capPercent}% • معدل النمو: +{weeklyStepPercent}% أسبوعياً
+            </div>
+          </div>
+
+          {/* 6. Reaction summary, shown only if there's at least one relevant interaction */}
+          {reactionStats && (
+            <div
+              id="taste-shift-reaction-summary"
+              className="rounded-xl bg-stone-50 border border-stone-200/70 p-3.5 space-y-2 text-xs text-stone-700"
+            >
+              <div className="font-bold text-stone-900 flex items-center gap-1.5">
+                <span>تفاعل الطفل مع المحتوى الجديد المقترح</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-stone-800">
+                  <span>تقييم الطفل هذا الأسبوع:</span>
+                  <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    <ThumbsUp className="w-3.5 h-3.5 text-emerald-600" /> {reactionStats.likedCount}
+                  </span>
+                  <span>/</span>
+                  <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+                    <ThumbsDown className="w-3.5 h-3.5 text-rose-600" /> {reactionStats.dislikedCount}
+                  </span>
+                </div>
+                <div className="text-stone-600 bg-white px-2.5 py-1 rounded-lg border border-stone-200/80 font-medium">
+                  عدد الفيديوهات المعروضة: <span className="font-bold text-stone-900 font-mono">{reactionStats.distinctCount}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 7. Per-category adaptive stats (Phase B) */}
+          {categoryStats.length > 0 && (
+            <div
+              id="taste-shift-per-category-stats"
+              className="rounded-xl bg-stone-50/50 border border-stone-200/70 p-3.5 space-y-2"
+            >
+              <div className="text-xs font-bold text-stone-900">إحصائيات الأقسام المستهدفة</div>
+              <div className="space-y-2">
+                {categoryStats.map((s) => {
+                  const cat = curationCategories.find((c) => c.id === s.id);
+                  const onCooldown = s.cooldownUntil && s.cooldownUntil > Date.now();
+                  return (
+                    <div
+                      key={s.id}
+                      className="flex flex-wrap items-center justify-between gap-2 text-xs border border-stone-200/80 rounded-xl px-3.5 py-2.5 bg-white"
+                    >
+                      <span className="font-bold text-stone-800">
+                        {cat ? `${cat.emoji} ${cat.label}` : s.id}
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
+                        <span className="bg-amber-50 text-amber-900 border border-amber-200/70 px-2 py-0.5 rounded-md font-bold font-mono">
+                          نسبة فعّالة {s.effectiveShare}%
+                        </span>
+                        <span className="text-emerald-700 font-bold">✓ {s.totalAccepted}</span>
+                        <span className="text-rose-700 font-bold">✗ {s.totalRejected}</span>
+                        <span className="text-stone-500 font-mono">عُرض {s.totalShown}</span>
+                        {onCooldown && (
+                          <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold">
+                            متوقف مؤقتًا
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

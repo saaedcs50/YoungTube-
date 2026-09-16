@@ -718,7 +718,6 @@ export default function App() {
           onSelectSection={setDashboardSection}
           onClose={() => setViewMode('kids')}
           onLock={handleLockDashboard}
-          onOpenDemoPlayer={handleOpenDemoPlayer}
           hasIncompleteSetup={!mainSettings?.hasCompletedFirstSetup}
           showTools={showTools}
           onToggleTools={handleToggleTools}

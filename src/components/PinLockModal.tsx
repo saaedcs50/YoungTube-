@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import db, { Settings } from '../db';
+import db from '../db';
 import { sha256 } from '../crypto';
 import { Lock, ShieldAlert, KeyRound, HelpCircle, ArrowLeft, X } from 'lucide-react';
 
@@ -61,7 +61,6 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
     setErrorMessage(null);
 
     try {
-      // Rule: read settings.get('main') into a single variable first
       const currentSettings = await db.settings.get('main');
       if (!currentSettings || !currentSettings.pinHash) {
         setErrorMessage('لم يتم العثور على رمز PIN مُعد مسبقاً.');
@@ -69,7 +68,6 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
         return;
       }
 
-      // Read pinAttempts as a standard property
       const currentAttempts = currentSettings.pinAttempts || 0;
 
       if (currentAttempts >= 5) {
@@ -81,14 +79,12 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
       const enteredPinHash = await sha256(pin);
 
       if (enteredPinHash === currentSettings.pinHash) {
-        // PIN is correct! Reset attempts counter to 0
         await db.settings.update('main', { pinAttempts: 0 });
         setAttempts(0);
         setIsPermanentlyLocked(false);
         setIsVerifying(false);
         onUnlockSuccess();
       } else {
-        // Failed attempt: increment counter
         const nextAttempts = currentAttempts + 1;
         await db.settings.update('main', { pinAttempts: nextAttempts });
         setAttempts(nextAttempts);
@@ -132,7 +128,6 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
 
       const enteredAnswerHash = await sha256(recoveryAnswer.trim().toLowerCase());
       if (enteredAnswerHash === currentSettings.securityAnswerHash) {
-        // Answer is correct! Reset PIN and pinAttempts counter
         const newPinHash = await sha256(newPin);
         await db.settings.update('main', {
           pinHash: newPinHash,
@@ -152,44 +147,46 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
       <div
         id="pin-lock-modal"
-        className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden"
+        className="w-full max-w-sm sm:max-w-md bg-white rounded-3xl shadow-xl border border-stone-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
       >
         {/* Modal Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
-              <Lock className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0 border border-sky-100">
+              <Lock className="w-4 h-4 text-sky-600" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">قفل الوالدين</h3>
-              <span className="text-[11px] text-slate-400">حماية لوحة التحكم</span>
+              <h3 className="text-sm font-extrabold text-stone-900">رمز الدخول للأهل</h3>
+              <span className="text-[11px] font-bold text-stone-400">حماية وتأمين لوحة التحكم</span>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+            className="w-9 h-9 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center transition cursor-pointer min-h-[44px]"
+            title="إغلاق"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4.5 h-4.5" />
           </button>
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 text-right">
+        <div className="p-5 sm:p-6 text-right">
           {/* CASE 1: Permanently Locked Screen (5 failed attempts) */}
           {isPermanentlyLocked && !showRecovery ? (
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-900 text-center space-y-2">
-                <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200/80 text-rose-950 text-center space-y-2">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
                   <ShieldAlert className="w-6 h-6" />
                 </div>
-                <h4 className="text-base font-bold text-red-950">
-                  تم قفل لوحة التحكم تماماً
+                <h4 className="text-base font-extrabold text-rose-950">
+                  تم قفل لوحة التحكم
                 </h4>
-                <p className="text-xs text-red-800 leading-relaxed">
-                  تم استنفاد 5 محاولات خاطئة متتالية لإدخال رمز PIN. تم إيقاف أي محاولات إضافية لحماية إعدادات الأطفال.
+                <p className="text-xs text-rose-800 leading-relaxed font-medium">
+                  تم إدخال رمز PIN خاطئ 5 مرات متتالية. تم إيقاف المحاولات مؤقتاً لحماية الأجهزة وإعدادات الطفل.
                 </p>
               </div>
 
@@ -197,10 +194,11 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
                 <div className="pt-2 text-center">
                   <button
                     id="open-recovery-btn"
+                    type="button"
                     onClick={() => setShowRecovery(true)}
-                    className="text-xs font-semibold text-sky-600 hover:text-sky-800 underline inline-flex items-center gap-1"
+                    className="min-h-[44px] text-xs font-bold text-sky-600 hover:text-sky-700 hover:underline inline-flex items-center gap-1.5"
                   >
-                    <HelpCircle className="w-3.5 h-3.5" />
+                    <HelpCircle className="w-4 h-4 text-sky-600" />
                     <span>استعادة الوصول عبر سؤال الأمان السري</span>
                   </button>
                 </div>
@@ -209,8 +207,9 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
               <div className="pt-2 flex justify-center">
                 <button
                   id="close-locked-modal-btn"
+                  type="button"
                   onClick={onClose}
-                  className="px-6 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                  className="w-full min-h-[44px] px-6 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition cursor-pointer border border-stone-200/80"
                 >
                   إغلاق
                 </button>
@@ -219,24 +218,24 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
           ) : showRecovery ? (
             /* Recovery Flow */
             <form onSubmit={handleRecoverySubmit} className="space-y-4">
-              <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
-                <HelpCircle className="w-5 h-5 text-indigo-600 shrink-0" />
+              <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm">
+                <HelpCircle className="w-5 h-5 text-sky-600 shrink-0" />
                 <span>استعادة رمز PIN عبر سؤال الأمان</span>
               </div>
 
               {recoveryError && (
-                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-bold">
                   {recoveryError}
                 </div>
               )}
 
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                <span className="text-slate-500 block mb-1">السؤال السري:</span>
-                <span className="font-semibold text-slate-800">{securityQuestion}</span>
+              <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs space-y-1">
+                <span className="text-stone-400 block font-bold">السؤال السري المسجل:</span>
+                <span className="font-bold text-stone-800 block text-sm">{securityQuestion}</span>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <div className="space-y-1.5">
+                <label htmlFor="recovery-answer-input" className="block text-xs font-bold text-stone-700">
                   إجابتك المسجلة:
                 </label>
                 <input
@@ -245,13 +244,13 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
                   value={recoveryAnswer}
                   onChange={(e) => setRecoveryAnswer(e.target.value)}
                   placeholder="أدخل الإجابة..."
-                  className="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  className="w-full min-h-[44px] px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition"
                   autoFocus
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <div className="space-y-1.5">
+                <label htmlFor="recovery-new-pin-input" className="block text-xs font-bold text-stone-700">
                   رمز PIN الجديد (6 أرقام):
                 </label>
                 <input
@@ -262,50 +261,53 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
                   placeholder="••••••"
-                  className="w-full text-center tracking-[0.8em] font-mono p-2.5 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  className="w-full min-h-[44px] text-center tracking-[0.8em] font-mono px-3.5 py-2.5 text-base rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition"
                 />
               </div>
 
-              <div className="pt-2 flex justify-between items-center">
+              <div className="pt-2 flex items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={() => setShowRecovery(false)}
-                  className="text-xs text-slate-500 hover:text-slate-700"
+                  className="min-h-[44px] px-4 py-2 text-xs font-bold text-stone-500 hover:text-stone-800 transition"
                 >
                   إلغاء
                 </button>
                 <button
                   id="submit-recovery-btn"
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm"
+                  className="grow min-h-[44px] px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs sm:text-sm font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  تعيين الرمز وفتح اللوحة
+                  تأكيد وإعادة تعيين الرمز
                 </button>
               </div>
             </form>
           ) : (
             /* Normal PIN Entry Screen */
-            <form onSubmit={handleVerifyPin} className="space-y-4">
-              <div className="text-center space-y-1">
-                <div className="w-10 h-10 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center mx-auto mb-2">
-                  <KeyRound className="w-5 h-5" />
+            <form onSubmit={handleVerifyPin} className="space-y-5">
+              <div className="text-center space-y-1.5">
+                <div className="w-11 h-11 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mx-auto mb-1 border border-sky-100">
+                  <KeyRound className="w-5.5 h-5.5 text-sky-600" />
                 </div>
-                <h4 className="text-base font-bold text-slate-900">أدخل رمز PIN</h4>
-                <p className="text-xs text-slate-500">
+                <h4 className="text-base font-extrabold text-stone-900">أدخل رمز PIN</h4>
+                <p className="text-xs font-medium text-stone-500">
                   أدخل رمز الوالدين المكون من 6 أرقام للمتابعة
                 </p>
-                <div className="text-[11px] text-slate-400 font-mono">
-                  المحاولات الفاشلة: {attempts} / 5
+                <div className="pt-1">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono font-bold bg-stone-100 text-stone-600 border border-stone-200/70">
+                    المحاولات: {attempts}/5
+                  </span>
                 </div>
               </div>
 
               {errorMessage && (
-                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs text-center font-medium">
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-900 text-xs text-center font-bold">
                   {errorMessage}
                 </div>
               )}
 
-              <div>
+              {/* 6 PIN Boxes Visual layout overlaying native input */}
+              <div className="relative flex justify-center py-1">
                 <input
                   id="enter-pin-input"
                   type="password"
@@ -314,18 +316,39 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
                   pattern="[0-9]*"
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••••"
-                  className="w-full text-center tracking-[1em] text-2xl font-mono p-3 rounded-2xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   autoFocus
                 />
+                <div className="flex items-center justify-center gap-2 sm:gap-2.5 dir-ltr">
+                  {[0, 1, 2, 3, 4, 5].map((index) => {
+                    const char = pin[index];
+                    const isFilled = char !== undefined;
+                    const isCurrent = pin.length === index;
+                    return (
+                      <div
+                        key={index}
+                        className={`w-11 h-12 sm:w-12 sm:h-13 rounded-xl border-2 flex items-center justify-center text-xl font-bold font-mono transition-all ${
+                          isFilled
+                            ? 'border-sky-500 bg-sky-50/60 text-sky-900 shadow-2xs'
+                            : isCurrent
+                            ? 'border-sky-400 bg-white ring-4 ring-sky-500/15'
+                            : 'border-stone-200 bg-stone-50/50 text-stone-300'
+                        }`}
+                      >
+                        {isFilled ? '•' : ''}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="pt-1 flex justify-between items-center">
+              <div className="pt-1 flex items-center justify-between gap-3">
                 {securityQuestion ? (
                   <button
+                    id="open-recovery-btn"
                     type="button"
                     onClick={() => setShowRecovery(true)}
-                    className="text-xs text-sky-600 hover:underline"
+                    className="min-h-[44px] px-2 text-xs sm:text-sm font-bold text-sky-600 hover:text-sky-700 hover:underline flex items-center cursor-pointer"
                   >
                     نسيت الرمز؟
                   </button>
@@ -337,7 +360,7 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
                   id="submit-pin-btn"
                   type="submit"
                   disabled={pin.length !== 6 || isVerifying}
-                  className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-2 transition disabled:opacity-50 shadow-sm"
+                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-xs cursor-pointer shrink-0"
                 >
                   <span>{isVerifying ? 'جاري التحقق...' : 'تأكيد ودخول'}</span>
                   <ArrowLeft className="w-4 h-4" />
@@ -350,3 +373,4 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
     </div>
   );
 }
+

@@ -1,5 +1,5 @@
-import React from 'react';
-import { ShieldCheck, Lock, ArrowRight, Play } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { ShieldCheck, Lock, ArrowRight } from 'lucide-react';
 import { DashboardNav, DashboardSectionId } from './DashboardNav';
 
 export interface DashboardShellProps {
@@ -19,12 +19,10 @@ export interface DashboardShellProps {
 
 export const DashboardShell: React.FC<DashboardShellProps> = ({
   title = 'لوحة الأهل',
-  subtitle = 'إدارة الأمان، القنوات، المحتوى والوقت',
   activeSection,
   onSelectSection,
   onClose,
   onLock,
-  onOpenDemoPlayer,
   hasIncompleteSetup = false,
   showTools = false,
   onToggleTools,
@@ -32,8 +30,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   children,
 }) => {
   // Discrete 5-tap unlocking mechanism on dashboard title for system tools
-  const tapCountRef = React.useRef(0);
-  const tapTimerRef = React.useRef<number | null>(null);
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<number | null>(null);
 
   const handleTitleTap = () => {
     tapCountRef.current += 1;
@@ -48,66 +46,50 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
     }
   };
 
+  // Reset section to 'child' if tools section active and tools gets hidden
+  useEffect(() => {
+    if (!showTools && activeSection === 'tools') {
+      onSelectSection('child');
+    }
+  }, [showTools, activeSection, onSelectSection]);
+
   return (
     <div
       id="dashboard-shell"
-      className="min-h-screen bg-[#FAF8F5] text-stone-800 flex flex-col font-sans"
+      className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col font-sans"
     >
-      {/* 1. Header Chrome Bar */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-stone-200/70 px-4 sm:px-8 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.02)]">
+      {/* 1. Header Bar */}
+      <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-amber-100/80 px-4 sm:px-8 py-3.5 shadow-xs">
         <div className="max-w-6xl w-full mx-auto flex items-center justify-between gap-4">
           {/* Logo & Title */}
           <div
-            className="flex items-center gap-3 select-none cursor-default"
+            className="flex items-center gap-3 select-none cursor-pointer"
             onClick={handleTitleTap}
-            title="لوحة الأهل"
+            title="لوحة الأهل (اضغط 5 مرات لتغيير وضع أدوات النظام)"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-sm shadow-amber-200/50 shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black text-stone-900 tracking-tight">
-                  {title}
-                </h1>
-                <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 hidden sm:inline-block">
-                  مفتوحة للوالدين
-                </span>
-                {showTools && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
-                    وضع الأدوات
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-stone-500 font-medium hidden sm:block">
-                {subtitle}
-              </p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-extrabold text-stone-900 tracking-tight">
+                {title}
+              </h1>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                مفتوحة
+              </span>
             </div>
           </div>
 
-          {/* Top Actions */}
+          {/* Top Actions: قفل · شاشة الأطفال */}
           <div className="flex items-center gap-2">
             {headerSlot}
-
-            {onOpenDemoPlayer && (
-              <button
-                id="dashboard-header-demo-player-btn"
-                type="button"
-                onClick={onOpenDemoPlayer}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
-                title="تجربة المشغل"
-              >
-                <Play className="w-3.5 h-3.5 fill-current text-indigo-600" />
-                <span>المشغل التجريبي</span>
-              </button>
-            )}
 
             <button
               id="dashboard-header-lock-btn"
               type="button"
               onClick={onLock}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-rose-50 hover:text-rose-700 text-stone-700 border border-stone-200/60 text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
-              title="قفل لوحة الأهل فوراً"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 text-xs font-bold transition duration-150 shadow-xs cursor-pointer active:scale-[0.98]"
+              title="قفل لوحة الأهل"
             >
               <Lock className="w-3.5 h-3.5 text-stone-500" />
               <span>قفل</span>
@@ -117,7 +99,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               id="dashboard-header-back-btn"
               type="button"
               onClick={onClose}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition duration-150 shadow-xs cursor-pointer active:scale-[0.98]"
               title="العودة لشاشة الأطفال"
             >
               <span>شاشة الأطفال</span>
@@ -128,7 +110,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       </header>
 
       {/* 2. Nav + Content Workspace */}
-      <main className="max-w-6xl w-full mx-auto px-4 sm:px-8 py-6 space-y-6 flex-1 flex flex-col">
+      <main className="max-w-6xl w-full mx-auto px-4 sm:px-8 py-5 space-y-5 flex-1 flex flex-col">
         {/* Navigation Bar */}
         <DashboardNav
           activeSection={activeSection}
@@ -141,14 +123,14 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
         <div
           id={`dashboard-panel-${activeSection}`}
           key={activeSection}
-          className="transition-opacity duration-200 ease-out"
+          className="transition-opacity duration-150 ease-out"
         >
           {children}
         </div>
       </main>
 
-      {/* 3. Subtle Footer */}
-      <footer className="py-4 border-t border-stone-200/60 text-center text-xs text-stone-400 font-medium">
+      {/* 3. Footer */}
+      <footer className="py-4 border-t border-stone-200/40 text-center text-xs text-stone-400 font-medium">
         لوحة تحكم الوالدين — بيئة آمنة لحماية وتوجيه محتوى الأطفال
       </footer>
     </div>

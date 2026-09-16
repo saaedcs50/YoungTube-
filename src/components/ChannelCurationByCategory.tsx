@@ -238,13 +238,13 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
   }, [filteredChannels, curationCategories]);
 
   return (
-    <div id="channel-curation-by-category" className="space-y-6 max-w-4xl mx-auto">
-      {/* Header & Explanatory Text */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-200">
+    <div id="channel-curation-by-category" className="space-y-5 max-w-4xl mx-auto">
+      {/* Section Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
         <div>
-          <h3 className="text-base sm:text-lg font-bold text-stone-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
-              <FolderKanban className="w-4 h-4 text-sky-600" />
+          <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <FolderKanban className="w-4 h-4" />
             </span>
             <span>تنظيم وتصنيف القنوات والبحث</span>
           </h3>
@@ -254,10 +254,10 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
         </div>
 
         <div className="flex items-center gap-2 text-xs self-start sm:self-auto">
-          <span className="text-stone-600 bg-stone-100 px-3 py-1 rounded-xl font-semibold border border-stone-200">
+          <span className="text-stone-700 bg-white px-3 py-1 rounded-xl font-bold border border-stone-200 shadow-xs">
             إجمالي القنوات: {channels.length}
           </span>
-          <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl font-semibold">
+          <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl font-bold">
             المفعلة: {channels.filter((c) => c.enabled).length}
           </span>
         </div>
@@ -267,7 +267,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
       <CustomCategoryManager onChanged={handleChannelAdded} />
 
       {/* 1. YouTube Search Bar Component at Top */}
-      <div className="p-5 rounded-2xl bg-white border border-stone-200 shadow-sm">
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-stone-200/70 shadow-xs">
         <YoutubeSearchBar onChannelAdded={handleChannelAdded} />
       </div>
 
@@ -280,23 +280,23 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             placeholder="تصفية القنوات بالاسم..."
-            className="w-full min-h-[42px] pl-3.5 pr-9 py-2 text-xs sm:text-sm rounded-xl border border-stone-300 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition"
+            className="w-full min-h-[44px] pl-3.5 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-white hover:border-amber-400 focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition shadow-xs"
           />
-          <Search className="w-4 h-4 text-stone-400 absolute right-3 top-3 pointer-events-none" />
+          <Search className="w-4 h-4 text-stone-400 absolute right-3 top-3.5 pointer-events-none" />
         </div>
 
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={expandAll}
-            className="min-h-[40px] px-3.5 py-1.5 text-xs font-semibold rounded-xl text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-sm"
+            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-xs"
           >
             فتح الكل
           </button>
           <button
             type="button"
             onClick={collapseAll}
-            className="min-h-[40px] px-3.5 py-1.5 text-xs font-semibold rounded-xl text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-sm"
+            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-xs"
           >
             طي الكل
           </button>
