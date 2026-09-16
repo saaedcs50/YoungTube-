@@ -47,22 +47,24 @@ export default function FilteringResultCard({
   const loadDexieSummary = useCallback(async () => {
     try {
       setLoadingSummary(true);
-      const [
-        totalCached,
-        hiddenCount,
-        hasMusicCount,
-        noMusicCount,
-        portraitCount,
-        settings,
-      ] = await Promise.all([
-        db.feedCache.count(),
-        db.feedCache.filter((item) => item.hidden === true).count(),
-        db.feedCache.filter((item) => item.hasMusic === true).count(),
-        db.feedCache.filter((item) => item.hasMusic === false).count(),
-        db.feedCache.filter((item) => item.isPortrait === true).count(),
+      const [allRows, settings] = await Promise.all([
+        db.feedCache.toArray(),
         db.settings.get('main'),
       ]);
 
+      let hiddenCount = 0;
+      let hasMusicCount = 0;
+      let noMusicCount = 0;
+      let portraitCount = 0;
+
+      for (const item of allRows) {
+        if (item.hidden === true) hiddenCount++;
+        if (item.hasMusic === true) hasMusicCount++;
+        if (item.hasMusic === false) noMusicCount++;
+        if (item.isPortrait === true) portraitCount++;
+      }
+
+      const totalCached = allRows.length;
       const isHide = settings?.hideMusicVideos === true;
       setHideMusic(isHide);
 

@@ -249,26 +249,38 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     .map((w) => w.trim().toLowerCase())
     .filter((w) => w.length > 0);
 
-  // 1. Single query for all existing feedCache items to batch reconciliation in memory
-  const allExisting = await db.feedCache.toArray();
-  const hiddenIds = new Set(
-    allExisting
-      .filter((item) => item.hidden === true)
-      .map((item) => item.videoId)
-  );
-
-  // 2. Group allExisting by channelId and build lookup map
-  const existingMap = new Map<string, FeedItem>();
-  const existingByChannel = new Map<string, FeedItem[]>();
-  for (const item of allExisting) {
-    existingMap.set(item.videoId, item);
-    if (!item.channelId) continue;
-    const list = existingByChannel.get(item.channelId);
-    if (list) {
-      list.push(item);
-    } else {
-      existingByChannel.set(item.channelId, [item]);
+  // 1. Collect all incoming videoIds from channels
+  const incomingVideoIds: string[] = [];
+  for (const channel of channels) {
+    if (!channel || !Array.isArray(channel.videos)) continue;
+    for (const video of channel.videos) {
+      if (video?.videoId) {
+        incomingVideoIds.push(video.videoId);
+      }
     }
+  }
+
+  // 2. Fetch existing rows only for incoming IDs via anyOf in chunks of 100
+  const existingMap = new Map<string, FeedItem>();
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < incomingVideoIds.length; i += CHUNK_SIZE) {
+    const chunk = incomingVideoIds.slice(i, i + CHUNK_SIZE);
+    if (chunk.length === 0) continue;
+    try {
+      const rows = await db.feedCache.where('videoId').anyOf(chunk).toArray();
+      for (const r of rows) {
+        existingMap.set(r.videoId, r);
+      }
+    } catch (e) {
+      console.warn('Failed to load existing feedCache chunk:', e);
+    }
+  }
+
+  // 3. Load hidden IDs via targeted filter for hidden === true
+  const hiddenRows = await db.feedCache.filter((v) => v.hidden === true).toArray();
+  const hiddenIds = new Set(hiddenRows.map((v) => v.videoId));
+  for (const [vid, item] of existingMap) {
+    if (item.hidden === true) hiddenIds.add(vid);
   }
 
   let totalBefore = 0;
@@ -297,7 +309,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
       totalBefore++;
       const titleLower = video.title.toLowerCase();
 
-      // 0. Manual Hidden / Portrait check: if previously marked hidden/portrait -> exclude
+      // 0. Manual Hidden check
       if (hiddenIds.has(video.videoId)) {
         hiddenExcluded++;
         continue;
@@ -316,8 +328,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
         continue;
       }
 
-      // 3. hasMusic heuristic:
-      // if title contains "no music" or Arabic "بدون موسيقى" (case-insensitive) -> hasMusic: false, otherwise true
+      // 3. hasMusic heuristic
       const hasNoMusicPhrase =
         titleLower.includes('no music') || titleLower.includes('بدون موسيقى');
       const hasMusic = !hasNoMusicPhrase;
@@ -352,9 +363,13 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     const kept = channelPassedItems.slice(0, KEEP_PER_CHANNEL);
     passedFeedItems.push(...kept);
 
-    // Reconcile feedCache for this channel in memory.
-    // Skip prune when incoming list is a clearly partial RSS snapshot vs a larger local cache.
-    const existingForChannel = existingByChannel.get(channelId) || [];
+    // Reconcile feedCache for this channel using indexed channelId query
+    let existingForChannel: FeedItem[] = [];
+    try {
+      existingForChannel = await db.feedCache.where('channelId').equals(channelId).toArray();
+    } catch (e) {
+      console.warn('Channel lookup failed during prune check:', e);
+    }
     const incomingCount = channel.videos.length;
     const existingCount = existingForChannel.length;
     const keptIds = new Set(kept.map((item) => item.videoId));

@@ -511,7 +511,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     [currentVideo.channelId, playlist]
   );
 
-  // Love / Favorite state (persisted via Dexie interactions parentRating: 'liked')
+  // Love / Favorite state (persisted via Dexie interactions childLoved)
   const [isLoved, setIsLoved] = useState(false);
 
   useEffect(() => {
@@ -1423,25 +1423,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             }}
             onReady={handleReady}
             onStateChange={handleStateChange}
-            onEnd={() => {
-              if (isLooping) {
-                try {
-                  playerRef.current?.seekTo?.(0, true);
-                  playerRef.current?.playVideo?.();
-                  setIsPlaying(true);
-                } catch {
-                  // ignore
-                }
-              } else {
-                setIsPlaying(false);
-                try {
-                  playerRef.current?.stopVideo?.();
-                } catch {
-                  // ignore
-                }
-                onEnded();
-              }
-            }}
+            onEnd={() => {}}
           />
 
           {/* Soft top & bottom cinematic ambient gradient overlays on video */}

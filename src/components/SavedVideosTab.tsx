@@ -37,12 +37,15 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
       interactions.sort((a, b) => (b.lastWatched || 0) - (a.lastWatched || 0));
 
       // 2. Build channel name resolver map
+      const videoIds = interactions.map((i) => i.videoId).filter(Boolean);
       const [customChannels, cachedFeed] = await Promise.all([
         db.channels.toArray(),
-        db.feedCache.toArray(),
+        videoIds.length > 0
+          ? db.feedCache.where('videoId').anyOf(videoIds).toArray()
+          : Promise.resolve([]),
       ]);
 
-      const feedMap = new Map(cachedFeed.map((f) => [f.videoId, f]));
+      const feedMap = new Map((cachedFeed || []).map((f) => [f.videoId, f]));
       const channelTitleMap = new Map<string, string>();
 
       for (const ch of channelsSeed as any[]) {

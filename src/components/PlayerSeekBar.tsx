@@ -141,7 +141,7 @@ export const PlayerSeekBar: React.FC<PlayerSeekBarProps> = ({
         </div>
 
         <span className="text-emerald-300 text-[11px] font-bold bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-          متبقي {formatTime(remainingSeconds)} دقيقة
+          متبقي {formatTime(remainingSeconds)}
         </span>
       </div>
     </div>
