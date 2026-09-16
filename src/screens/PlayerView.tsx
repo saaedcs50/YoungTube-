@@ -1415,6 +1415,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 controls: 0,
                 disablekb: 1,
                 playsinline: 1,
+                fs: 0,
+                iv_load_policy: 3,
+                cc_load_policy: 0,
               },
             }}
             onReady={handleReady}
