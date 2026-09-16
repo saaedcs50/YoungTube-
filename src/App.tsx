@@ -230,6 +230,7 @@ export default function App() {
 
   const handleClosePlayer = useCallback(() => {
     closingRef.current = true;
+
     updatePlayerMinimized(false);
     updatePlayerFullscreen(false);
     updatePlayerSheetOpen(false);
@@ -237,20 +238,26 @@ export default function App() {
     setShowDemoPlayer(false);
 
     const n = playerHistoryDepthRef.current;
-    playerHistoryDepthRef.current = 0;
 
     if (n > 0 && typeof window !== 'undefined') {
       window.history.go(-n);
-    } else if (typeof window !== 'undefined' && window.history.state) {
-      const { ytPlayer, fullscreen, minimized, sheetOpen, ...restState } = window.history.state;
-      if (ytPlayer || fullscreen || minimized || sheetOpen) {
-        window.history.replaceState(restState, '');
+    } else {
+      if (typeof window !== 'undefined' && window.history.state) {
+        const { ytPlayer, fullscreen, minimized, sheetOpen, ...restState } = window.history.state;
+        if (ytPlayer || fullscreen || minimized || sheetOpen) {
+          window.history.replaceState(restState, '');
+        }
       }
+      playerHistoryDepthRef.current = 0;
+      closingRef.current = false;
     }
 
     setTimeout(() => {
-      closingRef.current = false;
-    }, 100);
+      if (closingRef.current) {
+        closingRef.current = false;
+        playerHistoryDepthRef.current = 0;
+      }
+    }, 300);
   }, [updatePlayerMinimized, updatePlayerFullscreen, updatePlayerSheetOpen]);
 
   // Fix 2: Ensure Level 1 history entry exists when PlayerView opens
@@ -616,19 +623,12 @@ export default function App() {
   // Phase 8: Session forceStop condition (limit reached OR outside schedule window OR dev force stop)
   const forceStop = sessionTimer.isLimitReached || !sessionTimer.isWithinScheduleWindow || devForceStop;
 
-  // Session safety: if forceStop is true while player (or mini-player) is open, ensure it fully closes
+  // Session safety: if forceStop is true while player (or mini-player) is open, ensure it fully closes via handleClosePlayer
   useEffect(() => {
-    if (forceStop) {
-      if (isPlayerMinimizedRef.current) {
-        updatePlayerMinimized(false);
-      }
-      if (isPlayerFullscreenRef.current) {
-        updatePlayerFullscreen(false);
-      }
-      setActivePlaybackVideo(null);
-      setShowDemoPlayer(false);
+    if (forceStop && (activePlaybackVideo || showDemoPlayer)) {
+      handleClosePlayer();
     }
-  }, [forceStop, updatePlayerMinimized, updatePlayerFullscreen]);
+  }, [forceStop, activePlaybackVideo, showDemoPlayer, handleClosePlayer]);
 
   return (
     <div className="min-h-screen font-sans">

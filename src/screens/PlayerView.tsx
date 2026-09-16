@@ -838,7 +838,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     };
   }, [handleEnterFullscreen, handleExitFullscreen]);
 
-  // Force stop video playback immediately when forceStop turns true, and exit fullscreen/minimized if active
+  // Force stop video playback immediately when forceStop turns true
   useEffect(() => {
     if (effectiveForceStop) {
       onPlayingChange?.(false);
@@ -849,14 +849,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           console.warn('Failed to stop video on forceStop signal:', err);
         }
       }
-      if (isFullscreen) {
-        handleExitFullscreen();
-      }
-      if (isMinimized) {
-        handleMiniPlayerClose();
-      }
     }
-  }, [effectiveForceStop, isFullscreen, isMinimized, handleExitFullscreen, handleMiniPlayerClose, onPlayingChange]);
+  }, [effectiveForceStop, onPlayingChange]);
 
   // Clean up playback and fullscreen on unmount
   useEffect(() => {
@@ -1545,21 +1539,23 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <p className="text-xs text-stone-400 mb-3 max-w-xs">
                 تم استلام إشارة الإيقاف الإجباري وتم استدعاء stopVideo() بنجاح.
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setTestForceStop(false);
-                  try {
-                    playerRef.current?.playVideo?.();
-                    setIsPlaying(true);
-                  } catch {
-                    // ignore
-                  }
-                }}
-                className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold border border-stone-600 transition cursor-pointer"
-              >
-                إلغاء فحص forceStop واستئناف الفيديو ▶
-              </button>
+              {testForceStop && !forceStop && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTestForceStop(false);
+                    try {
+                      playerRef.current?.playVideo?.();
+                      setIsPlaying(true);
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold border border-stone-600 transition cursor-pointer"
+                >
+                  إلغاء فحص forceStop واستئناف الفيديو ▶
+                </button>
+              )}
             </div>
           )}
         </div>

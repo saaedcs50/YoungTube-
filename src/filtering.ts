@@ -249,18 +249,23 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     .map((w) => w.trim().toLowerCase())
     .filter((w) => w.length > 0);
 
-  // 1. Collect all incoming videoIds from channels
+  // 1. Collect all incoming videoIds and unique channelIds from channels
   const incomingVideoIds: string[] = [];
+  const uniqueChannelIdsSet = new Set<string>();
   for (const channel of channels) {
-    if (!channel || !Array.isArray(channel.videos)) continue;
-    for (const video of channel.videos) {
-      if (video?.videoId) {
-        incomingVideoIds.push(video.videoId);
+    if (!channel) continue;
+    const cid = channel.sourceId || '';
+    if (cid) uniqueChannelIdsSet.add(cid);
+    if (Array.isArray(channel.videos)) {
+      for (const video of channel.videos) {
+        if (video?.videoId) {
+          incomingVideoIds.push(video.videoId);
+        }
       }
     }
   }
 
-  // 2. Fetch existing rows only for incoming IDs via anyOf in chunks of 100
+  // 2. Fetch existing rows for incoming videoIds via anyOf in chunks of 100
   const existingMap = new Map<string, FeedItem>();
   const CHUNK_SIZE = 100;
   for (let i = 0; i < incomingVideoIds.length; i += CHUNK_SIZE) {
@@ -276,10 +281,39 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     }
   }
 
-  // 3. Build hiddenIds from existingMap (incoming ID chunks)
+  // 3. Bulk load existing rows for all channelIds in this sync via anyOf in chunks of 100
+  const channelIdsArray = Array.from(uniqueChannelIdsSet);
+  const existingForChannelMap = new Map<string, FeedItem[]>();
+  for (let i = 0; i < channelIdsArray.length; i += CHUNK_SIZE) {
+    const chunk = channelIdsArray.slice(i, i + CHUNK_SIZE);
+    if (chunk.length === 0) continue;
+    try {
+      const rows = await db.feedCache.where('channelId').anyOf(chunk).toArray();
+      for (const r of rows) {
+        let list = existingForChannelMap.get(r.channelId);
+        if (!list) {
+          list = [];
+          existingForChannelMap.set(r.channelId, list);
+        }
+        list.push(r);
+      }
+    } catch (e) {
+      console.warn('Failed to load existing channelId chunk:', e);
+    }
+  }
+
+  // 4. Build hiddenIds from existingMap and existingForChannelMap
   const hiddenIds = new Set<string>();
   for (const [vid, item] of existingMap) {
     if (item.hidden === true) hiddenIds.add(vid);
+  }
+  for (const [, list] of existingForChannelMap) {
+    for (const item of list) {
+      if (item.hidden === true) hiddenIds.add(item.videoId);
+      if (!existingMap.has(item.videoId)) {
+        existingMap.set(item.videoId, item);
+      }
+    }
   }
 
   let totalBefore = 0;
@@ -300,21 +334,8 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     const channelId = channel.sourceId || '';
     if (!channelId) continue;
 
-    // Fetch existing rows for this channel first to collect hidden items & for prune check
-    let existingForChannel: FeedItem[] = [];
-    try {
-      existingForChannel = await db.feedCache.where('channelId').equals(channelId).toArray();
-      for (const item of existingForChannel) {
-        if (item.hidden === true) {
-          hiddenIds.add(item.videoId);
-        }
-        if (!existingMap.has(item.videoId)) {
-          existingMap.set(item.videoId, item);
-        }
-      }
-    } catch (e) {
-      console.warn('Channel lookup failed:', e);
-    }
+    // Use in-memory per-channel existing items loaded during bulk step
+    const existingForChannel = existingForChannelMap.get(channelId) || [];
 
     const channelPassedItems: FeedItem[] = [];
 
@@ -398,14 +419,14 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     }
   }
 
-  // 3. Single bulk delete for all stale IDs across all channels
+  // 5. Single bulk delete for all stale IDs across all channels
   if (allStaleIdsToDelete.length > 0) {
     for (let i = 0; i < allStaleIdsToDelete.length; i += PUT_CHUNK) {
       await db.feedCache.bulkDelete(allStaleIdsToDelete.slice(i, i + PUT_CHUNK));
     }
   }
 
-  // 4. Store passed videos in Dexie feedCache (chunked to keep the UI thread breathing)
+  // 6. Store passed videos in Dexie feedCache (chunked to keep the UI thread breathing)
   if (passedFeedItems.length > 0) {
     for (let i = 0; i < passedFeedItems.length; i += PUT_CHUNK) {
       await db.feedCache.bulkPut(passedFeedItems.slice(i, i + PUT_CHUNK));
