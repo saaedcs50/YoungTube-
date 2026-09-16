@@ -102,6 +102,9 @@ interface PlayerViewProps {
   isMinimized?: boolean;
   onEnterMinimized?: () => void;
   onExitMinimized?: () => void;
+  isSheetOpen?: boolean;
+  onOpenSheet?: () => void;
+  onCloseSheet?: () => void;
 }
 
 export const PlayerView: React.FC<PlayerViewProps> = ({
@@ -121,6 +124,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   isMinimized: propIsMinimized,
   onEnterMinimized,
   onExitMinimized,
+  isSheetOpen: propIsSheetOpen,
+  onOpenSheet,
+  onCloseSheet,
 }) => {
   const playerRef = useRef<YouTubePlayer | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -153,11 +159,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [performExpandFromMinimized]);
 
   const handleEnterMinimized = useCallback(() => {
-    if (typeof window !== 'undefined' && !window.history.state?.minimized) {
+    setIsMinimizedLocal(true);
+    if (onEnterMinimized) {
+      onEnterMinimized();
+    } else if (typeof window !== 'undefined' && !window.history.state?.minimized) {
       window.history.pushState({ ytPlayer: true, fullscreen: false, minimized: true }, '');
     }
-    setIsMinimizedLocal(true);
-    onEnterMinimized?.();
   }, [onEnterMinimized]);
 
   const handleMiniPlayerClose = useCallback(() => {
@@ -513,45 +520,41 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
   const effectiveForceStop = forceStop || testForceStop;
 
-  // Settings Bottom Sheet State & History Stack Integration
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const isSettingsOpenRef = useRef(false);
-  isSettingsOpenRef.current = isSettingsOpen;
+  // Settings Bottom Sheet State (delegated to App.tsx history manager when provided)
+  const [isSettingsOpenLocal, setIsSettingsOpenLocal] = useState(false);
+  const isSettingsOpen = (propIsSheetOpen !== undefined) ? propIsSheetOpen : isSettingsOpenLocal;
 
   const handleOpenSettings = useCallback(() => {
-    if (typeof window !== 'undefined' && !window.history.state?.sheetOpen) {
-      window.history.pushState({ ...window.history.state, ytPlayer: true, sheetOpen: true }, '');
+    if (onOpenSheet) {
+      onOpenSheet();
+    } else {
+      if (typeof window !== 'undefined' && !window.history.state?.sheetOpen) {
+        window.history.pushState({ ...window.history.state, ytPlayer: true, sheetOpen: true }, '');
+      }
+      setIsSettingsOpenLocal(true);
     }
-    setIsSettingsOpen(true);
-  }, []);
+  }, [onOpenSheet]);
 
   const handleCloseSettings = useCallback(() => {
     if (typeof window !== 'undefined' && window.history.state?.sheetOpen) {
       window.history.back();
     } else {
-      setIsSettingsOpen(false);
+      setIsSettingsOpenLocal(false);
+      onCloseSheet?.();
     }
-  }, []);
-
-  // Hardware Back button dismisses the settings sheet
-  useEffect(() => {
-    const handlePopState = (e: PopStateEvent) => {
-      if (isSettingsOpenRef.current && !e.state?.sheetOpen) {
-        setIsSettingsOpen(false);
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
+  }, [onCloseSheet]);
 
   // Close sheet if video enters fullscreen, is minimized, or receives forceStop
   useEffect(() => {
     if ((isFullscreen || isMinimized || effectiveForceStop) && isSettingsOpen) {
-      setIsSettingsOpen(false);
+      if (typeof window !== 'undefined' && window.history.state?.sheetOpen) {
+        window.history.back();
+      } else {
+        setIsSettingsOpenLocal(false);
+        onCloseSheet?.();
+      }
     }
-  }, [isFullscreen, isMinimized, effectiveForceStop, isSettingsOpen]);
+  }, [isFullscreen, isMinimized, effectiveForceStop, isSettingsOpen, onCloseSheet]);
 
   const handleTogglePlay = useCallback(() => {
     if (!playerRef.current) return;

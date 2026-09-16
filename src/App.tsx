@@ -143,12 +143,15 @@ export default function App() {
   const [devForceStop, setDevForceStop] = useState(false);
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
 
-  // Fix 2: Player fullscreen and mini-player states tracked in App.tsx
+  // Fix 2: Player fullscreen, mini-player, and settings sheet states tracked in App.tsx
   const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
   const isPlayerFullscreenRef = useRef(false);
 
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(false);
   const isPlayerMinimizedRef = useRef(false);
+
+  const [isPlayerSheetOpen, setIsPlayerSheetOpen] = useState(false);
+  const isPlayerSheetOpenRef = useRef(false);
 
   const updatePlayerFullscreen = useCallback((val: boolean) => {
     setIsPlayerFullscreen(val);
@@ -160,21 +163,28 @@ export default function App() {
     isPlayerMinimizedRef.current = val;
   }, []);
 
+  const updatePlayerSheetOpen = useCallback((val: boolean) => {
+    setIsPlayerSheetOpen(val);
+    isPlayerSheetOpenRef.current = val;
+  }, []);
+
   const handleOpenDemoPlayer = useCallback(() => {
     updatePlayerMinimized(false);
+    updatePlayerSheetOpen(false);
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
     }
     setShowDemoPlayer(true);
-  }, [updatePlayerMinimized]);
+  }, [updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const handleSelectVideo = useCallback((videoId: string, title?: string, channelName?: string, channelId?: string) => {
     updatePlayerMinimized(false);
+    updatePlayerSheetOpen(false);
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
     }
     setActivePlaybackVideo({ videoId, title, channelName, channelId });
-  }, [updatePlayerMinimized]);
+  }, [updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const handlePlayerEnterFullscreen = useCallback(() => {
     if (typeof window !== 'undefined' && !window.history.state?.fullscreen) {
@@ -198,6 +208,17 @@ export default function App() {
     updatePlayerMinimized(false);
   }, [updatePlayerMinimized]);
 
+  const handlePlayerOpenSheet = useCallback(() => {
+    if (typeof window !== 'undefined' && !window.history.state?.sheetOpen) {
+      window.history.pushState({ ...window.history.state, ytPlayer: true, sheetOpen: true }, '');
+    }
+    updatePlayerSheetOpen(true);
+  }, [updatePlayerSheetOpen]);
+
+  const handlePlayerCloseSheet = useCallback(() => {
+    updatePlayerSheetOpen(false);
+  }, [updatePlayerSheetOpen]);
+
   // Fix 2: Ensure Level 1 history entry exists when PlayerView opens
   useEffect(() => {
     if (
@@ -209,10 +230,21 @@ export default function App() {
     }
   }, [activePlaybackVideo, showDemoPlayer]);
 
-  // Fix 2: Single popstate listener (only one place in the whole app)
+  // Fix: Single popstate listener (only ONE home for popstate across the entire app)
+  // Unwinds all five layers in exact hierarchical order:
+  // Layer 5 (sheet open) -> Layer 4 (minimized) -> Layer 3 (fullscreen) -> Layer 2 (player open) -> Layer 1 (closed)
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
-      // 1. Hardware Back while minimized: expand back to full Portrait!
+      // 1. Layer 5: Settings bottom sheet open -> close sheet first
+      const wasSheetOpen = isPlayerSheetOpenRef.current;
+      const isSheetExit = wasSheetOpen && !e.state?.sheetOpen;
+
+      if (isSheetExit) {
+        updatePlayerSheetOpen(false);
+        return;
+      }
+
+      // 2. Layer 4: Hardware Back while minimized -> expand back to full Portrait
       const wasMinimized = isPlayerMinimizedRef.current;
       const isMiniExpand = wasMinimized && Boolean(e.state?.ytPlayer && !e.state?.minimized);
 
@@ -221,7 +253,7 @@ export default function App() {
         return;
       }
 
-      // 2. Hardware Back while fullscreen: exit fullscreen only
+      // 3. Layer 3: Hardware Back while fullscreen -> exit fullscreen only
       const wasFullscreen = isPlayerFullscreenRef.current;
       const isFullscreenExit =
         (e.state?.ytPlayer && e.state?.fullscreen) ||
@@ -247,12 +279,13 @@ export default function App() {
         return;
       }
 
-      // 3. Otherwise, pop means "close the player entirely": clear playingVideoId, return to KidHomeScreen.
+      // 4. Layer 2 & 1: Close the player entirely: clear playing video, return to KidHomeScreen
       if (!e.state?.ytPlayer) {
         setActivePlaybackVideo(null);
         setShowDemoPlayer(false);
         updatePlayerFullscreen(false);
         updatePlayerMinimized(false);
+        updatePlayerSheetOpen(false);
       }
     };
 
@@ -260,7 +293,7 @@ export default function App() {
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [updatePlayerFullscreen, updatePlayerMinimized]);
+  }, [updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
   // Phase 8: Session Timer
   const sessionTimer = useSessionTimer(viewMode === 'kids');
@@ -611,6 +644,9 @@ export default function App() {
           isMinimized={isPlayerMinimized}
           onEnterMinimized={handlePlayerEnterMinimized}
           onExitMinimized={handlePlayerExitMinimized}
+          isSheetOpen={isPlayerSheetOpen}
+          onOpenSheet={handlePlayerOpenSheet}
+          onCloseSheet={handlePlayerCloseSheet}
         />
       )}
 
