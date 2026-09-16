@@ -293,9 +293,18 @@ export default function App() {
     };
   }, [updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
-  // Phase 8: Session Timer — count playback only (when kid view and a player is open)
+  // Track if YouTube player is actively playing (prevents billing paused/idle time)
+  const [isPlayerPlaying, setIsPlayerPlaying] = useState(false);
+
+  useEffect(() => {
+    if (!activePlaybackVideo && !showDemoPlayer) {
+      setIsPlayerPlaying(false);
+    }
+  }, [activePlaybackVideo, showDemoPlayer]);
+
+  // Phase 8: Session Timer — count playback only (when kid view, player is open, AND actively playing)
   const isPlayerOpen = Boolean(activePlaybackVideo || showDemoPlayer);
-  const isCountingSession = viewMode === 'kids' && isPlayerOpen;
+  const isCountingSession = viewMode === 'kids' && isPlayerOpen && isPlayerPlaying;
   const sessionTimer = useSessionTimer(isCountingSession);
 
   // Parent Dashboard Navigation Section
@@ -647,6 +656,7 @@ export default function App() {
           isSheetOpen={isPlayerSheetOpen}
           onOpenSheet={handlePlayerOpenSheet}
           onCloseSheet={handlePlayerCloseSheet}
+          onPlayingChange={setIsPlayerPlaying}
         />
       )}
 

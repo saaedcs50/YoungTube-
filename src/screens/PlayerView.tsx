@@ -99,6 +99,7 @@ interface PlayerViewProps {
   isSheetOpen?: boolean;
   onOpenSheet?: () => void;
   onCloseSheet?: () => void;
+  onPlayingChange?: (playing: boolean) => void;
 }
 
 export const PlayerView: React.FC<PlayerViewProps> = ({
@@ -121,6 +122,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   isSheetOpen: propIsSheetOpen,
   onOpenSheet,
   onCloseSheet,
+  onPlayingChange,
 }) => {
   const playerRef = useRef<YouTubePlayer | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -836,6 +838,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   // Force stop video playback immediately when forceStop turns true, and exit fullscreen/minimized if active
   useEffect(() => {
     if (effectiveForceStop) {
+      onPlayingChange?.(false);
       if (playerRef.current) {
         try {
           playerRef.current.stopVideo?.();
@@ -850,11 +853,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         handleMiniPlayerClose();
       }
     }
-  }, [effectiveForceStop, isFullscreen, isMinimized, handleExitFullscreen, handleMiniPlayerClose]);
+  }, [effectiveForceStop, isFullscreen, isMinimized, handleExitFullscreen, handleMiniPlayerClose, onPlayingChange]);
 
   // Clean up playback and fullscreen on unmount
   useEffect(() => {
     return () => {
+      onPlayingChange?.(false);
       try {
         playerRef.current?.stopVideo?.();
       } catch {
@@ -868,7 +872,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         // ignore
       }
     };
-  }, []);
+  }, [onPlayingChange]);
 
   const handleReady: YouTubeProps['onReady'] = (event) => {
     playerRef.current = event.target;
@@ -878,6 +882,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     // 1: PLAYING
     if (event.data === 1) {
       setIsPlaying(true);
+      onPlayingChange?.(true);
       const vId = currentVideo.videoId;
       if (!openedVideoIdsRef.current.has(vId)) {
         openedVideoIdsRef.current.add(vId);
@@ -890,6 +895,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     // 2: PAUSED
     else if (event.data === 2) {
       setIsPlaying(false);
+      onPlayingChange?.(false);
     }
     // 0: ENDED
     else if (event.data === 0) {
@@ -898,11 +904,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           event.target?.seekTo?.(0, true);
           event.target?.playVideo?.();
           setIsPlaying(true);
+          onPlayingChange?.(true);
         } catch {
           // ignore
         }
       } else {
         setIsPlaying(false);
+        onPlayingChange?.(false);
         const vId = currentVideo.videoId;
         if (!completedVideoIdsRef.current.has(vId)) {
           completedVideoIdsRef.current.add(vId);
