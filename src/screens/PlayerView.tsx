@@ -24,7 +24,7 @@ import { PlayerSeekBar } from '../components/PlayerSeekBar';
 import { PlayerSettingsSheet } from '../components/PlayerSettingsSheet';
 import PinLockModal from '../components/PinLockModal';
 import channelsSeed from '../../channels_seed.json';
-import { recordChildReaction, logTasteEvent } from '../tasteShiftStorage';
+import { recordChildReaction, logTasteEvent, applyLoggedTasteEvent } from '../tasteShiftStorage';
 import db from '../db';
 
 export interface QueuedVideo {
@@ -236,6 +236,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         void (async () => {
           const catId = await getCategoryForVideo(vId, chId || propChannelId);
           await logTasteEvent(catId, 'skipped_early', vId, { watchMs: Math.round(cur * 1000) });
+          await applyLoggedTasteEvent(catId, 'skipped_early');
         })();
       }
     },
@@ -424,6 +425,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               void (async () => {
                 const catId = await getCategoryForVideo(vId, currentVideo.channelId || propChannelId);
                 await logTasteEvent(catId, 'completed', vId, { watchMs: Math.round(cur * 1000) });
+                await applyLoggedTasteEvent(catId, 'completed');
               })();
             }
           }
@@ -565,7 +567,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         void recordChildReaction({
           categoryId: realCat,
           videoId: currentVideo.videoId,
-          channelId: currentVideo.channelTitle,
+          channelId: currentVideo.channelId || propChannelId,
           title: currentVideo.title,
           reaction: 'liked',
         });
@@ -917,6 +919,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           void (async () => {
             const catId = await getCategoryForVideo(vId, currentVideo.channelId || propChannelId);
             await logTasteEvent(catId, 'completed', vId, { watchMs: Math.round(currentTime * 1000) });
+            await applyLoggedTasteEvent(catId, 'completed');
           })();
         }
         try {

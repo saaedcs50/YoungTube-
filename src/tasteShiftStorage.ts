@@ -19,6 +19,30 @@ export async function logTasteEvent(
 }
 
 /**
+ * Apply a logged taste event (completed / skipped_early) to update settings.tasteShift.perCategory.
+ */
+export async function applyLoggedTasteEvent(
+  categoryId: string,
+  type: TasteShiftEventType
+): Promise<void> {
+  if (type !== 'completed' && type !== 'skipped_early') return;
+  if (!categoryId || categoryId === 'general') return;
+
+  const settings = await db.settings.get('main');
+  const prev = settings?.tasteShift;
+  if (!prev || prev.enabled !== true) return;
+
+  const perCategory = applyReactionEvent(prev as TasteShiftConfig, categoryId, type);
+
+  await db.settings.update('main', {
+    tasteShift: {
+      ...prev,
+      perCategory,
+    },
+  });
+}
+
+/**
  * Record liked/disliked/completed/skipped and update perCategory + interactions.
  * Returns the new effectiveShare for the category (for UI feedback).
  */
