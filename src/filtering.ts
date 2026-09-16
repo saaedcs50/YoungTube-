@@ -118,13 +118,15 @@ let isProcessingPortraitQueue = false;
 /**
  * Background queue to detect portrait/vertical videos without blocking initial feed load or archive sync.
  * Concurrency is capped at 4.
- * Updates FeedItem in Dexie with `isPortrait: boolean`. If portrait, marks `hidden: true` or `isPortrait: true`.
+ * Updates FeedItem in Dexie with `isPortrait: boolean` metadata.
  */
 export async function processBackgroundPortraitQueue(): Promise<void> {
   if (isProcessingPortraitQueue) return;
   if (typeof window === 'undefined') return;
 
   isProcessingPortraitQueue = true;
+  let hasPendingNextBatch = false;
+
   try {
     // Find uninspected items in feedCache (isPortrait is undefined and not hidden)
     const uninspected = await db.feedCache
@@ -133,7 +135,6 @@ export async function processBackgroundPortraitQueue(): Promise<void> {
       .toArray();
 
     if (uninspected.length === 0) {
-      isProcessingPortraitQueue = false;
       return;
     }
 
@@ -146,10 +147,7 @@ export async function processBackgroundPortraitQueue(): Promise<void> {
         if (!item) break;
         try {
           const isPortrait = await checkIsPortraitVideo(item.videoId);
-          await db.feedCache.update(item.videoId, {
-            isPortrait,
-            ...(isPortrait ? { hidden: true } : {}),
-          });
+          await db.feedCache.update(item.videoId, { isPortrait });
         } catch {
           await db.feedCache.update(item.videoId, { isPortrait: false });
         }
@@ -168,6 +166,7 @@ export async function processBackgroundPortraitQueue(): Promise<void> {
       .count();
 
     if (remainingCount > 0) {
+      hasPendingNextBatch = true;
       setTimeout(() => {
         isProcessingPortraitQueue = false;
         void processBackgroundPortraitQueue();
@@ -177,7 +176,9 @@ export async function processBackgroundPortraitQueue(): Promise<void> {
   } catch (err) {
     console.warn('Background portrait queue error:', err);
   } finally {
-    isProcessingPortraitQueue = false;
+    if (!hasPendingNextBatch) {
+      isProcessingPortraitQueue = false;
+    }
   }
 }
 
@@ -252,7 +253,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
   const allExisting = await db.feedCache.toArray();
   const hiddenIds = new Set(
     allExisting
-      .filter((item) => item.hidden === true || item.isPortrait === true)
+      .filter((item) => item.hidden === true)
       .map((item) => item.videoId)
   );
 
@@ -364,7 +365,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
 
     if (shouldPrune) {
       for (const item of existingForChannel) {
-        if (item.hidden === true || item.isPortrait === true) continue;
+        if (item.hidden === true) continue;
         if (!keptIds.has(item.videoId)) {
           allStaleIdsToDelete.push(item.videoId);
         }

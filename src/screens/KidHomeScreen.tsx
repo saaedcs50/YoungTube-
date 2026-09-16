@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import db, { FeedItem, Channel } from '../db';
 import channelsSeed from '../../channels_seed.json';
 import { useAllCategories } from '../hooks/useAllCategories';
@@ -211,7 +211,7 @@ async function loadBoundedFeed(
     const rows = await db.feedCache.where('channelId').anyOf(chunk).toArray();
     const byChannel = new Map<string, FeedItem[]>();
     for (const row of rows) {
-      if (row.hidden === true || row.isPortrait === true) continue;
+      if (row.hidden === true) continue;
       if (hideMusicVideos && row.hasMusic === true) continue;
       const list = byChannel.get(row.channelId);
       if (list) list.push(row);
@@ -604,11 +604,15 @@ export default function KidHomeScreen({
     };
   }, [feedVideoIdsSignature, loading, handleViewCountsUpdated]);
 
-  // Non-blocking background portrait video check (idle after first paint)
+  const hasScheduledPortraitCheckRef = useRef(false);
+
+  // Non-blocking background portrait video check (idle after first paint, at most once per mount)
   useEffect(() => {
-    if (loading) return;
-    scheduleBackgroundPortraitCheck();
-  }, [loading]);
+    if (!hasScheduledPortraitCheckRef.current) {
+      hasScheduledPortraitCheckRef.current = true;
+      scheduleBackgroundPortraitCheck();
+    }
+  }, []);
 
   const suppressedSet = useMemo(() => new Set(suppressedVideoIds), [suppressedVideoIds]);
 
