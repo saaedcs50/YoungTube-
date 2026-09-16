@@ -93,47 +93,57 @@ export const PlayerSeekBar: React.FC<PlayerSeekBarProps> = ({
   const progressPercent = progressRatio * 100;
   const displayCurrentTime = isDragging ? dragProgress * (duration || 0) : currentTime;
 
+  const remainingSeconds = Math.max(0, (duration || 0) - displayCurrentTime);
+
   return (
     <div
       id={id}
-      dir="ltr"
-      className={`flex items-center gap-3 w-full select-none ${className}`}
+      className={`flex flex-col gap-1.5 w-full select-none ${className}`}
     >
-      {/* Expanded touch-hit-area: ~48px tall (h-12) */}
+      {/* LTR Seek Bar */}
       <div
         ref={trackRef}
+        dir="ltr"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
-        className="flex-1 h-12 flex items-center cursor-pointer touch-none relative group"
+        className="w-full h-8 flex items-center cursor-pointer touch-none relative group"
         aria-label="شريط التقدم"
         role="slider"
         aria-valuemin={0}
         aria-valuemax={duration || 100}
         aria-valuenow={Math.round(displayCurrentTime)}
       >
-        {/* Thin visible track: ~3px */}
-        <div className="w-full h-[3px] bg-white/20 rounded-full relative overflow-visible">
-          {/* Progress fill */}
+        {/* Track */}
+        <div className="w-full h-2 bg-white/15 rounded-full relative overflow-visible">
+          {/* Filled Progress (Amber with warm glow) */}
           <div
-            className="h-full bg-red-600 rounded-full"
+            className="h-full bg-amber-500 rounded-full shadow-[0_0_12px_rgba(255,159,28,0.7)]"
             style={{ width: `${progressPercent}%` }}
           />
-          {/* Scrubber knob */}
+          {/* Interactive Scrubber Pin */}
           <div
-            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-red-600 ring-2 ring-white shadow-md pointer-events-none transition-transform duration-75 ${
-              isDragging ? 'w-4 h-4 scale-110' : 'w-3 h-3 group-hover:scale-125'
+            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-white border-2 border-amber-500 shadow-md pointer-events-none transition-transform duration-75 ${
+              isDragging ? 'w-4 h-4 scale-125' : 'w-3.5 h-3.5 group-hover:scale-125'
             }`}
             style={{ left: `${progressPercent}%` }}
           />
         </div>
       </div>
 
-      {/* Tabular-nums time display: current / total */}
-      <span className="text-xs font-mono tabular-nums text-stone-300 whitespace-nowrap shrink-0 select-none">
-        {formatTime(displayCurrentTime)} / {formatTime(duration)}
-      </span>
+      {/* Timestamps & Remaining Time Badge */}
+      <div className="w-full flex items-center justify-between text-xs font-semibold text-stone-300 px-0.5">
+        <div dir="ltr" className="flex items-center gap-1 font-mono tracking-wider">
+          <span className="text-amber-400 font-bold">{formatTime(displayCurrentTime)}</span>
+          <span className="text-white/30">/</span>
+          <span className="text-white/60">{formatTime(duration)}</span>
+        </div>
+
+        <span className="text-emerald-300 text-[11px] font-bold bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+          متبقي {formatTime(remainingSeconds)} دقيقة
+        </span>
+      </div>
     </div>
   );
 };

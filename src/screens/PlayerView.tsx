@@ -132,6 +132,29 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   const isMinimizedRef = useRef(isMinimized);
   isMinimizedRef.current = isMinimized;
 
+  // Primary Player State (declared early to prevent TDZ errors in callbacks & hooks)
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isLooping, setIsLooping] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  // Video Queue & Current Video State
+  const [currentVideo, setCurrentVideo] = useState<QueuedVideo>({
+    videoId,
+    title: videoTitle || 'فيديو أطفال ممتع',
+    channelTitle: channelTitle || 'قناة أطفال موثوقة',
+    channelId: propChannelId,
+  });
+
+  useEffect(() => {
+    setCurrentVideo({
+      videoId,
+      title: videoTitle || 'فيديو أطفال ممتع',
+      channelTitle: channelTitle || 'قناة أطفال موثوقة',
+      channelId: propChannelId,
+    });
+  }, [videoId, videoTitle, channelTitle, propChannelId]);
+
   // Expanding from minimized back to portrait
   const performExpandFromMinimized = useCallback(() => {
     setIsMinimizedLocal(false);
@@ -283,26 +306,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     }
   }, [isFullscreen]);
 
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [isLooping, setIsLooping] = useState(false);
-
-  // Video Queue & Current Video State
-  const [currentVideo, setCurrentVideo] = useState<QueuedVideo>({
-    videoId,
-    title: videoTitle || 'فيديو أطفال ممتع',
-    channelTitle: channelTitle || 'قناة أطفال موثوقة',
-    channelId: propChannelId,
-  });
-
-  useEffect(() => {
-    setCurrentVideo({
-      videoId,
-      title: videoTitle || 'فيديو أطفال ممتع',
-      channelTitle: channelTitle || 'قناة أطفال موثوقة',
-      channelId: propChannelId,
-    });
-  }, [videoId, videoTitle, channelTitle, propChannelId]);
-
   const [playlist, setPlaylist] = useState<QueuedVideo[]>(() => {
     const list = [...DEFAULT_PLAYLIST];
     if (!list.some((v) => v.videoId === videoId)) {
@@ -395,8 +398,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [videoId, videoTitle, channelTitle, propChannelId]);
 
   // Current Time & Duration tracking (optimizing re-renders: setState at most once per second or on seek/change)
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const lastSecondRef = useRef(-1);
 
   useEffect(() => {
@@ -1316,13 +1317,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       >
         {/* Top Quarter (25% of top half): Meta & Parent Actions (Portrait only) */}
         {!isFullscreen && !isMinimized && (
-          <div className="h-[25%] px-3 py-2 bg-stone-900 flex items-center justify-between border-b border-stone-800/80 gap-2 shrink-0">
+          <div className="h-[25%] px-3.5 pt-3 bg-stone-900 flex items-center justify-between border-b border-stone-800/80 gap-2 shrink-0">
             {/* Back/Close button (top-left / start in RTL) */}
             <button
               type="button"
               id="player-close-btn"
               onClick={handleClose}
-              className="w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 flex items-center justify-center text-stone-300 transition shrink-0 cursor-pointer"
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white transition shrink-0 cursor-pointer active:scale-95"
               aria-label="إغلاق المشغل"
             >
               <ArrowRight className="w-5 h-5" />
@@ -1338,80 +1339,38 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               </p>
             </div>
 
-            {/* Parent Action Buttons */}
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Parent Action Pill Container */}
+            <div className="flex items-center gap-1 shrink-0 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">
+              <span className="text-amber-400 text-xs shrink-0">🔒</span>
               <button
                 type="button"
                 id="player-parent-hide-btn"
                 onClick={handleHideVideo}
                 disabled={hideConfirmed}
-                className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 border transition cursor-pointer ${
-                  hideConfirmed
-                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/60 shadow-sm'
-                    : 'bg-stone-800 hover:bg-stone-700 text-rose-300 border-stone-700/50'
-                }`}
+                className="hover:text-amber-300 active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer"
                 title="إخفاء الفيديو من القائمة"
               >
-                {hideConfirmed ? (
-                  <span>تم الإخفاء ✅</span>
-                ) : (
-                  <>
-                    <EyeOff className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">إخفاء الفيديو</span>
-                  </>
-                )}
+                {hideConfirmed ? 'تم الإخفاء ✅' : 'إخفاء'}
               </button>
+              <span className="text-white/20 text-xs">·</span>
               <button
                 type="button"
                 id="player-parent-disable-btn"
                 onClick={handleBlockChannelClick}
-                className="px-2 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs text-amber-300 font-medium flex items-center gap-1 border border-stone-700/50 transition cursor-pointer"
+                className="hover:text-rose-300 active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer"
                 title="تعطيل القناة (يتطلب رمز الدخول)"
               >
-                <Ban className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">تعطيل القناة</span>
+                تعطيل القناة
               </button>
+              <span className="text-white/20 text-xs">·</span>
               <button
                 type="button"
                 id="player-parent-save-btn"
                 onClick={handleToggleSave}
-                className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 border transition cursor-pointer ${
-                  isSavedByParent
-                    ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/50 ring-1 ring-indigo-400/30'
-                    : 'bg-stone-800 hover:bg-stone-700 text-indigo-300 border-stone-700/50'
-                }`}
+                className="hover:text-emerald-300 active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer"
                 title={isSavedByParent ? 'إلغاء الحفظ' : 'حفظ في المفضلة للأهل'}
-                aria-label={isSavedByParent ? 'إلغاء الحفظ' : 'حفظ في المفضلة للأهل'}
               >
-                <Bookmark
-                  className={`w-3.5 h-3.5 ${
-                    isSavedByParent ? 'fill-indigo-400 text-indigo-400' : 'text-indigo-300'
-                  }`}
-                />
-                <span>{isSavedByParent ? 'محفوظ' : 'حفظ'}</span>
-              </button>
-              <button
-                type="button"
-                id="player-test-forcestop-btn"
-                onClick={() => {
-                  const nextState = !testForceStop;
-                  setTestForceStop(nextState);
-                  if (nextState && playerRef.current) {
-                    try {
-                      playerRef.current.stopVideo?.();
-                    } catch (e) {
-                      console.warn(e);
-                    }
-                  }
-                }}
-                className={`px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 border transition cursor-pointer shrink-0 ${
-                  effectiveForceStop
-                    ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-500 shadow-md'
-                    : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50'
-                }`}
-                title="اختبار إيقاف الفيديو الفوري عبر خاصية forceStop"
-              >
-                <span>{effectiveForceStop ? '⛔ forceStop' : '⚡ forceStop'}</span>
+                {isSavedByParent ? 'محفوظ' : 'حفظ'}
               </button>
             </div>
           </div>
@@ -1470,6 +1429,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             }}
           />
 
+          {/* Soft top & bottom cinematic ambient gradient overlays on video */}
+          <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/50 to-transparent pointer-events-none z-10" />
+          <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent pointer-events-none z-10" />
+
           {/* Landscape Shell Overlay when in Fullscreen */}
           {isFullscreen ? (
             <LandscapeShell
@@ -1521,18 +1484,18 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 aria-label="منطقة إيماءات مشغل الفيديو"
               />
 
-              {/* Portrait Fullscreen Button: visibility toggled by showPortraitControls */}
+              {/* Portrait Fullscreen Button: Backdrop-blur circular button */}
               <button
                 type="button"
                 id="player-fullscreen-btn"
-                className={`absolute top-3 right-3 z-20 p-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-stone-200 border border-stone-800 transition-opacity duration-200 cursor-pointer ${
+                className={`absolute top-3 left-3 z-20 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-black/80 active:scale-90 transition-all shadow-md cursor-pointer ${
                   showPortraitControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
-                aria-label="ملء الشاشة"
+                aria-label="تكبير الشاشة بالكامل"
                 onClick={handleEnterFullscreen}
                 title="عرض بملء الشاشة"
               >
-                <Maximize2 className="w-5 h-5" />
+                <Maximize2 className="w-5 h-5 text-white" />
               </button>
             </>
           )}
@@ -1628,37 +1591,37 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               dir="ltr"
               className="flex items-center justify-center gap-6 sm:gap-8"
             >
-              {/* Previous (small icon button) */}
+              {/* Previous Button (Secondary small rounded icon) */}
               <button
                 type="button"
                 id="player-control-prev"
-                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/90 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition active:scale-95 cursor-pointer shadow-sm"
+                className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/15 text-white flex items-center justify-center active:scale-90 transition-all border border-white/5 cursor-pointer shadow-sm"
                 aria-label="السابق"
                 onClick={handlePrev}
               >
                 <SkipBack className="w-6 h-6" />
               </button>
 
-              {/* Play/Pause (64px dominant circular button) */}
+              {/* Play/Pause Button: 64px Dominant Amber/Golden Control */}
               <button
                 type="button"
                 id="player-control-play-pause"
-                className="w-[64px] h-[64px] min-w-[64px] min-h-[64px] rounded-full bg-white hover:bg-stone-100 text-stone-950 flex items-center justify-center shadow-xl transition active:scale-95 cursor-pointer ring-4 ring-white/10 shrink-0"
+                className="w-16 h-16 rounded-full bg-gradient-to-b from-amber-400 to-amber-600 text-stone-950 flex items-center justify-center shadow-[0_8px_24px_rgba(255,159,28,0.45)] border-b-[3px] border-amber-700 active:scale-95 active:translate-y-0.5 transition-transform shrink-0 cursor-pointer"
                 aria-label={isPlaying ? 'إيقاف مؤقت' : 'تشغيل'}
                 onClick={handleTogglePlay}
               >
                 {isPlaying ? (
-                  <Pause className="w-7 h-7 fill-current" />
+                  <Pause className="w-8 h-8 fill-stone-950 text-stone-950" />
                 ) : (
-                  <Play className="w-7 h-7 fill-current ml-0.5" />
+                  <Play className="w-8 h-8 fill-stone-950 text-stone-950 ml-0.5" />
                 )}
               </button>
 
-              {/* Next (small icon button) */}
+              {/* Next Button (Secondary small rounded icon) */}
               <button
                 type="button"
                 id="player-control-next"
-                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-stone-900/90 hover:bg-stone-800 flex items-center justify-center text-stone-300 hover:text-white transition active:scale-95 cursor-pointer shadow-sm"
+                className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/15 text-white flex items-center justify-center active:scale-90 transition-all border border-white/5 cursor-pointer shadow-sm"
                 aria-label="التالي"
                 onClick={handleNext}
               >
@@ -1666,65 +1629,82 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               </button>
             </div>
 
-            {/* 3) Secondary group (lower opacity): settings · loop · love (No volume, no second fullscreen) */}
-            <div className="flex items-center justify-center gap-6 sm:gap-8 text-stone-400 opacity-70">
-              {/* Settings */}
-              <button
-                type="button"
-                id="player-control-settings"
-                className={`w-10 h-10 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
-                  isSettingsOpen
-                    ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 ring-2 ring-amber-400/20 opacity-100'
-                    : 'bg-stone-900/60 hover:bg-stone-800/80 hover:text-stone-200 text-stone-400'
-                }`}
-                aria-label="الإعدادات (السرعة، الجودة، الترجمة)"
-                title="الإعدادات (السرعة، الجودة، الترجمة)"
-                onClick={handleOpenSettings}
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-
+            {/* 3) Secondary group (lower opacity): settings · loop · love with text labels */}
+            <div className="flex items-center justify-around px-4 border-t border-white/5 pt-2 w-full max-w-xs mx-auto">
               {/* Loop Toggle */}
               <button
                 type="button"
                 id="player-control-loop"
-                className={`w-10 h-10 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
-                  isLooping
-                    ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50 ring-2 ring-amber-400/20 opacity-100'
-                    : 'bg-stone-900/60 hover:bg-stone-800/80 hover:text-stone-200 text-stone-400'
-                }`}
-                aria-label="تكرار التشغيل"
-                title={isLooping ? 'تكرار التشغيل (مفعّل)' : 'تكرار التشغيل'}
                 onClick={handleToggleLoop}
+                className="flex flex-col items-center gap-1 text-white/70 hover:text-white active:scale-95 transition-all cursor-pointer"
               >
-                <Repeat className="w-5 h-5" />
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    isLooping
+                      ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-white/80'
+                  }`}
+                >
+                  <Repeat className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-semibold text-white/60">تكرار</span>
               </button>
 
-              {/* Love (Heart) */}
+              {/* Settings */}
+              <button
+                type="button"
+                id="player-control-settings"
+                onClick={handleOpenSettings}
+                className="flex flex-col items-center gap-1 text-white/70 hover:text-white active:scale-95 transition-all cursor-pointer"
+              >
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    isSettingsOpen
+                      ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-white/80'
+                  }`}
+                >
+                  <Settings className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-semibold text-white/60">الإعدادات</span>
+              </button>
+
+              {/* Love / Favorite */}
               <button
                 type="button"
                 id="player-control-love"
-                className={`w-10 h-10 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition cursor-pointer ${
-                  isLoved
-                    ? 'bg-rose-500/25 text-rose-400 border border-rose-500/50 ring-2 ring-rose-500/30 opacity-100'
-                    : 'bg-stone-900/60 hover:bg-rose-950/40 hover:text-rose-400 text-stone-400'
-                }`}
-                aria-label={isLoved ? 'إلغاء الإعجاب' : 'إعجاب / مفضلة'}
-                title={isLoved ? 'إلغاء الإعجاب' : 'إعجاب / مفضلة'}
                 onClick={handleToggleLove}
+                className="flex flex-col items-center gap-1 text-white/70 hover:text-white active:scale-95 transition-all cursor-pointer"
               >
-                <Heart
-                  className={`w-5 h-5 ${
-                    isLoved ? 'fill-rose-500 text-rose-500' : 'text-stone-400'
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    isLoved
+                      ? 'bg-rose-500/25 text-rose-400 border border-rose-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-white/80'
                   }`}
-                />
+                >
+                  <Heart
+                    className={`w-5 h-5 ${
+                      isLoved ? 'fill-rose-500 text-rose-500' : 'text-white/80'
+                    }`}
+                  />
+                </div>
+                <span className="text-[11px] font-semibold text-white/60">المفضلة</span>
               </button>
             </div>
           </div>
 
-          {/* 4) Label "التالي" + existing UpNextStrip */}
+          {/* 4) Label "التالي في قائمة الأمان" + existing UpNextStrip */}
           <div className="space-y-2 pt-1">
-            <div className="text-xs font-bold text-stone-300">التالي</div>
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                <span className="text-xs font-bold text-white">التالي في قائمة الأمان</span>
+              </div>
+              <span className="text-[10px] text-white/40">
+                {Math.max(0, playlist.length - 1)} مقاطع معتمدة
+              </span>
+            </div>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none overscroll-x-contain touch-pan-x">
               {playlist
                 .filter((item) => item.videoId !== currentVideo.videoId)

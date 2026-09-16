@@ -245,34 +245,41 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
     <div
       id="player-settings-backdrop"
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 select-none animate-in fade-in"
+      className="fixed inset-x-0 bottom-0 h-1/2 z-40 flex flex-col justify-end bg-stone-950/70 backdrop-blur-[2px] transition-opacity duration-200 select-none animate-in fade-in"
       aria-label="خلفية إعدادات التشغيل"
     >
-      {/* Slide-Up Bottom Sheet Panel (covers lower half of screen, rounded-t-3xl) */}
+      {/* Slide-Up Bottom Sheet Panel (covers lower half of screen) */}
       <div
         id="player-settings-sheet"
         dir="rtl"
-        className="w-full max-h-[70vh] sm:max-h-[65vh] bg-stone-900/95 border-t border-stone-800 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden text-stone-100 transition-transform duration-250 ease-out translate-y-0"
+        className="w-full h-full bg-stone-900 border-t border-stone-800 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden text-stone-100 transition-transform duration-250 ease-out animate-in slide-in-from-bottom-full"
       >
         {/* Top Header & Drag handle */}
         <div className="pt-2.5 pb-2 px-5 border-b border-stone-800/80 shrink-0 bg-stone-900/90">
           <div className="w-10 h-1 bg-stone-700 rounded-full mx-auto mb-3" />
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
-              <Sliders className="w-5 h-5 text-amber-400" />
-              <h3 className="text-sm sm:text-base font-bold text-white">
-                إعدادات التشغيل
-              </h3>
+              <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                <Sliders className="w-4 h-4 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-white leading-tight">
+                  خيارات المشغل والتحكم
+                </h3>
+                <p className="text-[11px] text-stone-400 font-medium">
+                  إعدادات العرض الآمن للطفل
+                </p>
+              </div>
             </div>
             <button
               type="button"
               id="player-settings-close-btn"
               onClick={onClose}
-              className="w-10 h-10 min-w-[40px] min-h-[40px] rounded-full bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white flex items-center justify-center transition active:scale-95 cursor-pointer"
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition active:scale-95 cursor-pointer"
               aria-label="إغلاق الإعدادات"
               title="إغلاق"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
