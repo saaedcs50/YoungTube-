@@ -337,16 +337,17 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         const channelIdToQuery = propChannelId;
         let sameChannelItems: QueuedVideo[] = [];
 
-        // 1. Fetch up to 20 videos from the same channel if channelId is available
+        // 1. Fetch videos from the same channel if channelId is available, sorted by fetchedAt desc
         if (channelIdToQuery) {
           try {
             const rawSame = await db.feedCache
               .where('channelId')
               .equals(channelIdToQuery)
-              .limit(20)
               .toArray();
+            (rawSame || []).sort((a, b) => (b.fetchedAt || 0) - (a.fetchedAt || 0));
             sameChannelItems = (rawSame || [])
               .filter((f) => !f.hidden)
+              .slice(0, 20)
               .map((f) => ({
                 videoId: f.videoId,
                 title: f.title,
@@ -358,10 +359,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           }
         }
 
-        // 2. Fetch up to 30 recent items from feedCache using limit(30)
+        // 2. Fetch up to 30 recent items from feedCache using orderBy('fetchedAt').reverse().limit(30)
         let recentFeedItems: QueuedVideo[] = [];
         try {
-          const rawRecent = await db.feedCache.limit(30).toArray();
+          const rawRecent = await db.feedCache.orderBy('fetchedAt').reverse().limit(30).toArray();
           recentFeedItems = (rawRecent || [])
             .filter((f) => !f.hidden)
             .map((f) => ({

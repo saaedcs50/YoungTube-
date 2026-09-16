@@ -633,13 +633,13 @@ export default function App() {
           onClose={() => {
             updatePlayerMinimized(false);
             updatePlayerFullscreen(false);
+            updatePlayerSheetOpen(false);
             setActivePlaybackVideo(null);
             setShowDemoPlayer(false);
-            if (typeof window !== 'undefined') {
-              if (window.history.state?.minimized) {
-                window.history.go(-2);
-              } else if (window.history.state?.ytPlayer) {
-                window.history.back();
+            if (typeof window !== 'undefined' && window.history.state) {
+              const { ytPlayer, fullscreen, minimized, sheetOpen, ...restState } = window.history.state;
+              if (ytPlayer || fullscreen || minimized || sheetOpen) {
+                window.history.replaceState(restState, '');
               }
             }
           }}
