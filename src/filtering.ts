@@ -276,9 +276,8 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     }
   }
 
-  // 3. Load hidden IDs via targeted filter for hidden === true
-  const hiddenRows = await db.feedCache.filter((v) => v.hidden === true).toArray();
-  const hiddenIds = new Set(hiddenRows.map((v) => v.videoId));
+  // 3. Build hiddenIds from existingMap (incoming ID chunks)
+  const hiddenIds = new Set<string>();
   for (const [vid, item] of existingMap) {
     if (item.hidden === true) hiddenIds.add(vid);
   }
@@ -300,6 +299,22 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
 
     const channelId = channel.sourceId || '';
     if (!channelId) continue;
+
+    // Fetch existing rows for this channel first to collect hidden items & for prune check
+    let existingForChannel: FeedItem[] = [];
+    try {
+      existingForChannel = await db.feedCache.where('channelId').equals(channelId).toArray();
+      for (const item of existingForChannel) {
+        if (item.hidden === true) {
+          hiddenIds.add(item.videoId);
+        }
+        if (!existingMap.has(item.videoId)) {
+          existingMap.set(item.videoId, item);
+        }
+      }
+    } catch (e) {
+      console.warn('Channel lookup failed:', e);
+    }
 
     const channelPassedItems: FeedItem[] = [];
 
@@ -348,6 +363,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
         fetchedAt: now,
         publishedAt: video.publishedAt,
         hidden: false,
+        isPortrait: existingItem?.isPortrait,
         viewCount: existingItem?.viewCount,
         viewCountFetchedAt: existingItem?.viewCountFetchedAt,
       };
@@ -363,13 +379,7 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
     const kept = channelPassedItems.slice(0, KEEP_PER_CHANNEL);
     passedFeedItems.push(...kept);
 
-    // Reconcile feedCache for this channel using indexed channelId query
-    let existingForChannel: FeedItem[] = [];
-    try {
-      existingForChannel = await db.feedCache.where('channelId').equals(channelId).toArray();
-    } catch (e) {
-      console.warn('Channel lookup failed during prune check:', e);
-    }
+    // Reconcile feedCache for this channel using existingForChannel
     const incomingCount = channel.videos.length;
     const existingCount = existingForChannel.length;
     const keptIds = new Set(kept.map((item) => item.videoId));
@@ -418,6 +428,37 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
       noMusicCount,
     },
   };
+}
+
+let hasRunPortraitMigration = false;
+
+/**
+ * One-shot migration to unhide videos previously marked hidden by old portrait queue logic.
+ * Only unhides items where isPortrait === true AND hidden === true.
+ */
+export async function migrateUnhidePortraitVideos(): Promise<void> {
+  if (hasRunPortraitMigration) return;
+  if (typeof window !== 'undefined' && localStorage.getItem('yt_unhide_portrait_v1') === 'true') {
+    hasRunPortraitMigration = true;
+    return;
+  }
+  hasRunPortraitMigration = true;
+
+  try {
+    const rows = await db.feedCache
+      .filter((v) => v.isPortrait === true && v.hidden === true)
+      .toArray();
+
+    if (rows.length > 0) {
+      const updates = rows.map((r) => db.feedCache.update(r.videoId, { hidden: false }));
+      await Promise.all(updates);
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('yt_unhide_portrait_v1', 'true');
+    }
+  } catch (err) {
+    console.warn('Failed portrait unhide migration:', err);
+  }
 }
 
 /**

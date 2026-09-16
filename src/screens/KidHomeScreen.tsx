@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import db, { FeedItem, Channel } from '../db';
 import channelsSeed from '../../channels_seed.json';
 import { useAllCategories } from '../hooks/useAllCategories';
-import { ensureChannelsArchiveSynced, scheduleBackgroundPortraitCheck } from '../filtering';
+import { ensureChannelsArchiveSynced, scheduleBackgroundPortraitCheck, migrateUnhidePortraitVideos } from '../filtering';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
 import { TasteReactionBar } from '../components/TasteReactionBar';
 import { VideoCard } from '../components/VideoCard';
@@ -355,6 +355,8 @@ export default function KidHomeScreen({
   const loadVideos = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
+      await migrateUnhidePortraitVideos().catch(() => {});
+
       const [storedChannels, settings] = await Promise.all([
         db.channels.toArray(),
         db.settings.get('main'),

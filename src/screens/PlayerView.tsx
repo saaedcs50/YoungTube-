@@ -938,11 +938,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     if (isFullscreen) {
       handleExitFullscreen();
     } else {
-      if (typeof window !== 'undefined' && window.history.state?.ytPlayer) {
-        window.history.back();
-      } else {
-        onClose();
-      }
+      onClose();
     }
   }, [checkAndLogSkippedEarly, currentVideo, currentTime, duration, isFullscreen, handleExitFullscreen, onClose]);
 

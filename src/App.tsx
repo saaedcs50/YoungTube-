@@ -144,14 +144,18 @@ export default function App() {
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
 
   // Fix 2: Player fullscreen, mini-player, and settings sheet states tracked in App.tsx
-  const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
   const isPlayerFullscreenRef = useRef(false);
+  const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
 
-  const [isPlayerMinimized, setIsPlayerMinimized] = useState(false);
   const isPlayerMinimizedRef = useRef(false);
+  const [isPlayerMinimized, setIsPlayerMinimized] = useState(false);
 
-  const [isPlayerSheetOpen, setIsPlayerSheetOpen] = useState(false);
   const isPlayerSheetOpenRef = useRef(false);
+  const [isPlayerSheetOpen, setIsPlayerSheetOpen] = useState(false);
+
+  // Depth tracking & closing guard for player history entries
+  const playerHistoryDepthRef = useRef(0);
+  const closingRef = useRef(false);
 
   const updatePlayerFullscreen = useCallback((val: boolean) => {
     setIsPlayerFullscreen(val);
@@ -173,6 +177,7 @@ export default function App() {
     updatePlayerSheetOpen(false);
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
+      playerHistoryDepthRef.current += 1;
     }
     setShowDemoPlayer(true);
   }, [updatePlayerMinimized, updatePlayerSheetOpen]);
@@ -182,6 +187,7 @@ export default function App() {
     updatePlayerSheetOpen(false);
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
+      playerHistoryDepthRef.current += 1;
     }
     setActivePlaybackVideo({ videoId, title, channelName, channelId });
   }, [updatePlayerMinimized, updatePlayerSheetOpen]);
@@ -189,6 +195,7 @@ export default function App() {
   const handlePlayerEnterFullscreen = useCallback(() => {
     if (typeof window !== 'undefined' && !window.history.state?.fullscreen) {
       window.history.pushState({ ytPlayer: true, fullscreen: true }, '');
+      playerHistoryDepthRef.current += 1;
     }
     updatePlayerFullscreen(true);
   }, [updatePlayerFullscreen]);
@@ -200,6 +207,7 @@ export default function App() {
   const handlePlayerEnterMinimized = useCallback(() => {
     if (typeof window !== 'undefined' && !window.history.state?.minimized) {
       window.history.pushState({ ytPlayer: true, fullscreen: false, minimized: true }, '');
+      playerHistoryDepthRef.current += 1;
     }
     updatePlayerMinimized(true);
   }, [updatePlayerMinimized]);
@@ -211,6 +219,7 @@ export default function App() {
   const handlePlayerOpenSheet = useCallback(() => {
     if (typeof window !== 'undefined' && !window.history.state?.sheetOpen) {
       window.history.pushState({ ...window.history.state, ytPlayer: true, sheetOpen: true }, '');
+      playerHistoryDepthRef.current += 1;
     }
     updatePlayerSheetOpen(true);
   }, [updatePlayerSheetOpen]);
@@ -218,6 +227,31 @@ export default function App() {
   const handlePlayerCloseSheet = useCallback(() => {
     updatePlayerSheetOpen(false);
   }, [updatePlayerSheetOpen]);
+
+  const handleClosePlayer = useCallback(() => {
+    closingRef.current = true;
+    updatePlayerMinimized(false);
+    updatePlayerFullscreen(false);
+    updatePlayerSheetOpen(false);
+    setActivePlaybackVideo(null);
+    setShowDemoPlayer(false);
+
+    const n = playerHistoryDepthRef.current;
+    playerHistoryDepthRef.current = 0;
+
+    if (n > 0 && typeof window !== 'undefined') {
+      window.history.go(-n);
+    } else if (typeof window !== 'undefined' && window.history.state) {
+      const { ytPlayer, fullscreen, minimized, sheetOpen, ...restState } = window.history.state;
+      if (ytPlayer || fullscreen || minimized || sheetOpen) {
+        window.history.replaceState(restState, '');
+      }
+    }
+
+    setTimeout(() => {
+      closingRef.current = false;
+    }, 100);
+  }, [updatePlayerMinimized, updatePlayerFullscreen, updatePlayerSheetOpen]);
 
   // Fix 2: Ensure Level 1 history entry exists when PlayerView opens
   useEffect(() => {
@@ -227,6 +261,7 @@ export default function App() {
       !window.history.state?.ytPlayer
     ) {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
+      playerHistoryDepthRef.current += 1;
     }
   }, [activePlaybackVideo, showDemoPlayer]);
 
@@ -235,6 +270,16 @@ export default function App() {
   // Layer 5 (sheet open) -> Layer 4 (minimized) -> Layer 3 (fullscreen) -> Layer 2 (player open) -> Layer 1 (closed)
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
+      if (closingRef.current) {
+        playerHistoryDepthRef.current = Math.max(0, playerHistoryDepthRef.current - 1);
+        if (playerHistoryDepthRef.current === 0) {
+          closingRef.current = false;
+        }
+        return;
+      }
+
+      playerHistoryDepthRef.current = Math.max(0, playerHistoryDepthRef.current - 1);
+
       // 1. Layer 5: Settings bottom sheet open -> close sheet first
       const wasSheetOpen = isPlayerSheetOpenRef.current;
       const isSheetExit = wasSheetOpen && !e.state?.sheetOpen;
@@ -568,12 +613,12 @@ export default function App() {
     }
   };
 
-  // Phase 8: Session end determination (limit reached or outside schedule window)
-  const isSessionEnded = sessionTimer.isLimitReached || !sessionTimer.isWithinScheduleWindow;
+  // Phase 8: Session forceStop condition (limit reached OR outside schedule window OR dev force stop)
+  const forceStop = sessionTimer.isLimitReached || !sessionTimer.isWithinScheduleWindow || devForceStop;
 
-  // Session safety: if session ends while player (or mini-player) is open, ensure it fully closes
+  // Session safety: if forceStop is true while player (or mini-player) is open, ensure it fully closes
   useEffect(() => {
-    if (isSessionEnded) {
+    if (forceStop) {
       if (isPlayerMinimizedRef.current) {
         updatePlayerMinimized(false);
       }
@@ -583,7 +628,7 @@ export default function App() {
       setActivePlaybackVideo(null);
       setShowDemoPlayer(false);
     }
-  }, [isSessionEnded, updatePlayerMinimized, updatePlayerFullscreen]);
+  }, [forceStop, updatePlayerMinimized, updatePlayerFullscreen]);
 
   return (
     <div className="min-h-screen font-sans">
@@ -630,23 +675,11 @@ export default function App() {
           channelId={activePlaybackVideo?.channelId}
           onVideoHidden={handleVideoHidden}
           onChannelBlocked={handleBackfillSuccess}
-          onClose={() => {
-            updatePlayerMinimized(false);
-            updatePlayerFullscreen(false);
-            updatePlayerSheetOpen(false);
-            setActivePlaybackVideo(null);
-            setShowDemoPlayer(false);
-            if (typeof window !== 'undefined' && window.history.state) {
-              const { ytPlayer, fullscreen, minimized, sheetOpen, ...restState } = window.history.state;
-              if (ytPlayer || fullscreen || minimized || sheetOpen) {
-                window.history.replaceState(restState, '');
-              }
-            }
-          }}
+          onClose={handleClosePlayer}
           onEnded={() => {
             console.log('Video finished playing cleanly');
           }}
-          forceStop={isSessionEnded || devForceStop}
+          forceStop={forceStop}
           isFullscreen={isPlayerFullscreen}
           onEnterFullscreen={handlePlayerEnterFullscreen}
           onExitFullscreen={handlePlayerExitFullscreen}
@@ -664,8 +697,8 @@ export default function App() {
           Do not mount hidden ChannelsCountCard/FilteringResultCard here — they put the
           full Worker payload into React state and double-fetch in some modes. */}
 
-      {/* Phase 8: Full-Screen Session Takeover when limit reached or outside schedule window */}
-      {isSessionEnded && viewMode !== 'dashboard' ? (
+      {/* Phase 8: Full-Screen Session Takeover when session limit reached */}
+      {sessionTimer.isLimitReached && viewMode !== 'dashboard' ? (
         <SessionEndScreen
           isLimitReached={sessionTimer.isLimitReached}
           isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
