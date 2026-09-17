@@ -31,6 +31,166 @@ const corsHeaders: Record<string, string> = {
 };
 
 /**
+ * Validates admin requests using Authorization: Bearer ADMIN_KEY (or legacy X-Admin-Key).
+ */
+function checkAdminAuth(request: Request, env: Env): boolean {
+  if (!env.ADMIN_KEY) return false;
+  const authHeader =
+    request.headers.get('Authorization') || request.headers.get('authorization') || '';
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token === env.ADMIN_KEY) return true;
+  }
+  const xKey = request.headers.get('X-Admin-Key') || request.headers.get('x-admin-key') || '';
+  if (xKey === env.ADMIN_KEY) return true;
+  return false;
+}
+
+export interface TelemetryDaily {
+  date: string; // YYYY-MM-DD UTC
+
+  // —— أهل ——
+  parentSessionsByCountry: Record<string, number>;
+  parentDurationSecByCountry: Record<string, number>;
+  parentSessionsTotal: number;
+  parentDurationSecTotal: number;
+
+  // —— طفل ——
+  childSessionsByCountry: Record<string, number>;
+  childDurationSecByCountry: Record<string, number>;
+  childSessionsTotal: number;
+  childDurationSecTotal: number;
+
+  // —— تثبيتات ——
+  uniqueByCountry: Record<string, number>;
+  uniqueInstallsTotal: number;
+
+  updatedAt: number;
+}
+
+function getTodayDateUtc(): string {
+  const now = new Date();
+  const yyyy = now.getUTCFullYear();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(now.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Records telemetry events to KV in daily buckets.
+ * - Country derived from CF-IPCountry (defaults to XX).
+ * - Aggregates parent & child sessions and playing duration separately as integers.
+ * - Tracks unique installIds per country.
+ */
+async function recordTelemetryEvent(
+  env: Env,
+  type: 'parent_start' | 'parent_end' | 'child_end',
+  country: string,
+  installId?: string,
+  durationSec: number = 0
+): Promise<void> {
+  if (!env.CHANNELS_ARCHIVE) return;
+
+  const date = getTodayDateUtc();
+  const dailyKey = `telemetry_daily:${date}`;
+  const uniquesKey = `telemetry_uniques:${date}`;
+
+  let daily: TelemetryDaily = {
+    date,
+    parentSessionsByCountry: {},
+    parentDurationSecByCountry: {},
+    parentSessionsTotal: 0,
+    parentDurationSecTotal: 0,
+    childSessionsByCountry: {},
+    childDurationSecByCountry: {},
+    childSessionsTotal: 0,
+    childDurationSecTotal: 0,
+    uniqueByCountry: {},
+    uniqueInstallsTotal: 0,
+    updatedAt: Date.now(),
+  };
+
+  try {
+    const rawDaily = await env.CHANNELS_ARCHIVE.get(dailyKey);
+    if (rawDaily) {
+      daily = { ...daily, ...JSON.parse(rawDaily) };
+    }
+  } catch {}
+
+  let uniques: Record<string, string[]> = {};
+  try {
+    const rawUniques = await env.CHANNELS_ARCHIVE.get(uniquesKey);
+    if (rawUniques) {
+      uniques = JSON.parse(rawUniques);
+    }
+  } catch {}
+
+  const cc = (country && country.trim().toUpperCase()) || 'XX';
+
+  if (installId && typeof installId === 'string' && installId.trim()) {
+    const cleanId = installId.trim();
+    if (!uniques[cc]) uniques[cc] = [];
+    if (!uniques[cc].includes(cleanId)) {
+      uniques[cc].push(cleanId);
+    }
+
+    const allUniqueIds = new Set<string>();
+    daily.uniqueByCountry = {};
+    for (const [c, ids] of Object.entries(uniques)) {
+      daily.uniqueByCountry[c] = ids.length;
+      for (const id of ids) allUniqueIds.add(id);
+    }
+    daily.uniqueInstallsTotal = allUniqueIds.size;
+  }
+
+  daily.parentSessionsByCountry = daily.parentSessionsByCountry || {};
+  daily.parentDurationSecByCountry = daily.parentDurationSecByCountry || {};
+  daily.childSessionsByCountry = daily.childSessionsByCountry || {};
+  daily.childDurationSecByCountry = daily.childDurationSecByCountry || {};
+
+  const cleanDuration = Math.max(0, Math.floor(Number(durationSec) || 0));
+
+  if (type === 'parent_end') {
+    const cappedDuration = Math.min(cleanDuration, 7200); // 2 hours cap
+    daily.parentSessionsByCountry[cc] = (daily.parentSessionsByCountry[cc] || 0) + 1;
+    daily.parentDurationSecByCountry[cc] =
+      (daily.parentDurationSecByCountry[cc] || 0) + cappedDuration;
+    daily.parentSessionsTotal = (daily.parentSessionsTotal || 0) + 1;
+    daily.parentDurationSecTotal = (daily.parentDurationSecTotal || 0) + cappedDuration;
+  } else if (type === 'child_end') {
+    const cappedDuration = Math.min(cleanDuration, 14400); // 4 hours cap
+    daily.childSessionsByCountry[cc] = (daily.childSessionsByCountry[cc] || 0) + 1;
+    daily.childDurationSecByCountry[cc] =
+      (daily.childDurationSecByCountry[cc] || 0) + cappedDuration;
+    daily.childSessionsTotal = (daily.childSessionsTotal || 0) + 1;
+    daily.childDurationSecTotal = (daily.childDurationSecTotal || 0) + cappedDuration;
+  }
+
+  daily.updatedAt = Date.now();
+
+  await Promise.all([
+    env.CHANNELS_ARCHIVE.put(dailyKey, JSON.stringify(daily)),
+    env.CHANNELS_ARCHIVE.put(uniquesKey, JSON.stringify(uniques)),
+  ]);
+
+  try {
+    const rawIndex = await env.CHANNELS_ARCHIVE.get('telemetry_index');
+    let indexDates: string[] = [];
+    if (rawIndex) {
+      indexDates = JSON.parse(rawIndex);
+    }
+    if (!indexDates.includes(date)) {
+      indexDates.unshift(date);
+      const uniqueSorted = Array.from(new Set(indexDates))
+        .sort()
+        .reverse()
+        .slice(0, 30);
+      await env.CHANNELS_ARCHIVE.put('telemetry_index', JSON.stringify(uniqueSorted));
+    }
+  } catch {}
+}
+
+/**
  * Parses YouTube XML RSS feed into an array of VideoItem objects.
  */
 function parseYouTubeRss(xml: string): VideoItem[] {
@@ -346,14 +506,11 @@ export default {
       }
     }
 
-    // 3. POST /api/admin/backfill-channel (Protected with X-Admin-Key)
+    // 3. POST /api/admin/backfill-channel (Protected with Bearer ADMIN_KEY or X-Admin-Key)
     if (url.pathname === '/api/admin/backfill-channel' && request.method === 'POST') {
-      const adminKeyHeader =
-        request.headers.get('X-Admin-Key') || request.headers.get('x-admin-key') || '';
-
-      if (!env.ADMIN_KEY || adminKeyHeader !== env.ADMIN_KEY) {
+      if (!checkAdminAuth(request, env)) {
         return new Response(
-          JSON.stringify({ error: 'Unauthorized: Invalid or missing X-Admin-Key' }),
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
           { status: 401, headers: corsHeaders }
         );
       }
@@ -553,14 +710,12 @@ export default {
       url.pathname === '/api/admin/trigger-refresh' &&
       (request.method === 'POST' || request.method === 'GET')
     ) {
-      const adminKeyHeader =
-        request.headers.get('X-Admin-Key') ||
-        request.headers.get('x-admin-key') ||
-        url.searchParams.get('key') ||
-        '';
-      if (env.ADMIN_KEY && adminKeyHeader !== env.ADMIN_KEY) {
+      const queryKey = url.searchParams.get('key');
+      const isAuthorized = checkAdminAuth(request, env) || (Boolean(env.ADMIN_KEY) && queryKey === env.ADMIN_KEY);
+
+      if (!isAuthorized) {
         return new Response(
-          JSON.stringify({ error: 'Unauthorized: Invalid or missing X-Admin-Key' }),
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
           { status: 401, headers: corsHeaders }
         );
       }
@@ -651,6 +806,524 @@ export default {
           { status: 502, headers: corsHeaders }
         );
       }
+    }
+
+    // 7. GET /api/global-blocks (Public - global blocked channels & playlists)
+    if (url.pathname === '/api/global-blocks' && request.method === 'GET') {
+      let blocks: { channelIds: string[]; playlistIds: string[]; updatedAt: number } = {
+        channelIds: [],
+        playlistIds: [],
+        updatedAt: 0,
+      };
+      if (env.CHANNELS_ARCHIVE) {
+        try {
+          const raw = await env.CHANNELS_ARCHIVE.get('global_blocks');
+          if (raw) {
+            blocks = { ...blocks, ...JSON.parse(raw) };
+          }
+        } catch {}
+      }
+      return new Response(JSON.stringify(blocks), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Cache-Control': 'public, max-age=60',
+        },
+      });
+    }
+
+    // 8. GET /api/announcements (Public - active announcements)
+    if (url.pathname === '/api/announcements' && request.method === 'GET') {
+      let list: any[] = [];
+      if (env.CHANNELS_ARCHIVE) {
+        try {
+          const raw = await env.CHANNELS_ARCHIVE.get('announcements');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              list = parsed;
+            } else if (parsed && Array.isArray(parsed.announcements)) {
+              list = parsed.announcements;
+            }
+          }
+        } catch {}
+      }
+      const activeList = list.filter((a) => a && a.active !== false);
+      return new Response(JSON.stringify(activeList), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Cache-Control': 'public, max-age=60',
+        },
+      });
+    }
+
+    // 9. POST /api/admin/blocks (Protected with Bearer ADMIN_KEY)
+    if (url.pathname === '/api/admin/blocks' && request.method === 'POST') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      let body: any = {};
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON body' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      if (!env.CHANNELS_ARCHIVE) {
+        return new Response(
+          JSON.stringify({ error: 'KV binding CHANNELS_ARCHIVE is not available' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      let blocks: { channelIds: string[]; playlistIds: string[]; updatedAt: number } = {
+        channelIds: [],
+        playlistIds: [],
+        updatedAt: Date.now(),
+      };
+      try {
+        const raw = await env.CHANNELS_ARCHIVE.get('global_blocks');
+        if (raw) {
+          blocks = { ...blocks, ...JSON.parse(raw) };
+        }
+      } catch {}
+
+      const { action, type, id, channelIds, playlistIds } = body;
+
+      if (Array.isArray(channelIds)) {
+        blocks.channelIds = Array.from(
+          new Set(channelIds.map((s: any) => String(s).trim()).filter(Boolean))
+        );
+      }
+      if (Array.isArray(playlistIds)) {
+        blocks.playlistIds = Array.from(
+          new Set(playlistIds.map((s: any) => String(s).trim()).filter(Boolean))
+        );
+      }
+
+      if (action && id) {
+        const cleanId = String(id).trim();
+        const targetList = type === 'playlist' ? 'playlistIds' : 'channelIds';
+        if (action === 'add') {
+          if (!blocks[targetList].includes(cleanId)) {
+            blocks[targetList].push(cleanId);
+          }
+        } else if (action === 'remove' || action === 'delete') {
+          blocks[targetList] = blocks[targetList].filter((x) => x !== cleanId);
+        }
+      }
+
+      blocks.updatedAt = Date.now();
+      await env.CHANNELS_ARCHIVE.put('global_blocks', JSON.stringify(blocks));
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          blocks,
+          message: 'Global blocks updated successfully',
+        }),
+        { status: 200, headers: corsHeaders }
+      );
+    }
+
+    // 10. POST /api/admin/channels (Protected with Bearer ADMIN_KEY)
+    if (url.pathname === '/api/admin/channels' && request.method === 'POST') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      let body: any = {};
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON body' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      if (!env.CHANNELS_ARCHIVE) {
+        return new Response(
+          JSON.stringify({ error: 'KV binding CHANNELS_ARCHIVE is not available' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      let fullMergedList: any[] = [];
+      try {
+        const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+        if (rawMerged) {
+          fullMergedList = JSON.parse(rawMerged);
+        }
+      } catch {}
+
+      if (!Array.isArray(fullMergedList) || fullMergedList.length === 0) {
+        fullMergedList = channelsSeed.map((ch: any) => ({ ...ch, videos: [], videoCount: 0 }));
+      }
+
+      const { action, channel, sourceId, channels } = body;
+
+      if (Array.isArray(channels)) {
+        for (const ch of channels) {
+          if (!ch || !ch.sourceId) continue;
+          const idx = fullMergedList.findIndex((item) => item.sourceId === ch.sourceId);
+          if (idx >= 0) {
+            fullMergedList[idx] = { ...fullMergedList[idx], ...ch };
+          } else {
+            fullMergedList.push({ videos: [], videoCount: 0, ...ch });
+          }
+        }
+      } else if (action === 'delete' || action === 'remove') {
+        const targetId = sourceId || (channel && channel.sourceId);
+        if (targetId) {
+          fullMergedList = fullMergedList.filter((item) => item.sourceId !== targetId);
+        }
+      } else if (channel && channel.sourceId) {
+        const idx = fullMergedList.findIndex((item) => item.sourceId === channel.sourceId);
+        if (idx >= 0) {
+          fullMergedList[idx] = { ...fullMergedList[idx], ...channel };
+        } else {
+          fullMergedList.push({ videos: [], videoCount: 0, ...channel });
+        }
+      }
+
+      await env.CHANNELS_ARCHIVE.put('_channels_latest_merged', JSON.stringify(fullMergedList));
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          count: fullMergedList.length,
+          message: 'Channels list updated successfully',
+        }),
+        { status: 200, headers: corsHeaders }
+      );
+    }
+
+    // 11. POST /api/admin/announcements (Protected with Bearer ADMIN_KEY)
+    if (url.pathname === '/api/admin/announcements' && request.method === 'POST') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      let body: any = {};
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON body' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      if (!env.CHANNELS_ARCHIVE) {
+        return new Response(
+          JSON.stringify({ error: 'KV binding CHANNELS_ARCHIVE is not available' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      let existingList: any[] = [];
+      try {
+        const raw = await env.CHANNELS_ARCHIVE.get('announcements');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) existingList = parsed;
+          else if (parsed && Array.isArray(parsed.announcements)) existingList = parsed.announcements;
+        }
+      } catch {}
+
+      if (Array.isArray(body)) {
+        existingList = body;
+      } else if (body.action === 'delete' && body.id) {
+        existingList = existingList.filter((a) => a.id !== body.id);
+      } else if (body.id) {
+        const idx = existingList.findIndex((a) => a.id === body.id);
+        const newAnn = {
+          id: body.id,
+          title: body.title || '',
+          body: body.body || '',
+          severity: body.severity || 'info',
+          active: body.active !== false,
+          createdAt: body.createdAt || Date.now(),
+          updatedAt: Date.now(),
+        };
+        if (idx >= 0) {
+          existingList[idx] = newAnn;
+        } else {
+          existingList.unshift(newAnn);
+        }
+      } else if (Array.isArray(body.announcements)) {
+        existingList = body.announcements;
+      }
+
+      // Cap at 10 items max
+      existingList = existingList.slice(0, 10);
+      await env.CHANNELS_ARCHIVE.put('announcements', JSON.stringify(existingList));
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          announcements: existingList,
+          message: 'Announcements updated successfully',
+        }),
+        { status: 200, headers: corsHeaders }
+      );
+    }
+
+    // 12. GET /api/admin/status (Protected with Bearer ADMIN_KEY)
+    if (url.pathname === '/api/admin/status' && request.method === 'GET') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      let channelsCount = 0;
+      let cursor = 0;
+      const globalBlocksCount = { channels: 0, playlists: 0 };
+      let activeAnnouncementsCount = 0;
+
+      if (env.CHANNELS_ARCHIVE) {
+        try {
+          const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+          if (rawMerged) {
+            const list = JSON.parse(rawMerged);
+            if (Array.isArray(list)) channelsCount = list.length;
+          }
+        } catch {}
+
+        try {
+          const rawCursor = await env.CHANNELS_ARCHIVE.get('_rss_refresh_cursor');
+          if (rawCursor) cursor = parseInt(rawCursor, 10) || 0;
+        } catch {}
+
+        try {
+          const rawBlocks = await env.CHANNELS_ARCHIVE.get('global_blocks');
+          if (rawBlocks) {
+            const b = JSON.parse(rawBlocks);
+            globalBlocksCount.channels = Array.isArray(b.channelIds) ? b.channelIds.length : 0;
+            globalBlocksCount.playlists = Array.isArray(b.playlistIds) ? b.playlistIds.length : 0;
+          }
+        } catch {}
+
+        try {
+          const rawAnn = await env.CHANNELS_ARCHIVE.get('announcements');
+          if (rawAnn) {
+            const a = JSON.parse(rawAnn);
+            if (Array.isArray(a)) {
+              activeAnnouncementsCount = a.filter((x: any) => x.active !== false).length;
+            }
+          }
+        } catch {}
+      }
+
+      return new Response(
+        JSON.stringify({
+          status: 'ok',
+          worker: 'youngtube-worker',
+          version: '2.0.0',
+          channelsCount,
+          cursor,
+          globalBlocksCount,
+          activeAnnouncementsCount,
+          hasYoutubeApiKey: Boolean(env.YOUTUBE_API_KEY),
+          hasAdminKey: Boolean(env.ADMIN_KEY),
+          todayUtc: getTodayDateUtc(),
+          timestamp: new Date().toISOString(),
+        }),
+        { status: 200, headers: corsHeaders }
+      );
+    }
+
+    // 13. Telemetry Event Ingestion:
+    // - POST /api/telemetry/parent-session-start
+    // - POST /api/telemetry/parent-session-end
+    // - POST /api/telemetry/child-session-end
+    if (
+      request.method === 'POST' &&
+      (url.pathname === '/api/telemetry/parent-session-start' ||
+        url.pathname === '/api/telemetry/parent-session-end' ||
+        url.pathname === '/api/telemetry/child-session-end')
+    ) {
+      let body: any = {};
+      try {
+        body = await request.json();
+      } catch {}
+
+      const country =
+        request.headers.get('CF-IPCountry') ||
+        request.headers.get('cf-ipcountry') ||
+        'XX';
+
+      const installId = body.installId ? String(body.installId).trim() : undefined;
+      const durationSec = Number(body.durationSec) || 0;
+
+      try {
+        if (url.pathname === '/api/telemetry/parent-session-start') {
+          await recordTelemetryEvent(env, 'parent_start', country, installId, 0);
+        } else if (url.pathname === '/api/telemetry/parent-session-end') {
+          await recordTelemetryEvent(env, 'parent_end', country, installId, durationSec);
+        } else if (url.pathname === '/api/telemetry/child-session-end') {
+          await recordTelemetryEvent(env, 'child_end', country, installId, durationSec);
+        }
+      } catch (err) {
+        console.error('Telemetry record error:', err);
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: corsHeaders,
+      });
+    }
+
+    // 14. GET /api/admin/telemetry (Protected with Bearer ADMIN_KEY)
+    if (url.pathname === '/api/admin/telemetry' && request.method === 'GET') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      const daysParam = parseInt(url.searchParams.get('days') || '30', 10);
+      const maxDays = Math.min(Math.max(isNaN(daysParam) ? 30 : daysParam, 1), 90);
+
+      if (!env.CHANNELS_ARCHIVE) {
+        return new Response(
+          JSON.stringify({
+            days: [],
+            parentSessionsByCountry: {},
+            parentDurationSecByCountry: {},
+            childSessionsByCountry: {},
+            childDurationSecByCountry: {},
+            uniqueByCountry: {},
+            parentSessionsTotal: 0,
+            parentDurationSecTotal: 0,
+            childSessionsTotal: 0,
+            childDurationSecTotal: 0,
+            totalUniqueInstalls: 0,
+            generatedAt: Date.now(),
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      }
+
+      let indexDates: string[] = [];
+      try {
+        const rawIndex = await env.CHANNELS_ARCHIVE.get('telemetry_index');
+        if (rawIndex) {
+          indexDates = JSON.parse(rawIndex);
+        }
+      } catch {}
+
+      const todayStr = getTodayDateUtc();
+      if (!indexDates.includes(todayStr)) {
+        indexDates.unshift(todayStr);
+      }
+
+      const targetDates = Array.from(new Set(indexDates))
+        .sort()
+        .reverse()
+        .slice(0, maxDays);
+
+      const daysData: TelemetryDaily[] = [];
+      const allUniqueByCountryMap: Record<string, Set<string>> = {};
+      const totalUniqueSet = new Set<string>();
+
+      await Promise.all(
+        targetDates.map(async (d) => {
+          try {
+            const [dailyRaw, uniquesRaw] = await Promise.all([
+              env.CHANNELS_ARCHIVE!.get(`telemetry_daily:${d}`),
+              env.CHANNELS_ARCHIVE!.get(`telemetry_uniques:${d}`),
+            ]);
+
+            if (dailyRaw) {
+              const parsedDaily: TelemetryDaily = JSON.parse(dailyRaw);
+              daysData.push(parsedDaily);
+            }
+
+            if (uniquesRaw) {
+              const parsedUniques: Record<string, string[]> = JSON.parse(uniquesRaw);
+              for (const [c, ids] of Object.entries(parsedUniques)) {
+                if (!allUniqueByCountryMap[c]) allUniqueByCountryMap[c] = new Set();
+                for (const id of ids) {
+                  allUniqueByCountryMap[c].add(id);
+                  totalUniqueSet.add(id);
+                }
+              }
+            }
+          } catch {}
+        })
+      );
+
+      daysData.sort((a, b) => b.date.localeCompare(a.date));
+
+      const parentSessionsByCountry: Record<string, number> = {};
+      const parentDurationSecByCountry: Record<string, number> = {};
+      const childSessionsByCountry: Record<string, number> = {};
+      const childDurationSecByCountry: Record<string, number> = {};
+      let parentSessionsTotal = 0;
+      let parentDurationSecTotal = 0;
+      let childSessionsTotal = 0;
+      let childDurationSecTotal = 0;
+
+      for (const day of daysData) {
+        for (const [c, val] of Object.entries(day.parentSessionsByCountry || {})) {
+          parentSessionsByCountry[c] = (parentSessionsByCountry[c] || 0) + val;
+          parentSessionsTotal += val;
+        }
+        for (const [c, val] of Object.entries(day.parentDurationSecByCountry || {})) {
+          parentDurationSecByCountry[c] = (parentDurationSecByCountry[c] || 0) + val;
+          parentDurationSecTotal += val;
+        }
+        for (const [c, val] of Object.entries(day.childSessionsByCountry || {})) {
+          childSessionsByCountry[c] = (childSessionsByCountry[c] || 0) + val;
+          childSessionsTotal += val;
+        }
+        for (const [c, val] of Object.entries(day.childDurationSecByCountry || {})) {
+          childDurationSecByCountry[c] = (childDurationSecByCountry[c] || 0) + val;
+          childDurationSecTotal += val;
+        }
+      }
+
+      const uniqueByCountry: Record<string, number> = {};
+      for (const [c, setIds] of Object.entries(allUniqueByCountryMap)) {
+        uniqueByCountry[c] = setIds.size;
+      }
+
+      return new Response(
+        JSON.stringify({
+          days: daysData,
+          parentSessionsByCountry,
+          parentDurationSecByCountry,
+          childSessionsByCountry,
+          childDurationSecByCountry,
+          uniqueByCountry,
+          parentSessionsTotal,
+          parentDurationSecTotal,
+          childSessionsTotal,
+          childDurationSecTotal,
+          totalUniqueInstalls: totalUniqueSet.size,
+          generatedAt: Date.now(),
+        }),
+        { status: 200, headers: corsHeaders }
+      );
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders });

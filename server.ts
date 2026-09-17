@@ -93,6 +93,60 @@ async function startServer() {
     }
   });
 
+  // Phase A: Public & Telemetry endpoints
+  app.get('/api/global-blocks', (_req, res) => {
+    res.json({ channelIds: [], playlistIds: [], updatedAt: 0 });
+  });
+
+  app.get('/api/announcements', (_req, res) => {
+    res.json([]);
+  });
+
+  app.post(
+    [
+      '/api/telemetry/parent-session-start',
+      '/api/telemetry/parent-session-end',
+      '/api/telemetry/child-session-end',
+    ],
+    (_req, res) => {
+      res.json({ ok: true });
+    }
+  );
+
+  // Phase A: Admin endpoints (local dev)
+  app.get('/api/admin/status', (_req, res) => {
+    res.json({
+      status: 'ok',
+      worker: 'youngtube-worker-local',
+      version: '2.0.0',
+      channelsCount: 196,
+      cursor: 0,
+      globalBlocksCount: { channels: 0, playlists: 0 },
+      activeAnnouncementsCount: 0,
+      hasYoutubeApiKey: Boolean(process.env.YOUTUBE_API_KEY),
+      hasAdminKey: Boolean(process.env.ADMIN_KEY),
+      todayUtc: new Date().toISOString().slice(0, 10),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get('/api/admin/telemetry', (_req, res) => {
+    res.json({
+      days: [],
+      parentSessionsByCountry: {},
+      parentDurationSecByCountry: {},
+      childSessionsByCountry: {},
+      childDurationSecByCountry: {},
+      uniqueByCountry: {},
+      parentSessionsTotal: 0,
+      parentDurationSecTotal: 0,
+      childSessionsTotal: 0,
+      childDurationSecTotal: 0,
+      totalUniqueInstalls: 0,
+      generatedAt: Date.now(),
+    });
+  });
+
   // Vite middleware for dev or static serving for prod
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
