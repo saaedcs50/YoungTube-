@@ -1,4 +1,7 @@
 import channelsSeed from '../channels_seed.json';
+import { TelemetryAggregator } from './telemetry_do';
+
+export { TelemetryAggregator };
  
 export interface KVNamespace {
   get(key: string, options?: { type?: 'text' | 'json' | 'arrayBuffer' | 'stream' }): Promise<any>;
@@ -11,8 +14,24 @@ export interface KVNamespace {
   list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<any>;
 }
 
+export interface DurableObjectId {
+  toString(): string;
+  equals(other: DurableObjectId): boolean;
+  name?: string;
+}
+
+export interface DurableObjectStub {
+  fetch(request: Request | string, init?: RequestInit): Promise<Response>;
+}
+
+export interface DurableObjectNamespace {
+  idFromName(name: string): DurableObjectId;
+  get(id: DurableObjectId): DurableObjectStub;
+}
+
 export interface Env {
   CHANNELS_ARCHIVE?: KVNamespace;
+  TELEMETRY_DO?: DurableObjectNamespace;
   YOUTUBE_API_KEY?: string;
   ADMIN_KEY?: string;
 }
@@ -1174,12 +1193,31 @@ export default {
       const durationSec = Number(body.durationSec) || 0;
 
       try {
-        if (url.pathname === '/api/telemetry/parent-session-start') {
-          await recordTelemetryEvent(env, 'parent_start', country, installId, 0);
-        } else if (url.pathname === '/api/telemetry/parent-session-end') {
-          await recordTelemetryEvent(env, 'parent_end', country, installId, durationSec);
-        } else if (url.pathname === '/api/telemetry/child-session-end') {
-          await recordTelemetryEvent(env, 'child_end', country, installId, durationSec);
+        if (env.TELEMETRY_DO) {
+          const id = env.TELEMETRY_DO.idFromName('telemetry-v1');
+          const stub = env.TELEMETRY_DO.get(id);
+
+          let doPath = '/parent_start';
+          if (url.pathname === '/api/telemetry/parent-session-end') {
+            doPath = '/parent_end';
+          } else if (url.pathname === '/api/telemetry/child-session-end') {
+            doPath = '/child_end';
+          }
+
+          await stub.fetch(`https://do${doPath}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ country, installId, durationSec }),
+          });
+        } else {
+          // Fallback if DO binding is missing
+          if (url.pathname === '/api/telemetry/parent-session-start') {
+            await recordTelemetryEvent(env, 'parent_start', country, installId, 0);
+          } else if (url.pathname === '/api/telemetry/parent-session-end') {
+            await recordTelemetryEvent(env, 'parent_end', country, installId, durationSec);
+          } else if (url.pathname === '/api/telemetry/child-session-end') {
+            await recordTelemetryEvent(env, 'child_end', country, installId, durationSec);
+          }
         }
       } catch (err) {
         console.error('Telemetry record error:', err);
@@ -1202,6 +1240,24 @@ export default {
 
       const daysParam = parseInt(url.searchParams.get('days') || '30', 10);
       const maxDays = Math.min(Math.max(isNaN(daysParam) ? 30 : daysParam, 1), 90);
+
+      // Prefer Durable Object TelemetryAggregator single-threaded store
+      if (env.TELEMETRY_DO) {
+        try {
+          const id = env.TELEMETRY_DO.idFromName('telemetry-v1');
+          const stub = env.TELEMETRY_DO.get(id);
+          const doRes = await stub.fetch(`https://do/summary?days=${maxDays}`);
+          if (doRes.ok) {
+            const summaryData = await doRes.json();
+            return new Response(JSON.stringify(summaryData), {
+              status: 200,
+              headers: corsHeaders,
+            });
+          }
+        } catch (err) {
+          console.error('Telemetry DO summary error, attempting KV fallback:', err);
+        }
+      }
 
       if (!env.CHANNELS_ARCHIVE) {
         return new Response(

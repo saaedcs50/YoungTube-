@@ -7,3 +7,12 @@ crons = ["*/15 * * * *"]
 [[kv_namespaces]]
 binding = "CHANNELS_ARCHIVE"
 id = "b933debea57649fc921e173185619ffb"
+
+[durable_objects]
+bindings = [
+  { name = "TELEMETRY_DO", class_name = "TelemetryAggregator" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["TelemetryAggregator"]
