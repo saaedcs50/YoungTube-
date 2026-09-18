@@ -1,5 +1,11 @@
 import db, { FeedItem } from './db';
 import { WORKER_URL } from './config';
+import {
+  fetchGlobalBlocks,
+  isChannelBlocked,
+  isPlaylistBlocked,
+  type GlobalBlocks,
+} from './services/globalBlocks';
 
 export interface FilteringResult {
   totalBefore: number;
@@ -220,13 +226,16 @@ export async function ensureChannelsArchiveSynced(): Promise<boolean> {
         archiveSyncPromise = null;
         return false;
       }
-      const data = await response.json();
+      const [data, blocks] = await Promise.all([
+        response.json(),
+        fetchGlobalBlocks(),
+      ]);
       // Empty array means KV is not populated yet — not a success. Allow retry.
       if (!Array.isArray(data) || data.length === 0) {
         archiveSyncPromise = null;
         return false;
       }
-      await filterAndCacheVideos(data);
+      await filterAndCacheVideos(data, blocks);
       return true;
     } catch (err) {
       console.warn('ensureChannelsArchiveSynced failed:', err);
@@ -242,20 +251,40 @@ export async function ensureChannelsArchiveSynced(): Promise<boolean> {
  * All client-side filtering logic:
  * Sensitive family data (blacklist words) never leaves the browser.
  */
-export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<FilteringResult> {
+export async function filterAndCacheVideos(
+  channels: ChannelItem[],
+  blocks?: GlobalBlocks
+): Promise<FilteringResult> {
+  const globalBlocks = blocks || (await fetchGlobalBlocks());
+  const blockedChannels = new Set(globalBlocks.channelIds);
+  const blockedPlaylists = new Set(globalBlocks.playlistIds);
+
+  const isBlocked = (sourceId: string, sourceType?: string) => {
+    const id = (sourceId || '').trim();
+    if (!id) return false;
+    const isPlaylist = sourceType === 'playlist' || id.startsWith('PL');
+    if (isPlaylist) {
+      return blockedPlaylists.has(id);
+    }
+    return blockedChannels.has(id);
+  };
+
   // Read blacklist words from Dexie settings ('main')
   const settings = await db.settings.get('main');
   const blacklistWords = (settings?.blacklistWords || [])
     .map((w) => w.trim().toLowerCase())
     .filter((w) => w.length > 0);
 
-  // 1. Collect all incoming videoIds and unique channelIds from channels
+  // 1. Collect all incoming videoIds and unique channelIds from channels (excluding blocked)
   const incomingVideoIds: string[] = [];
   const uniqueChannelIdsSet = new Set<string>();
   for (const channel of channels) {
     if (!channel) continue;
-    const cid = channel.sourceId || '';
-    if (cid) uniqueChannelIdsSet.add(cid);
+    const cid = (channel.sourceId || '').trim();
+    if (!cid) continue;
+    if (isBlocked(cid, channel.sourceType)) continue;
+
+    uniqueChannelIdsSet.add(cid);
     if (Array.isArray(channel.videos)) {
       for (const video of channel.videos) {
         if (video?.videoId) {
@@ -331,8 +360,9 @@ export async function filterAndCacheVideos(channels: ChannelItem[]): Promise<Fil
   for (const channel of channels) {
     if (!channel || !Array.isArray(channel.videos) || channel.videos.length === 0) continue;
 
-    const channelId = channel.sourceId || '';
+    const channelId = (channel.sourceId || '').trim();
     if (!channelId) continue;
+    if (isBlocked(channelId, channel.sourceType)) continue;
 
     // Use in-memory per-channel existing items loaded during bulk step
     const existingForChannel = existingForChannelMap.get(channelId) || [];
@@ -513,6 +543,17 @@ export async function syncSingleChannelRss(
   title?: string
 ): Promise<SingleChannelRssResult> {
   try {
+    const globalBlocks = await fetchGlobalBlocks();
+    const id = (sourceId || '').trim();
+    const isPlaylist = sourceType === 'playlist' || id.startsWith('PL');
+    if (isPlaylist ? isPlaylistBlocked(id, globalBlocks) : isChannelBlocked(id, globalBlocks)) {
+      return {
+        success: false,
+        count: 0,
+        error: 'هذه القناة أو القائمة محظورة إدارياً',
+      };
+    }
+
     const url = `${WORKER_URL}/api/rss?type=${sourceType || 'channel'}&id=${encodeURIComponent(sourceId)}`;
     const res = await fetch(url);
     if (!res.ok) {

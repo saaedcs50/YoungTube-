@@ -3,6 +3,7 @@ import db, { FeedItem, Channel } from '../db';
 import channelsSeed from '../../channels_seed.json';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { ensureChannelsArchiveSynced, scheduleBackgroundPortraitCheck, migrateUnhidePortraitVideos } from '../filtering';
+import { loadCachedBlocks, fetchGlobalBlocks } from '../services/globalBlocks';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
 import { TasteReactionBar } from '../components/TasteReactionBar';
 import { VideoCard } from '../components/VideoCard';
@@ -204,6 +205,9 @@ async function loadBoundedFeed(
   enabledChannelIds: string[],
   hideMusicVideos: boolean
 ): Promise<FeedItem[]> {
+  const cachedBlocks = loadCachedBlocks();
+  const blockedChannelSet = new Set(cachedBlocks.channelIds);
+
   const result: FeedItem[] = [];
   const extrasToTrim: string[] = [];
   for (let i = 0; i < enabledChannelIds.length; i += QUERY_CHUNK) {
@@ -213,6 +217,7 @@ async function loadBoundedFeed(
     for (const row of rows) {
       if (row.hidden === true) continue;
       if (hideMusicVideos && row.hasMusic === true) continue;
+      if (blockedChannelSet.has(row.channelId)) continue;
       const list = byChannel.get(row.channelId);
       if (list) list.push(row);
       else byChannel.set(row.channelId, [row]);
@@ -370,6 +375,9 @@ export default function KidHomeScreen({
 
       setDbChannelsList(storedChannels);
 
+      const cachedBlocks = loadCachedBlocks();
+      const blockedChannelSet = new Set(cachedBlocks.channelIds);
+
       // Map of disabled vs enabled channel IDs
       const disabledChannelIds = new Set(
         storedChannels.filter((c) => c.enabled === false).map((c) => c.sourceId)
@@ -380,7 +388,7 @@ export default function KidHomeScreen({
           ...storedChannels.filter((c) => c.enabled !== false).map((c) => c.sourceId),
           ...(channelsSeed as any[]).map((c) => c.sourceId),
         ])
-      ).filter((id) => !disabledChannelIds.has(id));
+      ).filter((id) => !disabledChannelIds.has(id) && !blockedChannelSet.has(id));
 
       const hideMusicVideos = settings?.hideMusicVideos === true;
 
@@ -393,10 +401,11 @@ export default function KidHomeScreen({
       if (availableVideos.length === 0) {
         const totalCacheCount = await db.feedCache.count();
         if (totalCacheCount === 0) {
-          await db.feedCache.bulkPut(STARTER_VIDEOS);
+          const safeStarters = STARTER_VIDEOS.filter((v) => !blockedChannelSet.has(v.channelId));
+          await db.feedCache.bulkPut(safeStarters);
           availableVideos = hideMusicVideos
-            ? STARTER_VIDEOS.filter((v) => v.hasMusic !== true)
-            : STARTER_VIDEOS;
+            ? safeStarters.filter((v) => v.hasMusic !== true)
+            : safeStarters;
         }
       }
 
@@ -518,6 +527,29 @@ export default function KidHomeScreen({
   useEffect(() => {
     loadVideos();
   }, [loadVideos, refreshTrigger]);
+
+  // Once per app session when entering kids view or on first mount after DB ready:
+  // Refresh global blocks and trigger a light feed refresh if the blocked set changed
+  const hasRefreshedBlocksRef = useRef(false);
+  useEffect(() => {
+    if (hasRefreshedBlocksRef.current) return;
+    hasRefreshedBlocksRef.current = true;
+
+    const initialCached = loadCachedBlocks();
+    const initialKey = [...initialCached.channelIds, ...initialCached.playlistIds].sort().join(',');
+
+    void (async () => {
+      try {
+        const fresh = await fetchGlobalBlocks();
+        const freshKey = [...fresh.channelIds, ...fresh.playlistIds].sort().join(',');
+        if (freshKey !== initialKey) {
+          void loadVideos(true);
+        }
+      } catch {
+        // Fail-open: network error must not block feed load
+      }
+    })();
+  }, [loadVideos]);
 
   // Silent background sync — retries if KV is empty or the first attempt fails
   useEffect(() => {
@@ -649,6 +681,9 @@ export default function KidHomeScreen({
         storedChannels.filter((c) => c.enabled === false).map((c) => c.sourceId)
       );
 
+      const cachedBlocks = loadCachedBlocks();
+      const blockedChannelSet = new Set(cachedBlocks.channelIds);
+
       const hideMusicVideos = settings?.hideMusicVideos === true;
       const suppressed = new Set(suppressedVideoIds);
 
@@ -665,7 +700,7 @@ export default function KidHomeScreen({
         if (cached?.hidden === true) continue;
 
         const targetChannelId = inter.channelId || cached?.channelId;
-        if (targetChannelId && disabledChannelIds.has(targetChannelId)) continue;
+        if (targetChannelId && (disabledChannelIds.has(targetChannelId) || blockedChannelSet.has(targetChannelId))) continue;
 
         if (hideMusicVideos && cached?.hasMusic === true) continue;
 
