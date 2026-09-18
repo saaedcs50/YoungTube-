@@ -10,6 +10,13 @@ import KidHomeScreen from './screens/KidHomeScreen';
 import { PlayerView } from './screens/PlayerView';
 import SessionEndScreen from './components/SessionEndScreen';
 import { startParentSession, endParentSession, endChildSession, createSessionId } from './services/telemetry';
+import { AnnouncementBanner } from './components/AnnouncementBanner';
+import {
+  fetchAnnouncements,
+  getVisibleAnnouncements,
+  markDismissed,
+  type Announcement,
+} from './services/announcements';
 
 // Lazy-load heavy surfaces so kid-facing feed route starts immediately
 const Onboarding = React.lazy(() => import('./components/Onboarding'));
@@ -143,6 +150,35 @@ export default function App() {
   } | null>(null);
   const [devForceStop, setDevForceStop] = useState(false);
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+
+  // Phase D: Fetch announcements on app ready / when viewMode is kids OR dashboard
+  useEffect(() => {
+    if (showOnboarding) return;
+    if (viewMode !== 'kids' && viewMode !== 'dashboard') return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const items = await fetchAnnouncements();
+        if (!cancelled) {
+          const visible = getVisibleAnnouncements(items);
+          setAnnouncements(visible);
+        }
+      } catch {
+        // Fail-open: errors never block feed or dashboard
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, showOnboarding]);
+
+  const handleDismissAnnouncement = useCallback((id: string) => {
+    markDismissed(id);
+    setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+  }, []);
 
   // Fix 2: Player fullscreen, mini-player, and settings sheet states tracked in App.tsx
   const isPlayerFullscreenRef = useRef(false);
@@ -773,6 +809,14 @@ export default function App() {
             }}
           />
         </Suspense>
+      )}
+
+      {/* Phase D: Admin Announcements Banner */}
+      {!showOnboarding && announcements.length > 0 && (
+        <AnnouncementBanner
+          items={announcements}
+          onDismiss={handleDismissAnnouncement}
+        />
       )}
 
       {/* PIN Lock Modal */}
