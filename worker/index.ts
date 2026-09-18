@@ -881,44 +881,65 @@ export default {
     // 8.5 GET /api/categories (Public - dynamic categories with fallback defaults)
     if ((url.pathname === '/api/categories' || url.pathname === '/api/admin/categories') && request.method === 'GET') {
       const defaultCategories = [
-        { id: 'all', label: 'كل الفيديوهات', emoji: '✨', description: 'كل الفيديوهات والبرامج الرئيسية' },
-        { id: 'quran', label: 'قرآن كريم وأذكار', emoji: '🕌', description: 'تلاوات خاشعة وأذكار يومية وقصص الأنبياء' },
-        { id: 'stories', label: 'قصص وحكايات', emoji: '📖', description: 'قصص ممتعة ومغامرات هادفة ومسلية' },
-        { id: 'cartoons', label: 'كرتون وأناشيد', emoji: '📺', description: 'أناشيد كرتونية وبرامج رسوم متحركة مبهجة' },
-        { id: 'education', label: 'تعليم ولغات', emoji: '💡', description: 'حروف وأرقام وتعلم اللغات والمفاهيم الأساسية' },
-        { id: 'science', label: 'علوم واستكشاف', emoji: '🔬', description: 'تجارب علمية واستكشاف العالم الطبيعي' },
-        { id: 'crafts', label: 'رسم وفنون', emoji: '🎨', description: 'تعلم الرسم والتلوين والأشغال اليدوية المبتكرة' },
-        { id: 'sports', label: 'حركة ورياضة', emoji: '⚽', description: 'تمارين وألعاب حركية وتحديات رياضية ممتعة' },
+        { id: 'quran', name: 'قرآن كريم وأذكار', label: 'قرآن كريم وأذكار', emoji: '🕌', icon: '🕌', order: 1, description: 'تلاوات خاشعة وأذكار يومية وقصص الأنبياء' },
+        { id: 'stories', name: 'قصص وحكايات', label: 'قصص وحكايات', emoji: '📖', icon: '📖', order: 2, description: 'قصص ممتعة ومغامرات هادفة ومسلية' },
+        { id: 'cartoons', name: 'كرتون وأناشيد', label: 'كرتون وأناشيد', emoji: '📺', icon: '📺', order: 3, description: 'أناشيد كرتونية وبرامج رسوم متحركة مبهجة' },
+        { id: 'education', name: 'تعليم ولغات', label: 'تعليم ولغات', emoji: '💡', icon: '💡', order: 4, description: 'حروف وأرقام وتعلم اللغات والمفاهيم الأساسية' },
+        { id: 'science', name: 'علوم واستكشاف', label: 'علوم واستكشاف', emoji: '🔬', icon: '🔬', order: 5, description: 'تجارب علمية واستكشاف العالم الطبيعي' },
+        { id: 'crafts', name: 'رسم وفنون', label: 'رسم وفنون', emoji: '🎨', icon: '🎨', order: 6, description: 'تعلم الرسم والتلوين والأشغال اليدوية المبتكرة' },
+        { id: 'sports', name: 'حركة ورياضة', label: 'حركة ورياضة', emoji: '⚽', icon: '⚽', order: 7, description: 'تمارين وألعاب حركية وتحديات رياضية ممتعة' },
       ];
 
-      let categories = defaultCategories;
+      let rawList: any[] = [];
       if (env.CHANNELS_ARCHIVE) {
         try {
           const raw = await env.CHANNELS_ARCHIVE.get('custom_categories');
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              categories = parsed;
+              rawList = parsed;
             } else if (parsed && Array.isArray(parsed.categories) && parsed.categories.length > 0) {
-              categories = parsed.categories;
+              rawList = parsed.categories;
+            } else if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
+              rawList = parsed.items;
             }
           }
         } catch {}
       }
 
-      return new Response(JSON.stringify(categories), {
+      if (rawList.length === 0) {
+        rawList = defaultCategories;
+      }
+
+      const normalizedList = rawList
+        .map((c: any, index: number) => {
+          if (!c || typeof c !== 'object') return null;
+          const id = String(c.id || c.categoryId || '').trim();
+          if (!id) return null;
+          const label = String(c.label || c.name || id).trim();
+          const name = String(c.name || c.label || id).trim();
+          const emoji = String(c.emoji || c.icon || '🌟').trim();
+          const icon = String(c.icon || c.emoji || '🌟').trim();
+          const order = typeof c.order === 'number' ? c.order : index + 1;
+          const description = String(c.description || '').trim();
+          return { id, name, label, icon, emoji, order, description };
+        })
+        .filter(Boolean)
+        .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+
+      return new Response(JSON.stringify(normalizedList), {
         status: 200,
         headers: {
           ...corsHeaders,
-          'Cache-Control': 'public, max-age=60',
+          'Cache-Control': 'public, max-age=30',
         },
       });
     }
 
-    // 8.6 POST/PUT /api/admin/categories (Admin - save dynamic categories)
+    // 8.6 POST/PUT /api/admin/categories (Admin - save, delete, reorder or full replace)
     if ((url.pathname === '/api/admin/categories' || url.pathname === '/api/categories') && (request.method === 'POST' || request.method === 'PUT')) {
       if (!checkAdminAuth(request, env)) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        return new Response(JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }), {
           status: 401,
           headers: corsHeaders,
         });
@@ -926,6 +947,126 @@ export default {
 
       try {
         const body: any = await request.json();
+
+        // 1. Load existing categories from KV custom_categories
+        const defaultCategories = [
+          { id: 'quran', name: 'قرآن كريم وأذكار', label: 'قرآن كريم وأذكار', emoji: '🕌', icon: '🕌', order: 1, description: 'تلاوات خاشعة وأذكار يومية وقصص الأنبياء' },
+          { id: 'stories', name: 'قصص وحكايات', label: 'قصص وحكايات', emoji: '📖', icon: '📖', order: 2, description: 'قصص ممتعة ومغامرات هادفة ومسلية' },
+          { id: 'cartoons', name: 'كرتون وأناشيد', label: 'كرتون وأناشيد', emoji: '📺', icon: '📺', order: 3, description: 'أناشيد كرتونية وبرامج رسوم متحركة مبهجة' },
+          { id: 'education', name: 'تعليم ولغات', label: 'تعليم ولغات', emoji: '💡', icon: '💡', order: 4, description: 'حروف وأرقام وتعلم اللغات والمفاهيم الأساسية' },
+          { id: 'science', name: 'علوم واستكشاف', label: 'علوم واستكشاف', emoji: '🔬', icon: '🔬', order: 5, description: 'تجارب علمية واستكشاف العالم الطبيعي' },
+          { id: 'crafts', name: 'رسم وفنون', label: 'رسم وفنون', emoji: '🎨', icon: '🎨', order: 6, description: 'تعلم الرسم والتلوين والأشغال اليدوية المبتكرة' },
+          { id: 'sports', name: 'حركة ورياضة', label: 'حركة ورياضة', emoji: '⚽', icon: '⚽', order: 7, description: 'تمارين وألعاب حركية وتحديات رياضية ممتعة' },
+        ];
+
+        let currentList: any[] = [];
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            const raw = await env.CHANNELS_ARCHIVE.get('custom_categories');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed) && parsed.length > 0) currentList = parsed;
+              else if (parsed && Array.isArray(parsed.categories) && parsed.categories.length > 0) currentList = parsed.categories;
+              else if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) currentList = parsed.items;
+            }
+          } catch {}
+        }
+        if (currentList.length === 0) {
+          currentList = defaultCategories;
+        }
+
+        const normalizeCategory = (c: any, defaultOrder: number) => {
+          const id = String(c.id || c.categoryId || '').trim();
+          const label = String(c.label || c.name || id).trim();
+          const name = String(c.name || c.label || id).trim();
+          const emoji = String(c.emoji || c.icon || '🌟').trim();
+          const icon = String(c.icon || c.emoji || '🌟').trim();
+          const order = typeof c.order === 'number' ? c.order : defaultOrder;
+          const description = String(c.description || '').trim();
+          return { id, name, label, icon, emoji, order, description };
+        };
+
+        const action = body?.action ? String(body.action).toLowerCase() : undefined;
+
+        // Action 1: save | add | update | upsert
+        if (action === 'save' || action === 'add' || action === 'update' || action === 'upsert') {
+          const catInput = body.category || body.item || body;
+          const targetId = String(catInput.id || catInput.categoryId || '').trim();
+          if (!targetId) {
+            return new Response(JSON.stringify({ error: 'Missing category id' }), {
+              status: 400,
+              headers: corsHeaders,
+            });
+          }
+
+          const normalizedCat = normalizeCategory(catInput, currentList.length + 1);
+          const existingIdx = currentList.findIndex((c: any) => String(c.id || c.categoryId) === targetId);
+
+          if (existingIdx >= 0) {
+            currentList[existingIdx] = { ...currentList[existingIdx], ...normalizedCat };
+          } else {
+            currentList.push(normalizedCat);
+          }
+
+          if (env.CHANNELS_ARCHIVE) {
+            await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(currentList));
+          }
+
+          return new Response(JSON.stringify({ ok: true, category: normalizedCat }), {
+            status: 200,
+            headers: corsHeaders,
+          });
+        }
+
+        // Action 2: delete | remove
+        if (action === 'delete' || action === 'remove') {
+          const targetId = String(body.id || body.categoryId || (body.category && (body.category.id || body.category.categoryId)) || '').trim();
+          if (!targetId) {
+            return new Response(JSON.stringify({ error: 'Missing category id to delete' }), {
+              status: 400,
+              headers: corsHeaders,
+            });
+          }
+
+          currentList = currentList.filter((c: any) => String(c.id || c.categoryId) !== targetId);
+
+          if (env.CHANNELS_ARCHIVE) {
+            await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(currentList));
+          }
+
+          return new Response(JSON.stringify({ ok: true, deletedId: targetId }), {
+            status: 200,
+            headers: corsHeaders,
+          });
+        }
+
+        // Action 3: reorder
+        if (action === 'reorder') {
+          if (Array.isArray(body.categories) && body.categories.length > 0) {
+            currentList = body.categories.map((c: any, idx: number) => normalizeCategory(c, idx + 1));
+          } else if (Array.isArray(body.categoryIds) && body.categoryIds.length > 0) {
+            const idOrderMap = new Map<string, number>();
+            body.categoryIds.forEach((id: string, idx: number) => idOrderMap.set(String(id).trim(), idx + 1));
+            currentList = currentList
+              .map((c: any, idx: number) => {
+                const id = String(c.id || c.categoryId).trim();
+                const newOrder = idOrderMap.has(id) ? idOrderMap.get(id)! : 999 + idx;
+                return normalizeCategory({ ...c, order: newOrder }, newOrder);
+              })
+              .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+          }
+
+          if (env.CHANNELS_ARCHIVE) {
+            await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(currentList));
+          }
+
+          return new Response(JSON.stringify({ ok: true, categories: currentList }), {
+            status: 200,
+            headers: corsHeaders,
+          });
+        }
+
+        // Action 4: Raw array or body.categories / body.items without explicit action (full replace)
         let listToSave: any[] = [];
         if (Array.isArray(body)) {
           listToSave = body;
@@ -933,18 +1074,25 @@ export default {
           listToSave = body.categories;
         } else if (body && Array.isArray(body.items)) {
           listToSave = body.items;
+        } else {
+          return new Response(JSON.stringify({ error: 'Invalid request payload for categories' }), {
+            status: 400,
+            headers: corsHeaders,
+          });
         }
+
+        const normalizedFull = listToSave.map((c: any, idx: number) => normalizeCategory(c, idx + 1));
 
         if (env.CHANNELS_ARCHIVE) {
-          await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(listToSave));
+          await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(normalizedFull));
         }
 
-        return new Response(JSON.stringify({ success: true, count: listToSave.length }), {
+        return new Response(JSON.stringify({ ok: true, count: normalizedFull.length, categories: normalizedFull }), {
           status: 200,
           headers: corsHeaders,
         });
       } catch (err: any) {
-        return new Response(JSON.stringify({ error: err?.message || 'Failed to save categories' }), {
+        return new Response(JSON.stringify({ error: err?.message || 'Failed to process categories' }), {
           status: 400,
           headers: corsHeaders,
         });
