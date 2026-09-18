@@ -851,8 +851,9 @@ export default {
       });
     }
 
-    // 8. GET /api/announcements (Public - active announcements)
-    if (url.pathname === '/api/announcements' && request.method === 'GET') {
+    // 8. GET /api/announcements (Public - active announcements, or full list if all=true or admin)
+    if ((url.pathname === '/api/announcements' || url.pathname === '/api/admin/announcements') && request.method === 'GET') {
+      const returnAll = url.searchParams.get('all') === 'true' || url.pathname === '/api/admin/announcements' || checkAdminAuth(request, env);
       let list: any[] = [];
       if (env.CHANNELS_ARCHIVE) {
         try {
@@ -867,12 +868,12 @@ export default {
           }
         } catch {}
       }
-      const activeList = list.filter((a) => a && a.active !== false);
-      return new Response(JSON.stringify(activeList), {
+      const responseList = returnAll ? list : list.filter((a) => a && a.active !== false);
+      return new Response(JSON.stringify(responseList), {
         status: 200,
         headers: {
           ...corsHeaders,
-          'Cache-Control': 'public, max-age=60',
+          'Cache-Control': returnAll ? 'no-cache, no-store, must-revalidate' : 'public, max-age=60',
         },
       });
     }
@@ -991,12 +992,13 @@ export default {
         fullMergedList = channelsSeed.map((ch: any) => ({ ...ch, videos: [], videoCount: 0 }));
       }
 
-      const { action, channel, sourceId, channels } = body;
+      const { action, channel, item, sourceId, channels } = body;
+      const targetChannel = channel || item;
 
       if (Array.isArray(channels)) {
         for (const ch of channels) {
           if (!ch || !ch.sourceId) continue;
-          const idx = fullMergedList.findIndex((item) => item.sourceId === ch.sourceId);
+          const idx = fullMergedList.findIndex((it) => it.sourceId === ch.sourceId);
           if (idx >= 0) {
             fullMergedList[idx] = { ...fullMergedList[idx], ...ch };
           } else {
@@ -1004,16 +1006,16 @@ export default {
           }
         }
       } else if (action === 'delete' || action === 'remove') {
-        const targetId = sourceId || (channel && channel.sourceId);
+        const targetId = sourceId || (targetChannel && targetChannel.sourceId);
         if (targetId) {
-          fullMergedList = fullMergedList.filter((item) => item.sourceId !== targetId);
+          fullMergedList = fullMergedList.filter((it) => it.sourceId !== targetId);
         }
-      } else if (channel && channel.sourceId) {
-        const idx = fullMergedList.findIndex((item) => item.sourceId === channel.sourceId);
+      } else if (targetChannel && targetChannel.sourceId) {
+        const idx = fullMergedList.findIndex((it) => it.sourceId === targetChannel.sourceId);
         if (idx >= 0) {
-          fullMergedList[idx] = { ...fullMergedList[idx], ...channel };
+          fullMergedList[idx] = { ...fullMergedList[idx], ...targetChannel };
         } else {
-          fullMergedList.push({ videos: [], videoCount: 0, ...channel });
+          fullMergedList.push({ videos: [], videoCount: 0, ...targetChannel });
         }
       }
 
