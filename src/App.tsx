@@ -9,6 +9,7 @@ import { ensureChannelsArchiveSynced } from './filtering';
 import KidHomeScreen from './screens/KidHomeScreen';
 import { PlayerView } from './screens/PlayerView';
 import SessionEndScreen from './components/SessionEndScreen';
+import { startParentSession, endParentSession } from './services/telemetry';
 
 // Lazy-load heavy surfaces so kid-facing feed route starts immediately
 const Onboarding = React.lazy(() => import('./components/Onboarding'));
@@ -572,6 +573,62 @@ export default function App() {
       if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [viewMode]);
+
+  // T1: Parent Dashboard Telemetry (fire-and-forget, privacy-preserving)
+  const parentSessionRef = useRef<{ sessionId: string; startedAtMs: number } | null>(null);
+  const endedParentSessionsRef = useRef<Set<string>>(new Set());
+
+  const endCurrentParentSession = useCallback(() => {
+    const current = parentSessionRef.current;
+    if (!current) return;
+    parentSessionRef.current = null;
+    if (endedParentSessionsRef.current.has(current.sessionId)) return;
+    endedParentSessionsRef.current.add(current.sessionId);
+    endParentSession(current.sessionId, current.startedAtMs);
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === 'dashboard') {
+      if (!parentSessionRef.current) {
+        const sessionId = startParentSession();
+        parentSessionRef.current = { sessionId, startedAtMs: Date.now() };
+      }
+    } else {
+      endCurrentParentSession();
+    }
+  }, [viewMode, endCurrentParentSession]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (viewMode === 'dashboard') {
+          endCurrentParentSession();
+        }
+      } else {
+        if (viewMode === 'dashboard' && !parentSessionRef.current) {
+          const sessionId = startParentSession();
+          parentSessionRef.current = { sessionId, startedAtMs: Date.now() };
+        }
+      }
+    };
+
+    const handlePageHide = () => {
+      if (viewMode === 'dashboard') {
+        endCurrentParentSession();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handlePageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handlePageHide);
+      endCurrentParentSession();
+    };
+  }, [viewMode, endCurrentParentSession]);
 
   // Open Dashboard handler
   const handleOpenDashboard = () => {
