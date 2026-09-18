@@ -9,7 +9,7 @@ import { ensureChannelsArchiveSynced } from './filtering';
 import KidHomeScreen from './screens/KidHomeScreen';
 import { PlayerView } from './screens/PlayerView';
 import SessionEndScreen from './components/SessionEndScreen';
-import { startParentSession, endParentSession } from './services/telemetry';
+import { startParentSession, endParentSession, endChildSession, createSessionId } from './services/telemetry';
 
 // Lazy-load heavy surfaces so kid-facing feed route starts immediately
 const Onboarding = React.lazy(() => import('./components/Onboarding'));
@@ -686,6 +686,77 @@ export default function App() {
       handleClosePlayer();
     }
   }, [forceStop, activePlaybackVideo, showDemoPlayer, handleClosePlayer]);
+
+  // T2: Child Watch Telemetry (summed PLAYING seconds only, fire-and-forget)
+  const childSessionRef = useRef<{
+    sessionId: string;
+    accumulatedSec: number;
+    segmentStartedAtMs: number | null;
+  } | null>(null);
+  const endedChildSessionsRef = useRef<Set<string>>(new Set());
+
+  const flushChildSession = useCallback(() => {
+    const current = childSessionRef.current;
+    if (!current) return;
+    childSessionRef.current = null;
+
+    let finalSec = current.accumulatedSec;
+    if (current.segmentStartedAtMs !== null) {
+      finalSec += (Date.now() - current.segmentStartedAtMs) / 1000;
+    }
+
+    if (!endedChildSessionsRef.current.has(current.sessionId)) {
+      endedChildSessionsRef.current.add(current.sessionId);
+      endChildSession(current.sessionId, finalSec);
+    }
+  }, []);
+
+  useEffect(() => {
+    const shouldEnd = !isPlayerOpen || viewMode !== 'kids' || forceStop;
+
+    if (shouldEnd) {
+      flushChildSession();
+      return;
+    }
+
+    // Player open in kids mode without forceStop
+    if (isPlayerPlaying) {
+      if (!childSessionRef.current) {
+        // A) Start session (lazy on actual playback)
+        const sessionId = createSessionId();
+        childSessionRef.current = {
+          sessionId,
+          accumulatedSec: 0,
+          segmentStartedAtMs: Date.now(),
+        };
+      } else if (childSessionRef.current.segmentStartedAtMs === null) {
+        // C) Resume playing
+        childSessionRef.current.segmentStartedAtMs = Date.now();
+      }
+    } else {
+      // B) Pause / stop playing (player still open)
+      if (childSessionRef.current && childSessionRef.current.segmentStartedAtMs !== null) {
+        childSessionRef.current.accumulatedSec +=
+          (Date.now() - childSessionRef.current.segmentStartedAtMs) / 1000;
+        childSessionRef.current.segmentStartedAtMs = null;
+      }
+    }
+  }, [isPlayerOpen, isPlayerPlaying, viewMode, forceStop, flushChildSession]);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      flushChildSession();
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handlePageHide);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handlePageHide);
+      flushChildSession();
+    };
+  }, [flushChildSession]);
 
   return (
     <div className="min-h-screen font-sans">

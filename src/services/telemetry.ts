@@ -66,3 +66,14 @@ export function endParentSession(sessionId: string, startedAtMs: number): void {
     durationSec,
   });
 }
+
+export function endChildSession(sessionId: string, durationSec: number): void {
+  if (!sessionId) return;
+  const sec = Math.min(Math.max(0, Math.round(durationSec)), 14400);
+  if (sec < 1) return; // ignore sub-second noise
+  void postTelemetry('/api/telemetry/child-session-end', {
+    installId: getInstallId(),
+    sessionId,
+    durationSec: sec,
+  });
+}
