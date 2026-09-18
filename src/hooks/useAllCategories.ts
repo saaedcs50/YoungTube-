@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { liveQuery } from 'dexie';
 import db from '../db';
-import { CURATION_CATEGORIES, KID_CATEGORIES, KidCategory } from '../categories';
+import { KidCategory, DEFAULT_KID_CATEGORIES } from '../categories';
+import { getCachedCategories, fetchCategories } from '../services/categoriesService';
 
 /** Helper to generate a unique categoryId slug from a user label */
 export function generateUniqueCategoryId(
@@ -28,8 +29,10 @@ export function generateUniqueCategoryId(
 }
 
 export function useAllCategories() {
+  const [baseCategories, setBaseCategories] = useState<KidCategory[]>(() => getCachedCategories());
   const [customCats, setCustomCats] = useState<KidCategory[]>([]);
 
+  // 1. LiveQuery for custom categories created by parent
   useEffect(() => {
     const observable = liveQuery(() => db.customCategories.toArray());
     const subscription = observable.subscribe({
@@ -49,8 +52,30 @@ export function useAllCategories() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const curationCategories: KidCategory[] = [...CURATION_CATEGORIES, ...customCats];
-  const kidCategories: KidCategory[] = [KID_CATEGORIES[0], ...CURATION_CATEGORIES, ...customCats];
+  // 2. Fetch dynamic categories asynchronously from the Worker API
+  useEffect(() => {
+    let isMounted = true;
+    fetchCategories()
+      .then((fresh) => {
+        if (isMounted && Array.isArray(fresh) && fresh.length > 0) {
+          setBaseCategories(fresh);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not refresh dynamic categories:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Ensure "all" is the first category in kidCategories
+  const allCategory = baseCategories.find((c) => c.id === 'all') || DEFAULT_KID_CATEGORIES[0];
+  const otherBase = baseCategories.filter((c) => c.id !== 'all');
+
+  const curationCategories: KidCategory[] = [...otherBase, ...customCats];
+  const kidCategories: KidCategory[] = [allCategory, ...otherBase, ...customCats];
 
   return {
     curationCategories,

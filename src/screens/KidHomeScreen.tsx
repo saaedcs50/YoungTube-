@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import db, { FeedItem, Channel } from '../db';
 import channelsSeed from '../../channels_seed.json';
 import { useAllCategories } from '../hooks/useAllCategories';
+import { matchCategory } from '../categories';
 import { ensureChannelsArchiveSynced, scheduleBackgroundPortraitCheck, migrateUnhidePortraitVideos } from '../filtering';
 import { loadCachedBlocks, fetchGlobalBlocks } from '../services/globalBlocks';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
@@ -738,8 +739,8 @@ export default function KidHomeScreen({
     if (selectedCategory !== 'all') {
       result = result.filter((video) => {
         const channelInfo = channelMap.get(video.channelId);
-        if (!channelInfo) return false;
-        return channelInfo.categories.includes(selectedCategory);
+        const channelCats = channelInfo?.categories || (video as any).categories || (video as any).category;
+        return matchCategory(channelCats, selectedCategory);
       });
     }
 

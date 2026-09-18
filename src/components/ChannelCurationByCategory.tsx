@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import db, { Channel } from '../db';
-import { KidCategory } from '../categories';
+import { KidCategory, matchCategory } from '../categories';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { syncSingleChannelRss } from '../filtering';
 import { YoutubeSearchBar } from './YoutubeSearchBar';
@@ -222,9 +222,9 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
         uncategorized.push(ch);
       } else {
         let matched = false;
-        for (const c of cats) {
-          if (map[c]) {
-            map[c].push(ch);
+        for (const cat of curationCategories) {
+          if (matchCategory(cats, cat.id)) {
+            map[cat.id].push(ch);
             matched = true;
           }
         }

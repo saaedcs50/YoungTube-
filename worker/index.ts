@@ -878,6 +878,79 @@ export default {
       });
     }
 
+    // 8.5 GET /api/categories (Public - dynamic categories with fallback defaults)
+    if ((url.pathname === '/api/categories' || url.pathname === '/api/admin/categories') && request.method === 'GET') {
+      const defaultCategories = [
+        { id: 'all', label: 'كل الفيديوهات', emoji: '✨', description: 'كل الفيديوهات والبرامج الرئيسية' },
+        { id: 'quran', label: 'قرآن كريم وأذكار', emoji: '🕌', description: 'تلاوات خاشعة وأذكار يومية وقصص الأنبياء' },
+        { id: 'stories', label: 'قصص وحكايات', emoji: '📖', description: 'قصص ممتعة ومغامرات هادفة ومسلية' },
+        { id: 'cartoons', label: 'كرتون وأناشيد', emoji: '📺', description: 'أناشيد كرتونية وبرامج رسوم متحركة مبهجة' },
+        { id: 'education', label: 'تعليم ولغات', emoji: '💡', description: 'حروف وأرقام وتعلم اللغات والمفاهيم الأساسية' },
+        { id: 'science', label: 'علوم واستكشاف', emoji: '🔬', description: 'تجارب علمية واستكشاف العالم الطبيعي' },
+        { id: 'crafts', label: 'رسم وفنون', emoji: '🎨', description: 'تعلم الرسم والتلوين والأشغال اليدوية المبتكرة' },
+        { id: 'sports', label: 'حركة ورياضة', emoji: '⚽', description: 'تمارين وألعاب حركية وتحديات رياضية ممتعة' },
+      ];
+
+      let categories = defaultCategories;
+      if (env.CHANNELS_ARCHIVE) {
+        try {
+          const raw = await env.CHANNELS_ARCHIVE.get('custom_categories');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              categories = parsed;
+            } else if (parsed && Array.isArray(parsed.categories) && parsed.categories.length > 0) {
+              categories = parsed.categories;
+            }
+          }
+        } catch {}
+      }
+
+      return new Response(JSON.stringify(categories), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Cache-Control': 'public, max-age=60',
+        },
+      });
+    }
+
+    // 8.6 POST/PUT /api/admin/categories (Admin - save dynamic categories)
+    if ((url.pathname === '/api/admin/categories' || url.pathname === '/api/categories') && (request.method === 'POST' || request.method === 'PUT')) {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: corsHeaders,
+        });
+      }
+
+      try {
+        const body: any = await request.json();
+        let listToSave: any[] = [];
+        if (Array.isArray(body)) {
+          listToSave = body;
+        } else if (body && Array.isArray(body.categories)) {
+          listToSave = body.categories;
+        } else if (body && Array.isArray(body.items)) {
+          listToSave = body.items;
+        }
+
+        if (env.CHANNELS_ARCHIVE) {
+          await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(listToSave));
+        }
+
+        return new Response(JSON.stringify({ success: true, count: listToSave.length }), {
+          status: 200,
+          headers: corsHeaders,
+        });
+      } catch (err: any) {
+        return new Response(JSON.stringify({ error: err?.message || 'Failed to save categories' }), {
+          status: 400,
+          headers: corsHeaders,
+        });
+      }
+    }
+
     // 9. POST /api/admin/blocks (Protected with Bearer ADMIN_KEY)
     if (url.pathname === '/api/admin/blocks' && request.method === 'POST') {
       if (!checkAdminAuth(request, env)) {
