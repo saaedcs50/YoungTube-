@@ -30,6 +30,7 @@ const TasteShiftCard = React.lazy(() => import('./components/TasteShiftCard').th
 const ChannelCurationByCategory = React.lazy(() => import('./components/ChannelCurationByCategory').then((m) => ({ default: m.ChannelCurationByCategory })));
 const FilteringTab = React.lazy(() => import('./components/FilteringTab').then((m) => ({ default: m.FilteringTab })));
 const SavedVideosTab = React.lazy(() => import('./components/SavedVideosTab').then((m) => ({ default: m.SavedVideosTab })));
+const AddByUrlCard = React.lazy(() => import('./components/AddByUrlCard'));
 const TimerTestCard = React.lazy(() => import('./components/TimerTestCard'));
 import { DashboardShell } from './components/dashboard/DashboardShell';
 import { DashboardSectionId } from './components/dashboard/DashboardNav';
@@ -111,6 +112,7 @@ export default function App() {
 
   // Stage 5 Refresh trigger for channels count card
   const [channelsRefreshTrigger, setChannelsRefreshTrigger] = useState(0);
+  const [savedVideosRefreshTrigger, setSavedVideosRefreshTrigger] = useState(0);
   const [channelsData, setChannelsData] = useState<any[] | null>(null);
 
   // Stable callback — prevents infinite re-fetch loop in ChannelsCountCard
@@ -1046,7 +1048,14 @@ export default function App() {
           {dashboardSection === 'saved' && (
             <div id="section-saved" className="space-y-6">
               <Suspense fallback={<SectionLoadingSkeleton />}>
-                <SavedVideosTab onSelectVideo={handleSelectVideo} />
+                <AddByUrlCard
+                  target="saved"
+                  onAdded={() => setSavedVideosRefreshTrigger((prev) => prev + 1)}
+                />
+                <SavedVideosTab
+                  key={savedVideosRefreshTrigger}
+                  onSelectVideo={handleSelectVideo}
+                />
               </Suspense>
             </div>
           )}

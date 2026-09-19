@@ -9,6 +9,7 @@ import { loadCachedBlocks, fetchGlobalBlocks } from '../services/globalBlocks';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
 import { TasteReactionBar } from '../components/TasteReactionBar';
 import { VideoCard } from '../components/VideoCard';
+import AddByUrlCard from '../components/AddByUrlCard';
 import { WindowVirtualizer } from 'virtua';
 import { enrichFeedItemViewCounts } from '../services/youtubeViewCounts';
 import {
@@ -292,6 +293,7 @@ export default function KidHomeScreen({
   // Child-facing Favorites view state
   const [showFavorites, setShowFavorites] = useState(false);
   const [favoritesVideos, setFavoritesVideos] = useState<FeedItem[]>([]);
+  const [savedAndLovedVideos, setSavedAndLovedVideos] = useState<FeedItem[]>([]);
   const [favoritesCount, setFavoritesCount] = useState(0);
 
   // Taste Shift feature state
@@ -662,7 +664,11 @@ export default function KidHomeScreen({
       const [interactions, storedChannels, settings] = await Promise.all([
         db.interactions
           .filter(
-            (i) => i.childLoved === true || i.childReaction === 'liked' || i.parentRating === 'liked'
+            (i) =>
+              i.childLoved === true ||
+              i.childReaction === 'liked' ||
+              i.parentRating === 'liked' ||
+              i.savedByParent === true
           )
           .toArray(),
         db.channels.toArray(),
@@ -697,6 +703,7 @@ export default function KidHomeScreen({
       const cachedRows =
         videoIds.length > 0 ? await db.feedCache.where('videoId').anyOf(videoIds).toArray() : [];
       const cachedMap = new Map(cachedRows.map((r) => [r.videoId, r]));
+      const interMap = new Map(interactions.map((i) => [i.videoId, i]));
 
       const safeList: FeedItem[] = [];
       for (const inter of interactions) {
@@ -722,8 +729,19 @@ export default function KidHomeScreen({
         });
       }
 
-      setFavoritesVideos(safeList);
-      setFavoritesCount(safeList.length);
+      // Child-facing favorites list (only items explicitly loved or reacted as liked)
+      const safeLovedList = safeList.filter((item) => {
+        const inter = interMap.get(item.videoId);
+        return (
+          inter?.childLoved === true ||
+          inter?.childReaction === 'liked' ||
+          inter?.parentRating === 'liked'
+        );
+      });
+
+      setFavoritesVideos(safeLovedList);
+      setFavoritesCount(safeLovedList.length);
+      setSavedAndLovedVideos(safeList);
     } catch (err) {
       console.error('Failed to load favorites videos:', err);
     }
@@ -749,7 +767,7 @@ export default function KidHomeScreen({
       });
     }
 
-    // In-feed search (ONLY searches already-approved, cached videos client-side)
+    // In-feed search (searches approved cached videos, plus saved and loved videos)
     if (debouncedSearch) {
       result = result.filter((video) => {
         const channelInfo = channelMap.get(video.channelId);
@@ -757,10 +775,41 @@ export default function KidHomeScreen({
         const channelMatch = channelInfo?.title.toLowerCase().includes(debouncedSearch);
         return titleMatch || channelMatch;
       });
+
+      // Append matching saved/loved results without duplicating any videoId
+      if (savedAndLovedVideos.length > 0) {
+        const existingIds = new Set(result.map((v) => v.videoId));
+        const matchingSavedLoved: FeedItem[] = [];
+
+        for (const item of savedAndLovedVideos) {
+          if (existingIds.has(item.videoId)) continue;
+          if (suppressedSet.has(item.videoId)) continue;
+
+          // Category filter if active
+          if (selectedCategory !== 'all') {
+            const channelInfo = channelMap.get(item.channelId);
+            const channelCats = channelInfo?.categories || (item as any).categories || (item as any).category;
+            if (!matchCategory(channelCats, selectedCategory)) continue;
+          }
+
+          const channelInfo = channelMap.get(item.channelId);
+          const titleMatch = item.title.toLowerCase().includes(debouncedSearch);
+          const channelMatch = channelInfo?.title.toLowerCase().includes(debouncedSearch);
+
+          if (titleMatch || channelMatch) {
+            existingIds.add(item.videoId);
+            matchingSavedLoved.push(item);
+          }
+        }
+
+        if (matchingSavedLoved.length > 0) {
+          result = [...result, ...matchingSavedLoved];
+        }
+      }
     }
 
     return result;
-  }, [videos, selectedCategory, debouncedSearch, channelMap, suppressedSet]);
+  }, [videos, selectedCategory, debouncedSearch, channelMap, suppressedSet, savedAndLovedVideos]);
 
   // 3.5 Filter favorites by search query
   const filteredFavorites = useMemo(() => {
@@ -964,8 +1013,9 @@ export default function KidHomeScreen({
       <main className="grow w-full py-4 sm:py-6">
         {showFavorites ? (
           <div id="kid-favorites-view" className="space-y-6">
-            {/* Header banner with back button */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Header banner with back button and AddByUrl card */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+              <AddByUrlCard target="loved" onAdded={() => void loadFavorites()} />
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/95 p-4 sm:p-5 rounded-3xl border border-rose-100 shadow-[0_2px_12px_rgba(244,63,94,0.05)]">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 border border-rose-100 shadow-sm">

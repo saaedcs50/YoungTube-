@@ -829,6 +829,165 @@ export default {
       }
     }
 
+    // 4.6 GET /api/video-lookup?id={videoId} (Public lookup for a single video)
+    if (url.pathname === '/api/video-lookup' && request.method === 'GET') {
+      const videoId = (url.searchParams.get('id') || url.searchParams.get('videoId') || '').trim();
+      if (!videoId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required parameter "id"' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      if (!env.YOUTUBE_API_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error: YOUTUBE_API_KEY is not set' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      try {
+        const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+        apiUrl.searchParams.set('part', 'snippet');
+        apiUrl.searchParams.set('id', videoId);
+        apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
+
+        const ytRes = await fetch(apiUrl.toString());
+        if (!ytRes.ok) {
+          const errText = await ytRes.text();
+          return new Response(
+            JSON.stringify({ error: `YouTube API error (${ytRes.status}): ${errText}` }),
+            { status: ytRes.status, headers: corsHeaders }
+          );
+        }
+
+        const data: any = await ytRes.json();
+        const item = data.items?.[0];
+
+        if (
+          !item ||
+          !item.snippet ||
+          item.snippet.title === 'Private video' ||
+          item.snippet.title === 'Deleted video'
+        ) {
+          return new Response(
+            JSON.stringify({ error: 'Video is unavailable or has been deleted' }),
+            { status: 404, headers: corsHeaders }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            videoId,
+            title: item.snippet.title,
+            channelId: item.snippet.channelId || '',
+            channelTitle: item.snippet.channelTitle || '',
+            publishedAt: item.snippet.publishedAt || new Date().toISOString(),
+          }),
+          {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              'Cache-Control': 'public, max-age=300',
+            },
+          }
+        );
+      } catch (err: any) {
+        return new Response(
+          JSON.stringify({ error: err?.message || 'Error looking up video' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+    }
+
+    // 4.7 GET /api/playlist-lookup?id={playlistId} (Public lookup for a playlist)
+    if (url.pathname === '/api/playlist-lookup' && request.method === 'GET') {
+      const playlistId = (url.searchParams.get('id') || url.searchParams.get('playlistId') || '').trim();
+      if (!playlistId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required parameter "id"' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      if (!env.YOUTUBE_API_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error: YOUTUBE_API_KEY is not set' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      try {
+        const allVideos: Array<{ videoId: string; title: string; publishedAt: string }> = [];
+        let pageToken: string | undefined = undefined;
+        let pageCount = 0;
+        const maxPages = 4; // Fetch up to 200 videos (50 per page)
+
+        while (pageCount < maxPages) {
+          const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+          apiUrl.searchParams.set('part', 'snippet');
+          apiUrl.searchParams.set('playlistId', playlistId);
+          apiUrl.searchParams.set('maxResults', '50');
+          if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
+          apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
+
+          const ytRes = await fetch(apiUrl.toString());
+          if (!ytRes.ok) {
+            const errText = await ytRes.text();
+            if (ytRes.status === 404) {
+              return new Response(
+                JSON.stringify({ error: 'Playlist is unavailable or has been deleted' }),
+                { status: 404, headers: corsHeaders }
+              );
+            }
+            return new Response(
+              JSON.stringify({ error: `YouTube API error (${ytRes.status}): ${errText}` }),
+              { status: ytRes.status, headers: corsHeaders }
+            );
+          }
+
+          const data: any = await ytRes.json();
+          const items = data.items || [];
+          for (const item of items) {
+            const vId = item.snippet?.resourceId?.videoId;
+            const title = item.snippet?.title;
+            const publishedAt = item.snippet?.publishedAt;
+            if (vId && title && title !== 'Private video' && title !== 'Deleted video') {
+              allVideos.push({
+                videoId: vId,
+                title,
+                publishedAt: publishedAt || new Date().toISOString(),
+              });
+            }
+          }
+
+          pageToken = data.nextPageToken;
+          pageCount++;
+          if (!pageToken || items.length === 0) break;
+        }
+
+        return new Response(
+          JSON.stringify({
+            playlistId,
+            videos: allVideos,
+            count: allVideos.length,
+          }),
+          {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              'Cache-Control': 'public, max-age=300',
+            },
+          }
+        );
+      } catch (err: any) {
+        return new Response(
+          JSON.stringify({ error: err?.message || 'Error looking up playlist' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+    }
+
     // 5. POST/GET /api/admin/trigger-refresh (Manual trigger for testing the cron batch)
     if (
       url.pathname === '/api/admin/trigger-refresh' &&
