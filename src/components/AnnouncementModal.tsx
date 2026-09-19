@@ -34,7 +34,7 @@ export default function AnnouncementModal({
   return (
     <div
       id="announcement-modal-backdrop"
-      className="fixed inset-0 z-50 bg-[#FAF8F5] overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-sm overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
       dir="rtl"
       role="dialog"
       aria-modal="true"
@@ -42,7 +42,7 @@ export default function AnnouncementModal({
     >
       <div
         id="announcement-modal"
-        className="w-full max-w-lg bg-white rounded-3xl shadow-xl border border-stone-200/80 overflow-hidden flex flex-col my-auto"
+        className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-stone-200/80 overflow-hidden flex flex-col my-auto"
       >
         {/* Modal Header */}
         <div
