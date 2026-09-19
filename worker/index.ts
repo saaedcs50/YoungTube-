@@ -1427,6 +1427,7 @@ export default {
 
       const installId = body.installId ? String(body.installId).trim() : undefined;
       const durationSec = Number(body.durationSec) || 0;
+      const sessionId = body.sessionId ? String(body.sessionId).trim() : undefined;
 
       try {
         if (env.TELEMETRY_DO) {
@@ -1443,7 +1444,7 @@ export default {
           await stub.fetch(`https://do${doPath}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ country, installId, durationSec }),
+            body: JSON.stringify({ country, installId, durationSec, sessionId }),
           });
         } else {
           // Fallback if DO binding is missing
@@ -1630,6 +1631,16 @@ export default {
       await refreshChannelsBatch(env);
     } catch (err) {
       console.error('Scheduled cron execution error:', err);
+    }
+
+    if (env.TELEMETRY_DO) {
+      try {
+        const id = env.TELEMETRY_DO.idFromName('telemetry-v1');
+        const stub = env.TELEMETRY_DO.get(id);
+        await stub.fetch('https://do/sweep_pending', { method: 'POST' });
+      } catch (err) {
+        console.error('Telemetry sweep failed:', err);
+      }
     }
   },
 };

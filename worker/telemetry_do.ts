@@ -26,6 +26,8 @@ function getTodayDateUtc(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+const PARENT_START_TIMEOUT_MS = 30 * 60 * 1000; // 30 دقيقة
+
 export class TelemetryAggregator {
   state: any;
   ctx: any;
@@ -48,9 +50,13 @@ export class TelemetryAggregator {
       const country = (body.country && String(body.country).trim().toUpperCase()) || 'XX';
       const installId = body.installId && typeof body.installId === 'string' ? body.installId.trim() : undefined;
       const durationSec = Number(body.durationSec) || 0;
+      const sessionId = body.sessionId && typeof body.sessionId === 'string' ? body.sessionId.trim() : undefined;
       const date = getTodayDateUtc();
 
       if (url.pathname === '/parent_start') {
+        if (sessionId) {
+          await this.handlePendingStart(sessionId, country, installId);
+        }
         await this.handleParentStart(date, country, installId);
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
@@ -59,7 +65,7 @@ export class TelemetryAggregator {
       }
 
       if (url.pathname === '/parent_end') {
-        await this.handleParentEnd(date, country, installId, durationSec);
+        await this.handleParentEnd(date, country, installId, durationSec, sessionId);
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -69,6 +75,14 @@ export class TelemetryAggregator {
       if (url.pathname === '/child_end') {
         await this.handleChildEnd(date, country, installId, durationSec);
         return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url.pathname === '/sweep_pending') {
+        const sweptCount = await this.sweepStalePendingStarts();
+        return new Response(JSON.stringify({ ok: true, sweptCount }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
@@ -171,7 +185,68 @@ export class TelemetryAggregator {
     await this.saveDayData(date, day);
   }
 
-  private async handleParentEnd(date: string, country: string, installId?: string, durationSec: number = 0): Promise<void> {
+  private async handlePendingStart(sessionId: string, country: string, installId?: string): Promise<void> {
+    if (!sessionId) return;
+    const storage = await this.getStorage();
+    const pendingKey = `pending_start:${sessionId}`;
+    await storage.put(pendingKey, {
+      sessionId,
+      country,
+      installId: installId || null,
+      startedAt: Date.now(),
+    });
+
+    let index: string[] = (await storage.get('pending_starts_index')) || [];
+    if (!index.includes(sessionId)) {
+      index.push(sessionId);
+      await storage.put('pending_starts_index', index);
+    }
+  }
+
+  private async clearPendingStart(sessionId?: string): Promise<void> {
+    if (!sessionId) return;
+    const storage = await this.getStorage();
+    await storage.delete(`pending_start:${sessionId}`);
+    let index: string[] = (await storage.get('pending_starts_index')) || [];
+    const updated = index.filter((id) => id !== sessionId);
+    if (updated.length !== index.length) {
+      await storage.put('pending_starts_index', updated);
+    }
+  }
+
+  private async sweepStalePendingStarts(): Promise<number> {
+    const storage = await this.getStorage();
+    let index: string[] = (await storage.get('pending_starts_index')) || [];
+    if (index.length === 0) return 0;
+
+    let sweptCount = 0;
+    const remainingIndex: string[] = [];
+    const now = Date.now();
+
+    for (const sessionId of index) {
+      const record = await storage.get(`pending_start:${sessionId}`);
+      if (!record) {
+        // Record was already deleted/cleaned up, skip adding to remainingIndex
+        continue;
+      }
+
+      const elapsed = now - (record.startedAt || 0);
+      if (elapsed >= PARENT_START_TIMEOUT_MS) {
+        const estimatedDuration = Math.min(Math.floor(PARENT_START_TIMEOUT_MS / 1000), 7200);
+        await this.handleParentEnd(getTodayDateUtc(), record.country, record.installId, estimatedDuration, undefined);
+        await storage.delete(`pending_start:${sessionId}`);
+        sweptCount++;
+      } else {
+        remainingIndex.push(sessionId);
+      }
+    }
+
+    await storage.put('pending_starts_index', remainingIndex);
+    return sweptCount;
+  }
+
+  private async handleParentEnd(date: string, country: string, installId?: string, durationSec: number = 0, sessionId?: string): Promise<void> {
+    await this.clearPendingStart(sessionId);
     const day = await this.getDayData(date);
     if (installId) {
       const uniquesResult = await this.updateUniques(date, country, installId);
