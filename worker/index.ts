@@ -271,13 +271,13 @@ async function fetchYouTubeRss(sourceType: 'channel' | 'playlist' | string, sour
 }
 
 /**
- * Processes a batch of 12 channels from channels_seed.json:
+ * Processes a batch of 45 channels from channels_seed.json:
  * - Reads cursor from KV (_rss_refresh_cursor)
- * - Fetches live RSS for 12 channels only (safely under the 50 subrequests limit)
+ * - Fetches live RSS for 45 channels only (safely under the 50 subrequests limit)
  * - Merges with archived videos in KV
  * - Deduplicates by videoId, sorts by publishedAt descending, caps at 200 videos
  * - Updates each channel in place in the full list stored at _channels_latest_merged
- * - Updates cursor for the next 40 (circular wrap-around)
+ * - Updates cursor for the next batch of 45 (circular wrap-around)
  */
 export async function refreshChannelsBatch(env: Env): Promise<{
   updatedCount: number;
@@ -286,7 +286,7 @@ export async function refreshChannelsBatch(env: Env): Promise<{
   updatedChannels: string[];
 }> {
   const totalChannels = channelsSeed.length;
-  const BATCH_SIZE = 12;
+  const BATCH_SIZE = 45;
 
   if (!env.CHANNELS_ARCHIVE) {
     return {
@@ -2151,8 +2151,8 @@ export default {
   },
 
   /**
-   * Cron Trigger handler: Runs periodically (e.g. every 15 minutes)
-   * to refresh the next batch of 40 channels safely under the 50 subrequests limit.
+   * Cron Trigger handler: Runs periodically (every 6 hours)
+   * to refresh the next batch of 45 channels safely under the 50 subrequests limit.
    */
   async scheduled(controller: any, env: Env, ctx?: any): Promise<void> {
     try {
