@@ -50,11 +50,11 @@ export const DashboardNav: React.FC<DashboardNavProps> = ({
   const visibleItems = NAV_ITEMS.filter((item) => item.id !== 'tools' || showTools);
   const itemsRef = useRef<Map<DashboardSectionId, HTMLButtonElement>>(new Map());
 
-  // Active tab must scrollIntoView inline center
+  // Active tab must scrollIntoView inline nearest
   useEffect(() => {
     const activeEl = itemsRef.current.get(activeSection);
     if (activeEl) {
-      activeEl.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+      activeEl.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
     }
   }, [activeSection]);
 
@@ -62,7 +62,7 @@ export const DashboardNav: React.FC<DashboardNavProps> = ({
     <nav
       id="dashboard-navigation"
       aria-label="أقسام لوحة الأهل"
-      className="bg-white rounded-2xl border border-stone-200/70 p-1.5 shadow-sm overflow-hidden"
+      className="bg-white rounded-2xl border border-stone-200/70 p-1.5 shadow-sm overflow-hidden min-w-0"
     >
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5 px-0.5">
         {visibleItems.map((item) => {

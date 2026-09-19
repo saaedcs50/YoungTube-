@@ -110,7 +110,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       </header>
 
       {/* 2. Nav + Content Workspace */}
-      <main className="max-w-6xl w-full mx-auto px-4 sm:px-8 py-5 space-y-5 flex-1 flex flex-col">
+      <main className="max-w-6xl w-full mx-auto px-4 sm:px-8 py-5 space-y-5 flex-1 flex flex-col min-w-0">
         {/* Navigation Bar */}
         <DashboardNav
           activeSection={activeSection}
