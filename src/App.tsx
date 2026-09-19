@@ -24,7 +24,6 @@ const PinLockModal = React.lazy(() => import('./components/PinLockModal'));
 const AdBlockNotice = React.lazy(() => import('./components/AdBlockNotice'));
 const ChannelsCountCard = React.lazy(() => import('./components/ChannelsCountCard'));
 const FilteringResultCard = React.lazy(() => import('./components/FilteringResultCard'));
-const TempAdminTool = React.lazy(() => import('./components/TempAdminTool'));
 const ChildProfileSection = React.lazy(() => import('./components/ChildProfileSection').then((m) => ({ default: m.ChildProfileSection })));
 const TimerSection = React.lazy(() => import('./components/dashboard/TimerSection').then((m) => ({ default: m.TimerSection })));
 const TasteShiftCard = React.lazy(() => import('./components/TasteShiftCard').then((m) => ({ default: m.TasteShiftCard })));
@@ -1407,13 +1406,6 @@ export default function App() {
                 </Suspense>
               </div>
             </div>
-
-            {/* Stage 5: Temporary Admin Tool for Backfilling Channels */}
-            <Suspense fallback={null}>
-              <TempAdminTool
-                onBackfillSuccess={handleBackfillSuccess}
-              />
-            </Suspense>
           </div>
         )}
       </DashboardShell>

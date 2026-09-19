@@ -26,6 +26,9 @@ export const DEFAULT_KID_CATEGORIES: KidCategory[] = [
   { id: 'science', label: 'علوم واستكشاف', emoji: '🔬', description: 'تجارب علمية واستكشاف العالم الطبيعي' },
   { id: 'crafts', label: 'رسم وفنون', emoji: '🎨', description: 'تعلم الرسم والتلوين والأشغال اليدوية المبتكرة' },
   { id: 'sports', label: 'حركة ورياضة', emoji: '⚽', description: 'تمارين وألعاب حركية وتحديات رياضية ممتعة' },
+  { id: 'gaming', label: 'ألعاب مناسبة', emoji: '🎮', description: 'ألعاب ذكاء ومرح عائلي مناسبة للأطفال' },
+  { id: 'cooking', label: 'طبخ الصغار', emoji: '🍳', description: 'وصفات لذيذة وسهلة للأطفال' },
+  { id: 'calm', label: 'هدوء واسترخاء', emoji: '🌙', description: 'موسيقى هادئة وقصص ما قبل النوم' },
 ];
 
 export const KID_CATEGORIES: KidCategory[] = DEFAULT_KID_CATEGORIES;
