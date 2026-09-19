@@ -713,7 +713,7 @@ export default {
 
       try {
         const totalChannels = channelsSeed.length;
-        const BATCH_SIZE = 5;
+        const BATCH_SIZE = 3;
 
         let cursor = 0;
         if (env.CHANNELS_ARCHIVE) {
@@ -731,7 +731,7 @@ export default {
         }
         const cursorBefore = cursor;
 
-        // Select 5 channels from channelsSeed using cursor
+        // Select 3 channels from channelsSeed using cursor
         const batch: { channel: any; originalIndex: number }[] = [];
         for (let i = 0; i < BATCH_SIZE; i++) {
           const idx = (cursorBefore + i) % totalChannels;
@@ -765,10 +765,8 @@ export default {
           }
         }
 
-        const processedChannels: { sourceId: string; title: string; videoCount: number }[] = [];
-
-        // Process each channel in the batch sequentially
-        for (const { channel } of batch) {
+        // Async function to process a single channel's pagination and individual archive
+        const processOneChannel = async (channel: any) => {
           const sourceId = channel.sourceId;
           const sourceType = channel.sourceType || 'channel';
 
@@ -779,50 +777,78 @@ export default {
             playlistId = 'UU' + sourceId.slice(2);
           }
 
-          try {
-            const allVideos: VideoItem[] = [];
-            let pageToken: string | undefined = undefined;
-            let pageCount = 0;
-            const maxPages = 20; // Fetch up to 1000 videos (50 per page)
+          const allVideos: VideoItem[] = [];
+          let pageToken: string | undefined = undefined;
+          let pageCount = 0;
+          const maxPages = 20; // Fetch up to 1000 videos (50 per page)
 
-            while (pageCount < maxPages) {
-              const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
-              apiUrl.searchParams.set('part', 'snippet');
-              apiUrl.searchParams.set('playlistId', playlistId);
-              apiUrl.searchParams.set('maxResults', '50');
-              if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
-              apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
+          while (pageCount < maxPages) {
+            const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+            apiUrl.searchParams.set('part', 'snippet');
+            apiUrl.searchParams.set('playlistId', playlistId);
+            apiUrl.searchParams.set('maxResults', '50');
+            if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
+            apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
 
-              const ytRes = await fetch(apiUrl.toString());
-              if (!ytRes.ok) {
-                const errText = await ytRes.text();
-                throw new Error(`YouTube API error (${ytRes.status}) for ${sourceId}: ${errText}`);
-              }
-
-              const data: any = await ytRes.json();
-              const items = data.items || [];
-              for (const item of items) {
-                const vId = item.snippet?.resourceId?.videoId;
-                const title = item.snippet?.title;
-                const publishedAt = item.snippet?.publishedAt;
-                if (vId && title && title !== 'Private video' && title !== 'Deleted video') {
-                  allVideos.push({
-                    videoId: vId,
-                    title,
-                    publishedAt: publishedAt || new Date().toISOString(),
-                  });
-                }
-              }
-
-              pageToken = data.nextPageToken;
-              pageCount++;
-              if (!pageToken || items.length === 0) break;
+            const ytRes = await fetch(apiUrl.toString());
+            if (!ytRes.ok) {
+              const errText = await ytRes.text();
+              const apiError = new Error(`YouTube API error (${ytRes.status}) for ${sourceId}: ${errText}`) as Error & { status?: number };
+              apiError.status = ytRes.status;
+              throw apiError;
             }
 
-            // Save the individual channel archive (up to 1000 videos)
-            if (env.CHANNELS_ARCHIVE) {
-              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(allVideos));
+            const data: any = await ytRes.json();
+            const items = data.items || [];
+            for (const item of items) {
+              const vId = item.snippet?.resourceId?.videoId;
+              const title = item.snippet?.title;
+              const publishedAt = item.snippet?.publishedAt;
+              if (vId && title && title !== 'Private video' && title !== 'Deleted video') {
+                allVideos.push({
+                  videoId: vId,
+                  title,
+                  publishedAt: publishedAt || new Date().toISOString(),
+                });
+              }
             }
+
+            pageToken = data.nextPageToken;
+            pageCount++;
+            if (!pageToken || items.length === 0) break;
+          }
+
+          // Save the individual channel archive (up to 1000 videos)
+          if (env.CHANNELS_ARCHIVE) {
+            await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(allVideos));
+          }
+
+          return {
+            channel,
+            sourceId,
+            sourceType,
+            allVideos,
+          };
+        };
+
+        // Run batch channels concurrently
+        const batchResults = await Promise.allSettled(
+          batch.map(({ channel }) => processOneChannel(channel))
+        );
+
+        const processedChannels: { sourceId: string; title: string; videoCount: number }[] = [];
+        const failedChannels: (
+          | { sourceId: string; title: string; error: 'youtube_rate_limited'; status: number }
+          | { sourceId: string; title: string; error: 'other'; message: string }
+        )[] = [];
+
+        for (let i = 0; i < batchResults.length; i++) {
+          const res = batchResults[i];
+          const channel = batch[i].channel;
+          const sourceId = channel.sourceId;
+
+          if (res.status === 'fulfilled') {
+            const { sourceType, allVideos } = res.value;
 
             // Update channel in fullMergedList (capped at 300 videos for the shared merged key)
             if (fullMergedList.length > 0) {
@@ -855,9 +881,26 @@ export default {
               title: channel.title || sourceId,
               videoCount: allVideos.length,
             });
-          } catch (channelErr) {
-            console.error(`Error backfilling channel ${sourceId} in batch:`, channelErr);
-            // Skip this channel and continue with the rest of the batch
+          } else {
+            const reason = res.reason;
+            console.error(`Error backfilling channel ${sourceId} in batch:`, reason);
+
+            const status = reason?.status;
+            if (status === 403 || status === 429) {
+              failedChannels.push({
+                sourceId,
+                title: channel.title || sourceId,
+                error: 'youtube_rate_limited',
+                status,
+              });
+            } else {
+              failedChannels.push({
+                sourceId,
+                title: channel.title || sourceId,
+                error: 'other',
+                message: reason instanceof Error ? reason.message : String(reason || 'Unknown error'),
+              });
+            }
           }
         }
 
@@ -888,6 +931,7 @@ export default {
         return new Response(
           JSON.stringify({
             processedChannels,
+            failedChannels,
             cursorBefore,
             cursorAfter,
             totalChannels,
