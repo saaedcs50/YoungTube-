@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import db, { FeedItem, Channel } from '../db';
 import channelsSeed from '../../channels_seed.json';
+import { WORKER_URL } from '../config';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { matchCategory } from '../categories';
 import { ensureChannelsArchiveSynced, scheduleBackgroundPortraitCheck, migrateUnhidePortraitVideos } from '../filtering';
@@ -283,6 +284,10 @@ export default function KidHomeScreen({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [deepSearchResults, setDeepSearchResults] = useState<
+    Array<{ videoId: string; title: string; publishedAt: string; sourceId: string }>
+  >([]);
+  const [isDeepSearching, setIsDeepSearching] = useState(false);
 
   // Child-facing Favorites view state
   const [showFavorites, setShowFavorites] = useState(false);
@@ -777,6 +782,61 @@ export default function KidHomeScreen({
     return rows;
   }, [filteredVideos, columnCount]);
 
+  // 3.8 Deep search fallback: if local filteredVideos has fewer than 3 results and debouncedSearch has > 2 chars
+  useEffect(() => {
+    if (!debouncedSearch) {
+      setDeepSearchResults([]);
+      setIsDeepSearching(false);
+      return;
+    }
+
+    if (debouncedSearch.length <= 2 || filteredVideos.length >= 3) {
+      setDeepSearchResults([]);
+      setIsDeepSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsDeepSearching(true);
+
+    const runDeepSearch = async () => {
+      try {
+        const res = await fetch(
+          `${WORKER_URL}/api/search-archive?q=${encodeURIComponent(debouncedSearch)}`
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (data && Array.isArray(data.results)) {
+          // Exclude videos already shown in local filteredVideos
+          const localIds = new Set(filteredVideos.map((v) => v.videoId));
+          const uniqueArchiveResults = data.results.filter(
+            (item: any) => !localIds.has(item.videoId)
+          );
+          setDeepSearchResults(uniqueArchiveResults);
+        } else {
+          setDeepSearchResults([]);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to deep search archive:', err);
+          setDeepSearchResults([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsDeepSearching(false);
+        }
+      }
+    };
+
+    void runDeepSearch();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearch, filteredVideos]);
+
   return (
     <div
       id="kid-home-screen"
@@ -855,6 +915,7 @@ export default function KidHomeScreen({
                   onClick={() => {
                     setSearchInput('');
                     setDebouncedSearch('');
+                    setDeepSearchResults([]);
                   }}
                   className="absolute left-3 text-stone-400 hover:text-stone-700 p-1 rounded-full hover:bg-stone-100 transition cursor-pointer"
                   title="مسح البحث"
@@ -1034,33 +1095,107 @@ export default function KidHomeScreen({
           </div>
         ) : filteredVideos.length === 0 ? (
           debouncedSearch ? (
-            /* Part A: Friendly Search Empty State */
-            <div className="max-w-lg mx-auto my-8 sm:my-12 px-4">
-              <div className="bg-white rounded-[28px] border border-stone-100 p-8 sm:p-10 text-center space-y-4 shadow-sm">
-                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-sm border border-amber-100">
-                  <Search className="w-8 h-8" />
+            deepSearchResults.length > 0 ? (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+                <div className="bg-amber-50/70 border border-amber-200/60 rounded-2xl p-4 text-center sm:text-right flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 text-amber-900">
+                    <div className="w-9 h-9 rounded-xl bg-amber-200/70 flex items-center justify-center shrink-0">
+                      <Search className="w-5 h-5 text-amber-800" />
+                    </div>
+                    <p className="text-xs sm:text-sm font-bold">
+                      لم نجد نتائج في الصفحة الحالية، ولكن عثرنا على نتائج في أرشيف القنوات!
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInput('');
+                      setDebouncedSearch('');
+                      setDeepSearchResults([]);
+                    }}
+                    className="text-xs font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                  >
+                    مسح البحث
+                  </button>
                 </div>
-                <div className="space-y-1.5">
-                  <h3 className="text-base sm:text-lg font-black text-stone-900">
-                    مفيش فيديوهات بالاسم ده جوه القنوات المسموحة
-                  </h3>
-                  <p className="text-xs sm:text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
-                    هذا البحث يعمل فقط داخل مكتبة القنوات الآمنة المصرح بها للطفل ولا يبحث في الإنترنت الخارجي.
-                  </p>
+
+                <div id="deep-search-archive-section">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-stone-900">
+                        Results from channel archive
+                      </h3>
+                      <p className="text-xs text-stone-500 font-medium">
+                        نتائج من أرشيف القنوات الموسع ({deepSearchResults.length} فيديو)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+                    {deepSearchResults.map((item) => {
+                      const channelInfo = channelMap.get(item.sourceId);
+                      const videoFeedItem: FeedItem = {
+                        videoId: item.videoId,
+                        channelId: item.sourceId,
+                        title: item.title,
+                        publishedAt: item.publishedAt,
+                        fetchedAt: Date.now(),
+                        hidden: false,
+                      };
+
+                      return (
+                        <VideoCard
+                          key={`archive-${item.videoId}`}
+                          video={videoFeedItem}
+                          channelTitle={channelInfo?.title || 'قناة أطفال'}
+                          onSelectVideo={onSelectVideo}
+                          onOpenDemoPlayer={onOpenDemoPlayer}
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
-                <button
-                  id="clear-search-empty-btn"
-                  type="button"
-                  onClick={() => {
-                    setSearchInput('');
-                    setDebouncedSearch('');
-                  }}
-                  className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer active:scale-95"
-                >
-                  مسح البحث وعرض كل الفيديوهات ✨
-                </button>
               </div>
-            </div>
+            ) : isDeepSearching ? (
+              <div className="max-w-lg mx-auto my-12 px-4 text-center space-y-4">
+                <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mx-auto" />
+                <p className="text-sm font-bold text-stone-600">
+                  جاري البحث في أرشيف القنوات الموسع...
+                </p>
+              </div>
+            ) : (
+              /* Part A: Friendly Search Empty State */
+              <div className="max-w-lg mx-auto my-8 sm:my-12 px-4">
+                <div className="bg-white rounded-[28px] border border-stone-100 p-8 sm:p-10 text-center space-y-4 shadow-sm">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-sm border border-amber-100">
+                    <Search className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="text-base sm:text-lg font-black text-stone-900">
+                      مفيش فيديوهات بالاسم ده جوه القنوات المسموحة
+                    </h3>
+                    <p className="text-xs sm:text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+                      هذا البحث يعمل فقط داخل مكتبة القنوات الآمنة المصرح بها للطفل ولا يبحث في الإنترنت الخارجي.
+                    </p>
+                  </div>
+                  <button
+                    id="clear-search-empty-btn"
+                    type="button"
+                    onClick={() => {
+                      setSearchInput('');
+                      setDebouncedSearch('');
+                      setDeepSearchResults([]);
+                    }}
+                    className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer active:scale-95"
+                  >
+                    مسح البحث وعرض كل الفيديوهات ✨
+                  </button>
+                </div>
+              </div>
+            )
           ) : (
             <div className="max-w-lg mx-auto my-8 sm:my-12 px-4">
               <div className="bg-white rounded-[28px] border border-stone-100 p-8 sm:p-10 text-center space-y-4 shadow-sm">
@@ -1175,6 +1310,60 @@ export default function KidHomeScreen({
                     </div>
                   ))}
                 </WindowVirtualizer>
+              </div>
+            )}
+
+            {/* Loading indicator for deep archive search if ongoing */}
+            {isDeepSearching && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 text-center text-xs text-stone-500 font-medium flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-500 rounded-full animate-spin" />
+                <span>جاري البحث في أرشيف القنوات الموسع...</span>
+              </div>
+            )}
+
+            {/* Deep search results fallback section */}
+            {deepSearchResults.length > 0 && (
+              <div
+                id="deep-search-archive-section"
+                className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 pt-8 border-t border-amber-100/80"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-stone-900">
+                      Results from channel archive
+                    </h3>
+                    <p className="text-xs text-stone-500 font-medium">
+                      نتائج إضافية من أرشيف القنوات الموسع ({deepSearchResults.length} فيديو)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+                  {deepSearchResults.map((item) => {
+                    const channelInfo = channelMap.get(item.sourceId);
+                    const videoFeedItem: FeedItem = {
+                      videoId: item.videoId,
+                      channelId: item.sourceId,
+                      title: item.title,
+                      publishedAt: item.publishedAt,
+                      fetchedAt: Date.now(),
+                      hidden: false,
+                    };
+
+                    return (
+                      <VideoCard
+                        key={`archive-${item.videoId}`}
+                        video={videoFeedItem}
+                        channelTitle={channelInfo?.title || 'قناة أطفال'}
+                        onSelectVideo={onSelectVideo}
+                        onOpenDemoPlayer={onOpenDemoPlayer}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

@@ -362,7 +362,8 @@ export async function refreshChannelsBatch(env: Env): Promise<{
         (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
       );
 
-      const finalVideos = deduped.slice(0, 200);
+      const finalVideos = deduped.slice(0, 10000);
+      const finalVideosForMergedList = finalVideos.slice(0, 300);
 
       // Save updated channel archive back to KV under channel.sourceId
       if (finalVideos.length > 0) {
@@ -371,7 +372,7 @@ export async function refreshChannelsBatch(env: Env): Promise<{
 
       return {
         channel,
-        videos: finalVideos,
+        videos: finalVideosForMergedList,
       };
     })
   );
@@ -571,7 +572,7 @@ export default {
         const allVideos: VideoItem[] = [];
         let pageToken: string | undefined = undefined;
         let pageCount = 0;
-        const maxPages = 4; // Fetch up to 200 videos (50 per page)
+        const maxPages = 200; // Fetch up to 10000 videos (50 per page) — may take a long time for very large channels
 
         while (pageCount < maxPages) {
           const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
@@ -644,16 +645,16 @@ export default {
               ...(targetIdx >= 0 ? fullMergedList[targetIdx] : { sourceId, sourceType }),
               sourceId,
               sourceType,
-              videos: allVideos.slice(0, 200),
-              videoCount: Math.min(allVideos.length, 200),
+              videos: allVideos.slice(0, 300),
+              videoCount: Math.min(allVideos.length, 300),
             };
 
             // If the channel exists in the seed, merge its metadata (title, thumbnail, categories, etc.)
             const seedChannel = channelsSeed.find((ch: any) => ch.sourceId === sourceId);
             if (seedChannel) {
               Object.assign(updatedChannel, seedChannel, {
-                videos: allVideos.slice(0, 200),
-                videoCount: Math.min(allVideos.length, 200),
+                videos: allVideos.slice(0, 300),
+                videoCount: Math.min(allVideos.length, 300),
               });
             }
 
@@ -722,6 +723,110 @@ export default {
         status: 200,
         headers: noStoreHeaders,
       });
+    }
+
+    // 4.5 GET /api/search-archive?q={query} (Deep search across all individual channel archives)
+    if (url.pathname === '/api/search-archive' && request.method === 'GET') {
+      try {
+        const q = (url.searchParams.get('q') || '').trim();
+        if (!q || q.length < 2) {
+          return new Response(JSON.stringify({ results: [], count: 0 }), {
+            status: 200,
+            headers: corsHeaders,
+          });
+        }
+
+        if (!env.CHANNELS_ARCHIVE) {
+          return new Response(JSON.stringify({ results: [], count: 0 }), {
+            status: 200,
+            headers: corsHeaders,
+          });
+        }
+
+        const normalize = (text: string) =>
+          text
+            .toLowerCase()
+            .replace(/[\u064B-\u065F\u0670]/g, '')
+            .replace(/[أإآ]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ى/g, 'ي');
+
+        const qLower = q.toLowerCase();
+        const qNorm = normalize(q);
+
+        const sourceIds: string[] = (channelsSeed as any[])
+          .map((ch: any) => ch.sourceId)
+          .filter(Boolean);
+
+        const kvReads = await Promise.allSettled(
+          sourceIds.map((sourceId) => env.CHANNELS_ARCHIVE!.get(sourceId))
+        );
+
+        const matchedVideos: Array<{ videoId: string; title: string; publishedAt: string; sourceId: string }> = [];
+
+        kvReads.forEach((res, idx) => {
+          if (res.status === 'fulfilled' && res.value) {
+            const sourceId = sourceIds[idx];
+            try {
+              const videos = JSON.parse(res.value);
+              if (Array.isArray(videos)) {
+                for (const v of videos) {
+                  if (v && v.videoId && v.title) {
+                    const titleStr = String(v.title);
+                    const titleLower = titleStr.toLowerCase();
+                    const titleNorm = normalize(titleStr);
+                    if (titleLower.includes(qLower) || titleNorm.includes(qNorm)) {
+                      matchedVideos.push({
+                        videoId: v.videoId,
+                        title: titleStr,
+                        publishedAt: v.publishedAt || '',
+                        sourceId,
+                      });
+                    }
+                  }
+                }
+              }
+            } catch {
+              // Ignore JSON parse errors for corrupt individual records
+            }
+          }
+        });
+
+        // Sort matching results by publishedAt descending
+        matchedVideos.sort((a, b) => {
+          const timeA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+          const timeB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+          return timeB - timeA;
+        });
+
+        const results = matchedVideos.slice(0, 50);
+
+        return new Response(
+          JSON.stringify({
+            results,
+            count: results.length,
+          }),
+          {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              'Cache-Control': 'public, max-age=60',
+            },
+          }
+        );
+      } catch (err: any) {
+        return new Response(
+          JSON.stringify({
+            results: [],
+            count: 0,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+          {
+            status: 200,
+            headers: corsHeaders,
+          }
+        );
+      }
     }
 
     // 5. POST/GET /api/admin/trigger-refresh (Manual trigger for testing the cron batch)

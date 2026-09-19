@@ -37,7 +37,7 @@ const PUT_CHUNK = 300;
 /** Do not prune existing cache against a clearly partial incoming list. */
 const PRUNE_SAFE_INCOMING = 50;
 /** Keep only the newest N passing videos per channel in Dexie (kid feed never needs 200). */
-const KEEP_PER_CHANNEL = 30;
+const KEEP_PER_CHANNEL = 150;
 
 let archiveSyncPromise: Promise<boolean> | null = null;
 
