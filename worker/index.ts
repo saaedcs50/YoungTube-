@@ -711,12 +711,22 @@ export default {
         );
       }
 
+      let reset = false;
+      try {
+        const body: any = await request.json();
+        if (body && typeof body === 'object' && body.reset === true) {
+          reset = true;
+        }
+      } catch {
+        // Empty or non-JSON body is valid, defaults reset to false
+      }
+
       try {
         const totalChannels = channelsSeed.length;
         const BATCH_SIZE = 3;
 
         let cursor = 0;
-        if (env.CHANNELS_ARCHIVE) {
+        if (!reset && env.CHANNELS_ARCHIVE) {
           try {
             const rawCursor = await env.CHANNELS_ARCHIVE.get('_backfill_all_cursor');
             if (rawCursor) {
