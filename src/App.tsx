@@ -10,12 +10,13 @@ import KidHomeScreen from './screens/KidHomeScreen';
 import { PlayerView } from './screens/PlayerView';
 import SessionEndScreen from './components/SessionEndScreen';
 import { startParentSession, endParentSession, endChildSession, createSessionId } from './services/telemetry';
-import { AnnouncementBanner } from './components/AnnouncementBanner';
+import AnnouncementModal from './components/AnnouncementModal';
 import {
   fetchAnnouncements,
   getVisibleAnnouncements,
   markDismissed,
   type Announcement,
+  type AnnouncementContext,
 } from './services/announcements';
 
 // Lazy-load heavy surfaces so kid-facing feed route starts immediately
@@ -151,23 +152,24 @@ export default function App() {
   } | null>(null);
   const [devForceStop, setDevForceStop] = useState(false);
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [kidsAnnouncements, setKidsAnnouncements] = useState<Announcement[]>([]);
+  const [parentAnnouncements, setParentAnnouncements] = useState<Announcement[]>([]);
 
-  // Phase D: Fetch announcements on app ready / when viewMode is kids OR dashboard
+  // Fetch announcements for Kid feed when viewMode is 'kids'
   useEffect(() => {
     if (showOnboarding) return;
-    if (viewMode !== 'kids' && viewMode !== 'dashboard') return;
+    if (viewMode !== 'kids') return;
 
     let cancelled = false;
     void (async () => {
       try {
         const items = await fetchAnnouncements();
         if (!cancelled) {
-          const visible = getVisibleAnnouncements(items);
-          setAnnouncements(visible);
+          const visible = getVisibleAnnouncements(items, 'kids');
+          setKidsAnnouncements(visible);
         }
       } catch {
-        // Fail-open: errors never block feed or dashboard
+        // Fail-open: errors never block feed
       }
     })();
 
@@ -176,9 +178,37 @@ export default function App() {
     };
   }, [viewMode, showOnboarding]);
 
-  const handleDismissAnnouncement = useCallback((id: string) => {
-    markDismissed(id);
-    setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+  // Fetch announcements for Parent dashboard when viewMode is 'dashboard'
+  useEffect(() => {
+    if (showOnboarding) return;
+    if (viewMode !== 'dashboard') return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const items = await fetchAnnouncements();
+        if (!cancelled) {
+          const visible = getVisibleAnnouncements(items, 'parent');
+          setParentAnnouncements(visible);
+        }
+      } catch {
+        // Fail-open: errors never block dashboard
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, showOnboarding]);
+
+  const handleDismissKidsAnnouncement = useCallback((id: string) => {
+    markDismissed(id, 'kids');
+    setKidsAnnouncements((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const handleDismissParentAnnouncement = useCallback((id: string) => {
+    markDismissed(id, 'parent');
+    setParentAnnouncements((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
   // Fix 2: Player fullscreen, mini-player, and settings sheet states tracked in App.tsx
@@ -812,11 +842,21 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* Phase D: Admin Announcements Banner */}
-      {!showOnboarding && announcements.length > 0 && (
-        <AnnouncementBanner
-          items={announcements}
-          onDismiss={handleDismissAnnouncement}
+      {/* Announcements Modal - Kids Track */}
+      {!showOnboarding && viewMode === 'kids' && kidsAnnouncements.length > 0 && (
+        <AnnouncementModal
+          items={kidsAnnouncements}
+          onDismiss={handleDismissKidsAnnouncement}
+          contextLabel="رسالة للأطفال والعائلة"
+        />
+      )}
+
+      {/* Announcements Modal - Parent Track */}
+      {!showOnboarding && viewMode === 'dashboard' && parentAnnouncements.length > 0 && (
+        <AnnouncementModal
+          items={parentAnnouncements}
+          onDismiss={handleDismissParentAnnouncement}
+          contextLabel="تنبيه للوالدين"
         />
       )}
 

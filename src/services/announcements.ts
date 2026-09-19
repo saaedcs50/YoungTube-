@@ -1,6 +1,10 @@
 import { WORKER_URL } from '../config';
 
-export const DISMISSED_KEY = 'yt_announcements_dismissed_v1';
+export type AnnouncementContext = 'kids' | 'parent';
+
+export function getDismissedKey(context: AnnouncementContext): string {
+  return `yt_announcements_dismissed_${context}_v1`;
+}
 
 export interface Announcement {
   id: string;
@@ -13,13 +17,13 @@ export interface Announcement {
 }
 
 /**
- * Loads the map of dismissed announcements from localStorage.
+ * Loads the map of dismissed announcements from localStorage for a specific context.
  * Format: Record<id, dismissedAtMs>
  */
-export function loadDismissed(): Record<string, number> {
+export function loadDismissed(context: AnnouncementContext): Record<string, number> {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = localStorage.getItem(DISMISSED_KEY);
+    const raw = localStorage.getItem(getDismissedKey(context));
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -32,14 +36,14 @@ export function loadDismissed(): Record<string, number> {
 }
 
 /**
- * Marks an announcement as dismissed with current timestamp.
+ * Marks an announcement as dismissed with current timestamp for a specific context.
  */
-export function markDismissed(id: string): void {
+export function markDismissed(id: string, context: AnnouncementContext): void {
   if (!id || typeof window === 'undefined') return;
   try {
-    const current = loadDismissed();
+    const current = loadDismissed(context);
     current[id] = Date.now();
-    localStorage.setItem(DISMISSED_KEY, JSON.stringify(current));
+    localStorage.setItem(getDismissedKey(context), JSON.stringify(current));
   } catch (err) {
     console.warn('Failed to save dismissed announcement:', err);
   }
@@ -108,13 +112,16 @@ export async function fetchAnnouncements(): Promise<Announcement[]> {
 }
 
 /**
- * Filters out dismissed announcements.
+ * Filters out dismissed announcements for a specific context ('kids' | 'parent').
  * If announcement was updated after it was dismissed (updatedAt > dismissedAt),
  * it is shown again so users see edited notices.
  */
-export function getVisibleAnnouncements(list: Announcement[]): Announcement[] {
+export function getVisibleAnnouncements(
+  list: Announcement[],
+  context: AnnouncementContext
+): Announcement[] {
   if (!Array.isArray(list) || list.length === 0) return [];
-  const dismissedMap = loadDismissed();
+  const dismissedMap = loadDismissed(context);
 
   return list.filter((item) => {
     if (!item || !item.id || !item.title) return false;
@@ -131,3 +138,4 @@ export function getVisibleAnnouncements(list: Announcement[]): Announcement[] {
     return true;
   });
 }
+
