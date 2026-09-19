@@ -70,13 +70,10 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
             <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center">
               <h1 className="text-base sm:text-lg font-extrabold text-stone-900 tracking-tight">
                 {title}
               </h1>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                مفتوحة
-              </span>
             </div>
           </div>
 
@@ -88,10 +85,10 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               id="dashboard-header-lock-btn"
               type="button"
               onClick={onLock}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
               title="قفل لوحة الأهل"
             >
-              <Lock className="w-3.5 h-3.5 text-stone-500" />
+              <Lock className="w-3 h-3 text-stone-500" />
               <span>قفل</span>
             </button>
 
@@ -103,7 +100,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               title="العودة لشاشة الأطفال"
             >
               <span>شاشة الأطفال</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

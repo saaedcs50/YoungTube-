@@ -20,9 +20,9 @@ export const PWAInstallButton: React.FC = () => {
       <button
         onClick={install}
         id="pwa-install-btn"
-        className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700 transition active:scale-95"
+        className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-sky-700 transition active:scale-95"
       >
-        <Download className="w-4 h-4" />
+        <Download className="w-3.5 h-3.5" />
         تثبيت التطبيق على الجهاز
       </button>
     );
@@ -34,9 +34,9 @@ export const PWAInstallButton: React.FC = () => {
         <button
           onClick={() => setShowIOSGuide(true)}
           id="pwa-install-ios-btn"
-          className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100 transition"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-sky-700 hover:bg-sky-100 transition"
         >
-          <Share2 className="w-4 h-4" />
+          <Share2 className="w-3.5 h-3.5" />
           تثبيت على iPhone / iPad
         </button>
 
@@ -49,7 +49,7 @@ export const PWAInstallButton: React.FC = () => {
                   onClick={() => setShowIOSGuide(false)}
                   className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
               <ol className="space-y-3 text-sm text-slate-600 list-decimal list-inside">
@@ -71,8 +71,8 @@ export const PWAInstallButton: React.FC = () => {
   }
 
   return (
-    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
-      <Download className="w-3.5 h-3.5" />
+    <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-medium">
+      <Download className="w-3 h-3" />
       جاهز للتثبيت السريع PWA
     </div>
   );
