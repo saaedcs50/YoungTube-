@@ -695,6 +695,216 @@ export default {
       }
     }
 
+    // 3.5 POST /api/admin/backfill-all-batch (Protected with Bearer ADMIN_KEY or X-Admin-Key)
+    if (url.pathname === '/api/admin/backfill-all-batch' && request.method === 'POST') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      if (!env.YOUTUBE_API_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error: YOUTUBE_API_KEY is not set' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      try {
+        const totalChannels = channelsSeed.length;
+        const BATCH_SIZE = 5;
+
+        let cursor = 0;
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            const rawCursor = await env.CHANNELS_ARCHIVE.get('_backfill_all_cursor');
+            if (rawCursor) {
+              const parsed = parseInt(rawCursor, 10);
+              if (!isNaN(parsed) && parsed >= 0) {
+                cursor = parsed % totalChannels;
+              }
+            }
+          } catch {
+            cursor = 0;
+          }
+        }
+        const cursorBefore = cursor;
+
+        // Select 5 channels from channelsSeed using cursor
+        const batch: { channel: any; originalIndex: number }[] = [];
+        for (let i = 0; i < BATCH_SIZE; i++) {
+          const idx = (cursorBefore + i) % totalChannels;
+          batch.push({
+            channel: channelsSeed[idx],
+            originalIndex: idx,
+          });
+        }
+
+        // Load existing fullMergedList once for the batch
+        let fullMergedList: any[] = [];
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+            if (rawMerged) {
+              const parsed = JSON.parse(rawMerged);
+              if (Array.isArray(parsed)) {
+                fullMergedList = parsed;
+              }
+            }
+          } catch {
+            // Ignore parse error
+          }
+
+          if (fullMergedList.length === 0) {
+            fullMergedList = channelsSeed.map((ch: any) => ({
+              ...ch,
+              videos: [],
+              videoCount: 0,
+            }));
+          }
+        }
+
+        const processedChannels: { sourceId: string; title: string; videoCount: number }[] = [];
+
+        // Process each channel in the batch sequentially
+        for (const { channel } of batch) {
+          const sourceId = channel.sourceId;
+          const sourceType = channel.sourceType || 'channel';
+
+          let playlistId = sourceId;
+          if (sourceType === 'playlist' || sourceId.startsWith('PL')) {
+            playlistId = sourceId;
+          } else if (sourceId.startsWith('UC')) {
+            playlistId = 'UU' + sourceId.slice(2);
+          }
+
+          try {
+            const allVideos: VideoItem[] = [];
+            let pageToken: string | undefined = undefined;
+            let pageCount = 0;
+            const maxPages = 20; // Fetch up to 1000 videos (50 per page)
+
+            while (pageCount < maxPages) {
+              const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+              apiUrl.searchParams.set('part', 'snippet');
+              apiUrl.searchParams.set('playlistId', playlistId);
+              apiUrl.searchParams.set('maxResults', '50');
+              if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
+              apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
+
+              const ytRes = await fetch(apiUrl.toString());
+              if (!ytRes.ok) {
+                const errText = await ytRes.text();
+                throw new Error(`YouTube API error (${ytRes.status}) for ${sourceId}: ${errText}`);
+              }
+
+              const data: any = await ytRes.json();
+              const items = data.items || [];
+              for (const item of items) {
+                const vId = item.snippet?.resourceId?.videoId;
+                const title = item.snippet?.title;
+                const publishedAt = item.snippet?.publishedAt;
+                if (vId && title && title !== 'Private video' && title !== 'Deleted video') {
+                  allVideos.push({
+                    videoId: vId,
+                    title,
+                    publishedAt: publishedAt || new Date().toISOString(),
+                  });
+                }
+              }
+
+              pageToken = data.nextPageToken;
+              pageCount++;
+              if (!pageToken || items.length === 0) break;
+            }
+
+            // Save the individual channel archive (up to 1000 videos)
+            if (env.CHANNELS_ARCHIVE) {
+              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(allVideos));
+            }
+
+            // Update channel in fullMergedList (capped at 300 videos for the shared merged key)
+            if (fullMergedList.length > 0) {
+              const targetIdx = fullMergedList.findIndex((ch: any) => ch.sourceId === sourceId);
+              const updatedChannel: any = {
+                ...(targetIdx >= 0 ? fullMergedList[targetIdx] : { sourceId, sourceType }),
+                sourceId,
+                sourceType,
+                videos: allVideos.slice(0, 300),
+                videoCount: Math.min(allVideos.length, 300),
+              };
+
+              const seedChannel = channelsSeed.find((ch: any) => ch.sourceId === sourceId);
+              if (seedChannel) {
+                Object.assign(updatedChannel, seedChannel, {
+                  videos: allVideos.slice(0, 300),
+                  videoCount: Math.min(allVideos.length, 300),
+                });
+              }
+
+              if (targetIdx >= 0) {
+                fullMergedList[targetIdx] = updatedChannel;
+              } else {
+                fullMergedList.push(updatedChannel);
+              }
+            }
+
+            processedChannels.push({
+              sourceId,
+              title: channel.title || sourceId,
+              videoCount: allVideos.length,
+            });
+          } catch (channelErr) {
+            console.error(`Error backfilling channel ${sourceId} in batch:`, channelErr);
+            // Skip this channel and continue with the rest of the batch
+          }
+        }
+
+        // Write fullMergedList back to _channels_latest_merged once after the batch
+        if (env.CHANNELS_ARCHIVE && processedChannels.length > 0 && fullMergedList.length > 0) {
+          try {
+            await env.CHANNELS_ARCHIVE.put(
+              '_channels_latest_merged',
+              JSON.stringify(fullMergedList)
+            );
+          } catch (e) {
+            console.error('Failed to update _channels_latest_merged after batch backfill:', e);
+          }
+        }
+
+        // Advance and save the cursor
+        const cursorAfter = (cursorBefore + BATCH_SIZE) % totalChannels;
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            await env.CHANNELS_ARCHIVE.put('_backfill_all_cursor', cursorAfter.toString());
+          } catch (e) {
+            console.error('Failed to save _backfill_all_cursor:', e);
+          }
+        }
+
+        const wrappedAround = cursorAfter < cursorBefore;
+
+        return new Response(
+          JSON.stringify({
+            processedChannels,
+            cursorBefore,
+            cursorAfter,
+            totalChannels,
+            wrappedAround,
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : 'Error executing batch backfill',
+          }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+    }
+
     // 4. GET /api/channels-latest (Public merged channels endpoint - direct from KV only, no live RSS)
     if (url.pathname === '/api/channels-latest' && request.method === 'GET') {
       const noStoreHeaders = {
