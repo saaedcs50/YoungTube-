@@ -7,6 +7,18 @@ import './index.css';
 // Register service worker immediately on startup
 registerSW({ immediate: true });
 
+// One-time cleanup of legacy/bad YouTube thumbnail cache entries
+if (typeof window !== 'undefined' && 'caches' in window) {
+  try {
+    if (!localStorage.getItem('yt_thumb_cache_v2')) {
+      window.caches.delete('yt-thumbnails').catch(() => {});
+      localStorage.setItem('yt_thumb_cache_v2', '1');
+    }
+  } catch {
+    // Ignore storage/cache access errors (e.g. strict private browsing)
+  }
+}
+
 // Suppress benign browser-level ResizeObserver notifications (common with virtualization)
 if (typeof window !== 'undefined') {
   const resizeObserverLoopErrRe = /ResizeObserver loop (completed with undelivered notifications|limit exceeded)/i;
