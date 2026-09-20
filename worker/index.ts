@@ -723,7 +723,9 @@ export default {
 
       try {
         const totalChannels = channelsSeed.length;
-        const BATCH_SIZE = 3;
+        // BATCH_SIZE = 2 ensures worst-case 2 channels * 20 maxPages = 40 external subrequests,
+        // safely under Cloudflare Workers free plan 50 subrequests per invocation limit.
+        const BATCH_SIZE = 2;
 
         let cursor = 0;
         if (!reset && env.CHANNELS_ARCHIVE) {
@@ -741,7 +743,7 @@ export default {
         }
         const cursorBefore = cursor;
 
-        // Select 3 channels from channelsSeed using cursor
+        // Select 2 channels from channelsSeed using cursor
         const batch: { channel: any; originalIndex: number }[] = [];
         for (let i = 0; i < BATCH_SIZE; i++) {
           const idx = (cursorBefore + i) % totalChannels;
