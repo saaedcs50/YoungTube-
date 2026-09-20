@@ -40,6 +40,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
   const [refreshStatusMap, setRefreshStatusMap] = useState<
     Record<string, { message?: string; error?: string }>
   >({});
+  const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(() => new Set());
 
   const handleRefreshCustomChannel = async (channel: Channel) => {
     if (!channel.sourceId) return;
@@ -378,12 +379,19 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                             className="py-3 flex items-center justify-between gap-3"
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              {channel.thumbnail ? (
+                              {channel.thumbnail && !failedThumbnails.has(channel.sourceId) ? (
                                 <img
                                   src={channel.thumbnail}
                                   alt={channel.title}
                                   className="w-10 h-10 rounded-xl object-cover shrink-0 bg-stone-200 border border-stone-200"
                                   referrerPolicy="no-referrer"
+                                  onError={() => {
+                                    setFailedThumbnails((prev) => {
+                                      const next = new Set(prev);
+                                      next.add(channel.sourceId);
+                                      return next;
+                                    });
+                                  }}
                                 />
                               ) : (
                                 <div className="w-10 h-10 rounded-xl bg-stone-100 text-stone-400 flex items-center justify-center shrink-0 border border-stone-200">
@@ -533,12 +541,19 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                         className="py-3 flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          {channel.thumbnail ? (
+                          {channel.thumbnail && !failedThumbnails.has(channel.sourceId) ? (
                             <img
                               src={channel.thumbnail}
                               alt={channel.title}
                               className="w-10 h-10 rounded-xl object-cover shrink-0 bg-stone-200 border border-stone-200"
                               referrerPolicy="no-referrer"
+                              onError={() => {
+                                setFailedThumbnails((prev) => {
+                                  const next = new Set(prev);
+                                  next.add(channel.sourceId);
+                                  return next;
+                                });
+                              }}
                             />
                           ) : (
                             <div className="w-10 h-10 rounded-xl bg-stone-100 text-stone-400 flex items-center justify-center shrink-0 border border-stone-200">

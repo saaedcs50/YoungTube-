@@ -28,7 +28,7 @@ export default function SessionEndScreen({
         </div>
         <div className="flex items-center gap-1.5 text-indigo-200 text-xs font-bold">
           <Clock className="w-4 h-4 text-sky-400" />
-          <span>يوتيوب الأطفال</span>
+          <span>يونج تيوب</span>
         </div>
       </div>
 

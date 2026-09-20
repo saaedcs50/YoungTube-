@@ -5,7 +5,7 @@ import type { Announcement } from '../services/announcements';
 interface AnnouncementModalProps {
   items: Announcement[];
   onDismiss: (id: string) => void;
-  contextLabel?: string; // small optional label shown in the header badge area, e.g. "رسالة من فريق يوتيوب الأطفال"
+  contextLabel?: string; // small optional label shown in the header badge area, e.g. "رسالة من فريق يونج تيوب"
 }
 
 export default function AnnouncementModal({
@@ -82,7 +82,7 @@ export default function AnnouncementModal({
                 isWarning ? 'text-amber-900' : 'text-sky-900'
               }`}
             >
-              {contextLabel || (isWarning ? 'تنبيه إداري هام' : 'رسالة من يوتيوب الأطفال')}
+              {contextLabel || (isWarning ? 'تنبيه إداري هام' : 'رسالة من يونج تيوب')}
             </span>
           </div>
 

@@ -499,7 +499,10 @@ export default {
 
         return new Response(JSON.stringify(videos), {
           status: 200,
-          headers: corsHeaders,
+          headers: {
+            ...corsHeaders,
+            'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
+          },
         });
       } catch (err) {
         // Fallback: return last cached version from env.CHANNELS_ARCHIVE instead of an empty error
@@ -510,6 +513,7 @@ export default {
               status: 200,
               headers: {
                 ...corsHeaders,
+                'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
                 'X-Cache-Fallback': 'true',
               },
             });
@@ -963,9 +967,9 @@ export default {
 
     // 4. GET /api/channels-latest (Public merged channels endpoint - direct from KV only, no live RSS)
     if (url.pathname === '/api/channels-latest' && request.method === 'GET') {
-      const noStoreHeaders = {
+      const publicCacheHeaders = {
         ...corsHeaders,
-        'Cache-Control': 'no-store, max-age=0',
+        'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
       };
       if (env.CHANNELS_ARCHIVE) {
         try {
@@ -973,10 +977,7 @@ export default {
           if (cachedMerged) {
             return new Response(cachedMerged, {
               status: 200,
-              headers: {
-                ...noStoreHeaders,
-                'Cache-Control': 'public, max-age=60',
-              },
+              headers: publicCacheHeaders,
             });
           }
         } catch {
@@ -987,7 +988,7 @@ export default {
       // If key doesn't exist or KV is empty, return empty array (not an error)
       return new Response(JSON.stringify([]), {
         status: 200,
-        headers: noStoreHeaders,
+        headers: publicCacheHeaders,
       });
     }
 
@@ -1376,7 +1377,7 @@ export default {
         status: 200,
         headers: {
           ...corsHeaders,
-          'Cache-Control': 'public, max-age=60',
+          'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
         },
       });
     }
@@ -1403,7 +1404,9 @@ export default {
         status: 200,
         headers: {
           ...corsHeaders,
-          'Cache-Control': returnAll ? 'no-cache, no-store, must-revalidate' : 'public, max-age=60',
+          'Cache-Control': returnAll
+            ? 'no-cache, no-store, must-revalidate'
+            : 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
         },
       });
     }
@@ -1471,7 +1474,7 @@ export default {
         status: 200,
         headers: {
           ...corsHeaders,
-          'Cache-Control': 'public, max-age=30',
+          'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
         },
       });
     }

@@ -93,9 +93,9 @@ export default defineConfig(() => {
         includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
           id: '/',
-          name: 'يوتيوب الأطفال - مساحة آمنة',
-          short_name: 'أطفال فيديو',
-          description: 'تطبيق ويب تقدمي (PWA) آمن للأطفال لمشاهدة قنوات وفيديوهات مختارة وموثوقة بدون خوارزميات أو تشتيت.',
+          name: 'يونج تيوب - مساحة آمنة',
+          short_name: 'يونج تيوب',
+          description: 'يونج تيوب — تطبيق ويب تقدمي (PWA) آمن للأطفال لمشاهدة قنوات وفيديوهات مختارة وموثوقة بعناية بدون خوارزميات أو تشتيت.',
           theme_color: '#0284c7',
           background_color: '#f8fafc',
           display: 'standalone',
