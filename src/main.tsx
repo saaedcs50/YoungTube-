@@ -4,16 +4,18 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import './index.css';
 
-// Register service worker immediately on startup
-registerSW({ immediate: true });
+// Register service worker immediately on startup and request update
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, reg) {
+    void reg?.update();
+  },
+});
 
-// One-time cleanup of legacy/bad YouTube thumbnail cache entries
+// Clean up legacy YouTube thumbnail cache entries on startup
 if (typeof window !== 'undefined' && 'caches' in window) {
   try {
-    if (!localStorage.getItem('yt_thumb_cache_v2')) {
-      window.caches.delete('yt-thumbnails').catch(() => {});
-      localStorage.setItem('yt_thumb_cache_v2', '1');
-    }
+    void window.caches.delete('yt-thumbnails');
   } catch {
     // Ignore storage/cache access errors (e.g. strict private browsing)
   }

@@ -30,7 +30,10 @@ const SavedVideoRowThumbnail: React.FC<{
     setThumbFailed(false);
   }, [videoId]);
 
-  const handleImageError = () => {
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const img = e.currentTarget;
+    if (!img || !img.src) return;
+
     setCandidateIndex((prevIndex) => {
       const nextIndex = prevIndex + 1;
       if (nextIndex >= candidates.length) {
@@ -59,7 +62,7 @@ const SavedVideoRowThumbnail: React.FC<{
           alt={title}
           className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
           referrerPolicy="no-referrer"
-          loading="lazy"
+          loading="eager"
           decoding="async"
           onError={handleImageError}
         />

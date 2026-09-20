@@ -20,7 +20,7 @@ export interface VideoCardProps {
   onTasteReacted?: () => void;
 }
 
-const THUMBNAIL_QUALITIES = ['hqdefault', 'mqdefault', 'sddefault', 'hq720'] as const;
+const THUMBNAIL_QUALITIES = ['mqdefault', 'hqdefault', 'sddefault', 'hq720'] as const;
 
 export function getThumbnailCandidateUrls(videoId: string, customThumbnail?: string): string[] {
   const candidates: string[] = [];
@@ -60,7 +60,10 @@ export const VideoCard = React.memo(
       setThumbFailed(false);
     }, [video.videoId]);
 
-    const handleImageError = () => {
+    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+      const img = e.currentTarget;
+      if (!img || !img.src) return;
+
       setCandidateIndex((prevIndex) => {
         const nextIndex = prevIndex + 1;
         if (nextIndex >= candidates.length) {
@@ -108,7 +111,7 @@ export const VideoCard = React.memo(
               alt={video.title}
               className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"
               referrerPolicy="no-referrer"
-              loading="lazy"
+              loading="eager"
               decoding="async"
               width={320}
               height={180}

@@ -131,22 +131,6 @@ export default defineConfig(() => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [
             {
-              // YouTube thumbnails NetworkFirst (only valid 200 responses, no opaque 0s)
-              urlPattern: /^https:\/\/i\.ytimg\.com\/.*/i,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'yt-thumbnails',
-                networkTimeoutSeconds: 4,
-                expiration: {
-                  maxEntries: 250,
-                  maxAgeSeconds: 4 * 24 * 60 * 60, // 4 days
-                },
-                cacheableResponse: {
-                  statuses: [200],
-                },
-              },
-            },
-            {
               // دومين الـ Worker (workers.dev) - channels-latest / api paths
               urlPattern: /^https:\/\/.*\.workers\.dev\/(api\/|channels-latest).*/i,
               handler: 'NetworkFirst',
