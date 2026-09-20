@@ -9,6 +9,7 @@ import { loadCachedBlocks, fetchGlobalBlocks } from '../services/globalBlocks';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
 import { TasteReactionBar } from '../components/TasteReactionBar';
 import { VideoCard } from '../components/VideoCard';
+import ChannelVideosModal from '../components/ChannelVideosModal';
 import { WindowVirtualizer } from 'virtua';
 
 const AddByUrlCard = React.lazy(() => import('../components/AddByUrlCard'));
@@ -318,6 +319,11 @@ export default function KidHomeScreen({
     Array<{ videoId: string; title: string; publishedAt: string; sourceId: string }>
   >([]);
   const [isDeepSearching, setIsDeepSearching] = useState(false);
+  const [viewingChannelId, setViewingChannelId] = useState<{ id: string; title: string } | null>(null);
+
+  const handleChannelSelect = useCallback((id: string, title: string) => {
+    setViewingChannelId({ id, title });
+  }, []);
 
   // Child-facing Favorites view state
   const [showFavorites, setShowFavorites] = useState(false);
@@ -1152,6 +1158,7 @@ export default function KidHomeScreen({
                         isFavorite={true}
                         onSelectVideo={onSelectVideo}
                         onOpenDemoPlayer={onOpenDemoPlayer}
+                        onChannelSelect={handleChannelSelect}
                       />
                     );
                   })}
@@ -1238,6 +1245,7 @@ export default function KidHomeScreen({
                           channelTitle={channelInfo?.title || 'قناة أطفال'}
                           onSelectVideo={onSelectVideo}
                           onOpenDemoPlayer={onOpenDemoPlayer}
+                          onChannelSelect={handleChannelSelect}
                         />
                       );
                     })}
@@ -1350,6 +1358,7 @@ export default function KidHomeScreen({
                         onSelectVideo={onSelectVideo}
                         onOpenDemoPlayer={onOpenDemoPlayer}
                         onTasteReacted={() => void loadVideos(true)}
+                        onChannelSelect={handleChannelSelect}
                       />
                     );
                   })}
@@ -1389,6 +1398,7 @@ export default function KidHomeScreen({
                             onSelectVideo={onSelectVideo}
                             onOpenDemoPlayer={onOpenDemoPlayer}
                             onTasteReacted={() => void loadVideos(true)}
+                            onChannelSelect={handleChannelSelect}
                           />
                         );
                       })}
@@ -1445,6 +1455,7 @@ export default function KidHomeScreen({
                         channelTitle={channelInfo?.title || 'قناة أطفال'}
                         onSelectVideo={onSelectVideo}
                         onOpenDemoPlayer={onOpenDemoPlayer}
+                        onChannelSelect={handleChannelSelect}
                       />
                     );
                   })}
@@ -1459,6 +1470,15 @@ export default function KidHomeScreen({
       <footer className="py-5 border-t border-amber-100/60 text-center text-xs font-medium text-stone-400">
         مساحة ترفيهية وتعليمية آمنة للصغار 🌟
       </footer>
+
+      {viewingChannelId && (
+        <ChannelVideosModal
+          sourceId={viewingChannelId.id}
+          channelTitle={viewingChannelId.title}
+          onClose={() => setViewingChannelId(null)}
+          onSelectVideo={onSelectVideo || (() => {})}
+        />
+      )}
     </div>
   );
 }

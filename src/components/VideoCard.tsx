@@ -16,6 +16,7 @@ export interface VideoCardProps {
     channelName?: string,
     channelId?: string
   ) => void;
+  onChannelSelect?: (channelId: string, channelTitle: string) => void;
   onOpenDemoPlayer?: () => void;
   onTasteReacted?: () => void;
 }
@@ -44,6 +45,7 @@ export const VideoCard = React.memo(
     activeTasteShiftCategory,
     isFavorite = false,
     onSelectVideo,
+    onChannelSelect,
     onOpenDemoPlayer,
     onTasteReacted,
   }: VideoCardProps) {
@@ -159,7 +161,17 @@ export const VideoCard = React.memo(
           </h3>
 
           <div className="flex items-center justify-between text-xs font-medium text-stone-500 pt-0.5">
-            <span className="truncate max-w-[65%]">
+            <span
+              className={`truncate max-w-[65%] ${
+                onChannelSelect ? 'hover:underline hover:text-amber-600 cursor-pointer' : ''
+              }`}
+              onClick={(e) => {
+                if (onChannelSelect) {
+                  e.stopPropagation();
+                  onChannelSelect(video.channelId, channelTitle);
+                }
+              }}
+            >
               {channelTitle}
             </span>
             {formattedViews && (
@@ -195,7 +207,8 @@ export const VideoCard = React.memo(
       prev.channelTitle === next.channelTitle &&
       prev.isFavorite === next.isFavorite &&
       prev.isTasteShiftTarget === next.isTasteShiftTarget &&
-      prev.activeTasteShiftCategory === next.activeTasteShiftCategory
+      prev.activeTasteShiftCategory === next.activeTasteShiftCategory &&
+      prev.onChannelSelect === next.onChannelSelect
     );
   }
 );

@@ -1803,6 +1803,39 @@ export default {
       });
     }
 
+    // 4.1 GET /api/channel-archive?id={sourceId} (Public, no auth - read-only channel archive)
+    if (url.pathname === '/api/channel-archive' && request.method === 'GET') {
+      const sourceId = (url.searchParams.get('id') || url.searchParams.get('sourceId') || '').trim();
+      if (!sourceId || !env.CHANNELS_ARCHIVE) {
+        return new Response(
+          JSON.stringify({ sourceId: sourceId || '', videos: [], count: 0 }),
+          { status: 200, headers: corsHeaders }
+        );
+      }
+
+      try {
+        const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+        if (!raw) {
+          return new Response(
+            JSON.stringify({ sourceId, videos: [], count: 0 }),
+            { status: 200, headers: corsHeaders }
+          );
+        }
+
+        const parsed = JSON.parse(raw);
+        const videos = Array.isArray(parsed) ? parsed : [];
+        return new Response(
+          JSON.stringify({ sourceId, videos, count: videos.length }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch {
+        return new Response(
+          JSON.stringify({ sourceId, videos: [], count: 0 }),
+          { status: 200, headers: corsHeaders }
+        );
+      }
+    }
+
     // 4.5 GET /api/search-archive?q={query} (Deep search across all individual channel archives)
     if (url.pathname === '/api/search-archive' && request.method === 'GET') {
       try {
@@ -2607,6 +2640,128 @@ export default {
         }),
         { status: 200, headers: corsHeaders }
       );
+    }
+
+    // 10.5 POST /api/admin/channel-video-delete (Protected with Bearer ADMIN_KEY)
+    if (url.pathname === '/api/admin/channel-video-delete' && request.method === 'POST') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      let body: any = {};
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON body' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      const sourceId = body && typeof body.sourceId === 'string' ? body.sourceId.trim() : '';
+      const videoId = body && typeof body.videoId === 'string' ? body.videoId.trim() : '';
+
+      if (!sourceId || !videoId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required field: sourceId and videoId must be provided' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      if (!env.CHANNELS_ARCHIVE) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'CHANNELS_ARCHIVE KV is not configured',
+            remainingCount: 0,
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      }
+
+      try {
+        const rawChannel = await env.CHANNELS_ARCHIVE.get(sourceId);
+        if (!rawChannel) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'القناة غير موجودة في الأرشيف',
+              remainingCount: 0,
+            }),
+            { status: 200, headers: corsHeaders }
+          );
+        }
+
+        let videos: any[] = [];
+        try {
+          const parsed = JSON.parse(rawChannel);
+          if (Array.isArray(parsed)) {
+            videos = parsed;
+          }
+        } catch {
+          videos = [];
+        }
+
+        const originalCount = videos.length;
+        const filteredVideos = videos.filter((v: any) => v && (v.videoId || v.id) !== videoId);
+
+        if (filteredVideos.length === originalCount) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'الفيديو غير موجود في الأرشيف',
+              remainingCount: originalCount,
+            }),
+            { status: 200, headers: corsHeaders }
+          );
+        }
+
+        // Write the filtered array back to the individual channel archive
+        await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(filteredVideos));
+
+        // Also remove the same videoId from this channel's entry inside _channels_latest_merged if present there
+        try {
+          const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+          if (rawMerged) {
+            const mergedList = JSON.parse(rawMerged);
+            if (Array.isArray(mergedList)) {
+              let mergedModified = false;
+              for (const ch of mergedList) {
+                if (ch && ch.sourceId === sourceId && Array.isArray(ch.videos)) {
+                  const beforeLen = ch.videos.length;
+                  ch.videos = ch.videos.filter((v: any) => v && (v.videoId || v.id) !== videoId);
+                  if (ch.videos.length !== beforeLen) {
+                    ch.videoCount = ch.videos.length;
+                    mergedModified = true;
+                  }
+                }
+              }
+              if (mergedModified) {
+                await env.CHANNELS_ARCHIVE.put(
+                  '_channels_latest_merged',
+                  JSON.stringify(mergedList)
+                );
+              }
+            }
+          }
+        } catch (mergedErr) {
+          console.warn('Error removing video from _channels_latest_merged:', mergedErr);
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, remainingCount: filteredVideos.length }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        return new Response(
+          JSON.stringify({ success: false, error: errMsg, remainingCount: 0 }),
+          { status: 200, headers: corsHeaders }
+        );
+      }
     }
 
     // 11. POST /api/admin/announcements (Protected with Bearer ADMIN_KEY)
