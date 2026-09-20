@@ -28,13 +28,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <!-- If you edit this JSON-LD block, recompute the CSP sha256 hash in vercel.json -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "يونج تيوب",
         "url": "https://youngtube-ashen.vercel.app/",
-        "applicationCategory": "KidsApplication",
+        "applicationCategory": "EducationalApplication",
         "operatingSystem": "All",
         "inLanguage": "ar",
         "description": "يونج تيوب — تطبيق ويب تقدمي (PWA) آمن للأطفال لمشاهدة قنوات وفيديوهات مختارة وموثوقة بعناية بدون خوارزميات أو تشتيت.",
@@ -44,95 +45,6 @@
           "priceCurrency": "USD"
         }
       }
-    </script>
-    <script>
-      (function () {
-        var resizeRe = /ResizeObserver loop (completed with undelivered notifications|limit exceeded)/i;
-
-        if (typeof window !== 'undefined') {
-          // 1. Wrap native ResizeObserver to throttle callbacks via requestAnimationFrame
-          if (typeof window.ResizeObserver !== 'undefined') {
-            var NativeResizeObserver = window.ResizeObserver;
-            window.ResizeObserver = class PatchedResizeObserver extends NativeResizeObserver {
-              constructor(callback) {
-                var frame = null;
-                var lastEntries = null;
-                var lastObserver = null;
-                super(function (entries, observer) {
-                  lastEntries = entries;
-                  lastObserver = observer;
-                  if (frame === null) {
-                    frame = window.requestAnimationFrame(function () {
-                      frame = null;
-                      if (lastEntries && lastObserver) {
-                        try {
-                          callback(lastEntries, lastObserver);
-                        } catch (err) {
-                          if (err && resizeRe.test(err.message || '')) {
-                            // Suppress benign loop notification
-                            return;
-                          }
-                          throw err;
-                        }
-                        lastEntries = null;
-                        lastObserver = null;
-                      }
-                    });
-                  }
-                });
-              }
-            };
-          }
-
-          // 2. Global window.onerror handler
-          var prevOnError = window.onerror;
-          window.onerror = function (msg, url, line, col, err) {
-            if (typeof msg === 'string' && resizeRe.test(msg)) {
-              return true;
-            }
-            if (err && err.message && resizeRe.test(err.message)) {
-              return true;
-            }
-            if (typeof prevOnError === 'function') {
-              return prevOnError.apply(this, arguments);
-            }
-            return false;
-          };
-
-          // 3. Error event listener with stopImmediatePropagation
-          window.addEventListener(
-            'error',
-            function (e) {
-              if (
-                e &&
-                (resizeRe.test(e.message || '') ||
-                  (e.error && resizeRe.test(e.error.message || '')))
-              ) {
-                e.stopImmediatePropagation();
-                e.preventDefault();
-              }
-            },
-            true
-          );
-
-          // 4. Unhandled rejection listener
-          window.addEventListener(
-            'unhandledrejection',
-            function (e) {
-              if (
-                e &&
-                e.reason &&
-                ((typeof e.reason === 'string' && resizeRe.test(e.reason)) ||
-                  (e.reason.message && resizeRe.test(e.reason.message)))
-              ) {
-                e.stopImmediatePropagation();
-                e.preventDefault();
-              }
-            },
-            true
-          );
-        }
-      })();
     </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased selection:bg-sky-500 selection:text-white">

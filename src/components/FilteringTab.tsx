@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import db, { Channel, FeedItem } from '../db';
+import { OPT_IN_CATEGORY_IDS, DEFAULT_KID_CATEGORIES } from '../categories';
 import {
   ShieldAlert,
   Tv,
@@ -11,7 +12,16 @@ import {
   Check,
   AlertTriangle,
   Search,
+  SlidersHorizontal,
 } from 'lucide-react';
+
+const OPT_IN_CATEGORY_META: Record<string, { label: string; emoji: string; description: string }> = {
+  gaming: {
+    label: 'ألعاب مناسبة',
+    emoji: '🎮',
+    description: 'قنوات ألعاب هادئة ومناسبة للأطفال — معطّلة افتراضيًا، فعّلها لو حابب طفلك يشوفها.',
+  },
+};
 
 interface FilteringTabProps {
   onFilterChanged?: () => void;
@@ -19,6 +29,9 @@ interface FilteringTabProps {
 
 export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) => {
   const [activeSubTab, setActiveSubTab] = useState<'blacklist' | 'channels' | 'videos'>('blacklist');
+
+  // Opt-in Categories
+  const [enabledOptInCategories, setEnabledOptInCategories] = useState<string[]>([]);
 
   // Blacklist words
   const [blacklistWords, setBlacklistWords] = useState<string[]>([]);
@@ -47,6 +60,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
         db.feedCache.filter((v) => v.hidden === true).toArray(),
       ]);
 
+      setEnabledOptInCategories(settings?.enabledOptInCategories || []);
       setBlacklistWords(settings?.blacklistWords || []);
       setBlockedChannels(channels);
       setHiddenVideos(videos);
@@ -60,6 +74,32 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // 0. Opt-in Category Toggle Handler
+  const handleOptInToggle = async (catId: string, enabled: boolean) => {
+    const current = await db.settings.get('main');
+    const existing = current?.enabledOptInCategories || [];
+    const updated = enabled
+      ? Array.from(new Set([...existing, catId]))
+      : existing.filter((id) => id !== catId);
+
+    try {
+      if (current) {
+        await db.settings.update('main', { enabledOptInCategories: updated });
+      } else {
+        await db.settings.put({
+          id: 'main',
+          blacklistWords: [],
+          enabledOptInCategories: updated,
+        });
+      }
+      setEnabledOptInCategories(updated);
+      showFeedback(enabled ? 'تم تفعيل ظهور التصنيف للطفل' : 'تم إخفاء التصنيف عن الطفل');
+      onFilterChanged?.();
+    } catch (err) {
+      console.error('Failed to update enabledOptInCategories:', err);
+    }
+  };
 
   // 1. Blacklist word handlers
   const handleAddWord = async (e: React.FormEvent) => {
@@ -143,6 +183,80 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
             <span>{feedbackMessage}</span>
           </span>
         )}
+      </div>
+
+      {/* Opt-in Categories Approval Section */}
+      <div
+        id="opt-in-categories-card"
+        className="rounded-2xl border border-stone-200/80 bg-white p-4 sm:p-5 shadow-sm space-y-3"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-amber-500" />
+            <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+              تصنيفات تحتاج موافقة الوالدين
+            </h4>
+          </div>
+          <span className="text-[11px] text-stone-400 font-mono">Opt-in Categories</span>
+        </div>
+        <p className="text-xs text-stone-500 leading-relaxed">
+          هذه التصنيفات معطّلة ومخفية افتراضيًا عن الطفل لحماية وقته واهتمامه، ويمكنك تفعيل ظهورها حسب رغبتك.
+        </p>
+
+        <div className="divide-y divide-stone-100 border border-stone-200/70 rounded-xl bg-stone-50/50 overflow-hidden">
+          {OPT_IN_CATEGORY_IDS.map((catId) => {
+            const meta = OPT_IN_CATEGORY_META[catId] || {
+              label: DEFAULT_KID_CATEGORIES.find((c) => c.id === catId)?.label || catId,
+              emoji: DEFAULT_KID_CATEGORIES.find((c) => c.id === catId)?.emoji || '📁',
+              description: 'تصنيف اختياري يتطلب موافقة صريحة من الوالدين للظهور.',
+            };
+            const isEnabled = enabledOptInCategories.includes(catId);
+
+            return (
+              <div
+                key={catId}
+                className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-stone-50/60 transition"
+              >
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-base">{meta.emoji}</span>
+                    <span className="text-xs sm:text-sm font-bold text-stone-900">
+                      {meta.label}
+                    </span>
+                    {!isEnabled ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-600 border border-stone-200">
+                        معطّل افتراضيًا (مخفي)
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        مفعّل ومتاح للطفل
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    {meta.description}
+                  </p>
+                </div>
+
+                <label
+                  htmlFor={`opt-in-toggle-${catId}`}
+                  className="flex items-center gap-2.5 cursor-pointer select-none self-start sm:self-center shrink-0 min-h-[44px]"
+                >
+                  <input
+                    id={`opt-in-toggle-${catId}`}
+                    type="checkbox"
+                    checked={isEnabled}
+                    onChange={(e) => handleOptInToggle(catId, e.target.checked)}
+                    className="w-5 h-5 rounded border-stone-300 focus:ring-amber-500 cursor-pointer accent-amber-500"
+                  />
+                  <span className="text-xs font-bold text-stone-700 sm:hidden">
+                    {isEnabled ? 'مفعّل' : 'معطّل'}
+                  </span>
+                </label>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Sub-Tabs Selector */}

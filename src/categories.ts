@@ -36,6 +36,12 @@ export const KID_CATEGORIES: KidCategory[] = DEFAULT_KID_CATEGORIES;
 export const CURATION_CATEGORIES: KidCategory[] = DEFAULT_KID_CATEGORIES.filter((c) => c.id !== 'all');
 
 /**
+ * Category IDs that require explicit parent opt-in before appearing in child-visible tabs.
+ * Defaults to disabled/hidden for safety.
+ */
+export const OPT_IN_CATEGORY_IDS: string[] = ['gaming'];
+
+/**
  * Aliases and tag mapping to flexibly match channel seed tags with dynamic category keys
  */
 export const CATEGORY_TAG_ALIASES: Record<string, string[]> = {

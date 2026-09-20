@@ -965,6 +965,297 @@ export default {
       }
     }
 
+    // 3.6 POST /api/admin/cleanup-dead-videos-batch (Protected with Bearer ADMIN_KEY or X-Admin-Key)
+    if (url.pathname === '/api/admin/cleanup-dead-videos-batch' && request.method === 'POST') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      if (!env.YOUTUBE_API_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error: YOUTUBE_API_KEY is not set' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      let reset = false;
+      try {
+        const body: any = await request.json();
+        if (body && typeof body === 'object' && body.reset === true) {
+          reset = true;
+        }
+      } catch {
+        // Empty or non-JSON body is valid, defaults reset to false
+      }
+
+      try {
+        const totalChannels = channelsSeed.length;
+        let cursor = 0;
+        if (!reset && env.CHANNELS_ARCHIVE) {
+          try {
+            const rawCursor = await env.CHANNELS_ARCHIVE.get('_cleanup_dead_videos_cursor');
+            if (rawCursor) {
+              const parsed = parseInt(rawCursor, 10);
+              if (!isNaN(parsed) && parsed >= 0) {
+                cursor = parsed % totalChannels;
+              }
+            }
+          } catch {
+            cursor = 0;
+          }
+        }
+        const cursorBefore = cursor;
+
+        const MAX_CHANNELS = 15;
+        const MAX_VIDEOS = 2000;
+        let channelsIncluded = 0;
+        const batchChannels: { channel: any; videos: VideoItem[] }[] = [];
+        const failedChannels: {
+          sourceId: string;
+          title: string;
+          error: string;
+          message?: string;
+        }[] = [];
+        let accumulatedVideoCount = 0;
+
+        // Step 4: Iterate channels from cursor, respecting subrequest and channel caps
+        for (let step = 0; step < MAX_CHANNELS; step++) {
+          const idx = (cursorBefore + step) % totalChannels;
+          const seed = channelsSeed[idx];
+          const sourceId = seed.sourceId;
+
+          let channelVideos: VideoItem[] = [];
+          if (env.CHANNELS_ARCHIVE) {
+            try {
+              const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  channelVideos = parsed;
+                }
+              }
+            } catch (err) {
+              console.error(`Error reading archive for channel ${sourceId}:`, err);
+              failedChannels.push({
+                sourceId,
+                title: seed.title || sourceId,
+                error: 'read_archive_failed',
+                message: err instanceof Error ? err.message : String(err),
+              });
+              channelsIncluded++;
+              continue;
+            }
+          }
+
+          // If channel's archive is empty or missing, skip it (still counts toward the 15-channel cap)
+          if (channelVideos.length === 0) {
+            channelsIncluded++;
+            batchChannels.push({ channel: seed, videos: [] });
+            continue;
+          }
+
+          // If adding this channel would exceed MAX_VIDEOS and we already have accumulated videos, stop
+          if (accumulatedVideoCount > 0 && accumulatedVideoCount + channelVideos.length > MAX_VIDEOS) {
+            break;
+          }
+
+          channelsIncluded++;
+          batchChannels.push({ channel: seed, videos: channelVideos });
+          accumulatedVideoCount += channelVideos.length;
+        }
+
+        // Step 5: Chunk accumulated videoId list into groups of 50 and validate with YouTube API
+        const allVideoIdSet = new Set<string>();
+        for (const { videos } of batchChannels) {
+          for (const v of videos) {
+            if (v && v.videoId) {
+              allVideoIdSet.add(v.videoId);
+            }
+          }
+        }
+        const allVideoIds = Array.from(allVideoIdSet);
+        const aliveSet = new Set<string>();
+        const CHUNK_SIZE = 50;
+
+        for (let i = 0; i < allVideoIds.length; i += CHUNK_SIZE) {
+          const chunk = allVideoIds.slice(i, i + CHUNK_SIZE);
+          const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+          apiUrl.searchParams.set('part', 'id');
+          apiUrl.searchParams.set('id', chunk.join(','));
+          apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
+
+          const res = await fetch(apiUrl.toString());
+          if (!res.ok) {
+            const errText = await res.text();
+            const apiError = new Error(`YouTube API error (${res.status}): ${errText}`) as Error & { status?: number };
+            apiError.status = res.status;
+            throw apiError;
+          }
+
+          const data: any = await res.json();
+          const items = data.items || [];
+          for (const item of items) {
+            if (item && item.id) {
+              aliveSet.add(item.id);
+            }
+          }
+        }
+
+        // Step 6: Filter channel archives and update in-memory fullMergedList
+        let fullMergedList: any[] = [];
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+            if (rawMerged) {
+              const parsed = JSON.parse(rawMerged);
+              if (Array.isArray(parsed)) {
+                fullMergedList = parsed;
+              }
+            }
+          } catch {
+            // Ignore parse error
+          }
+
+          if (fullMergedList.length === 0) {
+            fullMergedList = channelsSeed.map((ch: any) => ({
+              ...ch,
+              videos: [],
+              videoCount: 0,
+            }));
+          }
+        }
+
+        const channelsProcessed: {
+          sourceId: string;
+          title: string;
+          videosChecked: number;
+          deadVideosRemoved: number;
+        }[] = [];
+        let totalDeadVideosRemoved = 0;
+
+        for (const { channel, videos } of batchChannels) {
+          const sourceId = channel.sourceId;
+          const sourceType = channel.sourceType || 'channel';
+          const title = channel.title || sourceId;
+
+          if (videos.length === 0) {
+            channelsProcessed.push({
+              sourceId,
+              title,
+              videosChecked: 0,
+              deadVideosRemoved: 0,
+            });
+            continue;
+          }
+
+          try {
+            const filtered = videos.filter((v) => aliveSet.has(v.videoId));
+            const deadRemoved = videos.length - filtered.length;
+            totalDeadVideosRemoved += deadRemoved;
+
+            // Write back to individual channel archive only if dead videos were removed
+            if (deadRemoved > 0 && env.CHANNELS_ARCHIVE) {
+              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(filtered));
+            }
+
+            // Update channel in fullMergedList (capped at 300 videos)
+            if (fullMergedList.length > 0) {
+              const targetIdx = fullMergedList.findIndex((ch: any) => ch.sourceId === sourceId);
+              const updatedChannel: any = {
+                ...(targetIdx >= 0 ? fullMergedList[targetIdx] : { sourceId, sourceType }),
+                sourceId,
+                sourceType,
+                videos: filtered.slice(0, 300),
+                videoCount: Math.min(filtered.length, 300),
+              };
+
+              const seedChannel = channelsSeed.find((ch: any) => ch.sourceId === sourceId);
+              if (seedChannel) {
+                Object.assign(updatedChannel, seedChannel, {
+                  videos: filtered.slice(0, 300),
+                  videoCount: Math.min(filtered.length, 300),
+                });
+              }
+
+              if (targetIdx >= 0) {
+                fullMergedList[targetIdx] = updatedChannel;
+              } else {
+                fullMergedList.push(updatedChannel);
+              }
+            }
+
+            channelsProcessed.push({
+              sourceId,
+              title,
+              videosChecked: videos.length,
+              deadVideosRemoved: deadRemoved,
+            });
+          } catch (chErr) {
+            console.error(`Error processing cleanup for channel ${sourceId}:`, chErr);
+            failedChannels.push({
+              sourceId,
+              title,
+              error: 'process_channel_failed',
+              message: chErr instanceof Error ? chErr.message : String(chErr),
+            });
+          }
+        }
+
+        // Write fullMergedList back once if any dead videos were removed
+        if (env.CHANNELS_ARCHIVE && totalDeadVideosRemoved > 0 && fullMergedList.length > 0) {
+          try {
+            await env.CHANNELS_ARCHIVE.put(
+              '_channels_latest_merged',
+              JSON.stringify(fullMergedList)
+            );
+          } catch (e) {
+            console.error('Failed to update _channels_latest_merged after cleanup batch:', e);
+          }
+        }
+
+        // Step 7: Advance and save cursor
+        const cursorAfter = (cursorBefore + channelsIncluded) % totalChannels;
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            await env.CHANNELS_ARCHIVE.put(
+              '_cleanup_dead_videos_cursor',
+              cursorAfter.toString()
+            );
+          } catch (e) {
+            console.error('Failed to save _cleanup_dead_videos_cursor:', e);
+          }
+        }
+
+        const wrappedAround = cursorAfter < cursorBefore;
+        const totalVideosChecked = channelsProcessed.reduce((sum, ch) => sum + ch.videosChecked, 0);
+
+        // Step 8: Return JSON response
+        return new Response(
+          JSON.stringify({
+            channelsProcessed,
+            failedChannels,
+            totalVideosChecked,
+            totalDeadVideosRemoved,
+            cursorBefore,
+            cursorAfter,
+            totalChannels,
+            wrappedAround,
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : 'Error executing cleanup dead videos batch',
+          }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+    }
+
     // 4. GET /api/channels-latest (Public merged channels endpoint - direct from KV only, no live RSS)
     if (url.pathname === '/api/channels-latest' && request.method === 'GET') {
       const publicCacheHeaders = {

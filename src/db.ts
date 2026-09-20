@@ -18,6 +18,7 @@ interface Settings {
   familyYoutubeApiKey?: string;
   hasCompletedFirstSetup?: boolean;
   hideMusicVideos?: boolean;
+  enabledOptInCategories?: string[];
   tasteShift?: {
     enabled: boolean;
     targetCategories: string[];
