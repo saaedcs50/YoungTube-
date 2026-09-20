@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef, Suspense } from 'react';
 import db, { FeedItem, Channel } from '../db';
 import channelsSeed from '../../channels_seed.json';
 import { WORKER_URL } from '../config';
@@ -9,8 +9,9 @@ import { loadCachedBlocks, fetchGlobalBlocks } from '../services/globalBlocks';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
 import { TasteReactionBar } from '../components/TasteReactionBar';
 import { VideoCard } from '../components/VideoCard';
-import AddByUrlCard from '../components/AddByUrlCard';
 import { WindowVirtualizer } from 'virtua';
+
+const AddByUrlCard = React.lazy(() => import('../components/AddByUrlCard'));
 import { enrichFeedItemViewCounts } from '../services/youtubeViewCounts';
 import {
   computeBaseShare,
@@ -897,11 +898,11 @@ export default function KidHomeScreen({
           <div className="flex items-center justify-between">
             {/* Right side in RTL: 44x44 badge with star icon + small line "مرحباً يا بطل" and extra-bold child name */}
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-400 text-white flex items-center justify-center shadow-sm shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-600 to-amber-500 text-white flex items-center justify-center shadow-sm shrink-0">
                 <Star className="w-6 h-6 fill-white" />
               </div>
               <div className="flex flex-col text-right">
-                <span className="text-xs font-medium text-stone-500">مرحباً يا بطل</span>
+                <span className="text-xs font-semibold text-stone-600">مرحباً يا بطل</span>
                 <span className="text-xl font-extrabold text-stone-900 tracking-tight leading-tight">
                   {childName || 'عالم ياسين'}
                 </span>
@@ -953,9 +954,9 @@ export default function KidHomeScreen({
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="ابحث في الفيديوهات المسموحة..."
-                className="w-full pl-10 pr-11 py-2.5 rounded-2xl bg-white border border-stone-100 text-xs sm:text-sm text-stone-900 placeholder-stone-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 shadow-sm transition-all"
+                className="w-full pl-10 pr-11 py-2.5 rounded-2xl bg-white border border-stone-200 text-xs sm:text-sm text-stone-900 placeholder-stone-500 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 shadow-sm transition-all font-medium"
               />
-              <div className="absolute right-3.5 text-amber-500 pointer-events-none flex items-center justify-center">
+              <div className="absolute right-3.5 text-amber-600 pointer-events-none flex items-center justify-center">
                 <Search className="w-4 h-4" />
               </div>
               {searchInput && (
@@ -966,7 +967,7 @@ export default function KidHomeScreen({
                     setDebouncedSearch('');
                     setDeepSearchResults([]);
                   }}
-                  className="absolute left-3 text-stone-400 hover:text-stone-700 p-1 rounded-full hover:bg-stone-100 transition cursor-pointer"
+                  className="absolute left-3 text-stone-500 hover:text-stone-800 p-1 rounded-full hover:bg-stone-100 transition cursor-pointer"
                   title="مسح البحث"
                   aria-label="مسح البحث"
                 >
@@ -996,7 +997,7 @@ export default function KidHomeScreen({
                   }}
                   className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm transition duration-150 active:scale-[0.98] cursor-pointer ${
                     isActive
-                      ? 'bg-amber-500 text-white font-bold shadow-md shadow-amber-500/25'
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md shadow-amber-600/25'
                       : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50'
                   }`}
                 >
@@ -1015,7 +1016,9 @@ export default function KidHomeScreen({
           <div id="kid-favorites-view" className="space-y-6">
             {/* Header banner with back button and AddByUrl card */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
-              <AddByUrlCard target="loved" onAdded={() => void loadFavorites()} />
+              <Suspense fallback={null}>
+                <AddByUrlCard target="loved" onAdded={() => void loadFavorites()} />
+              </Suspense>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/95 p-4 sm:p-5 rounded-3xl border border-rose-100 shadow-[0_2px_12px_rgba(244,63,94,0.05)]">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center shrink-0 border border-rose-100 shadow-sm">
@@ -1028,7 +1031,7 @@ export default function KidHomeScreen({
                         {filteredFavorites.length} فيديو
                       </span>
                     </h2>
-                    <p className="text-xs text-stone-500">
+                    <p className="text-xs text-stone-600">
                       الفيديوهات التي نالت إعجابك وتستمتع بمشاهدتها دائماً
                     </p>
                   </div>
@@ -1038,7 +1041,7 @@ export default function KidHomeScreen({
                   id="back-to-home-feed-btn"
                   type="button"
                   onClick={() => setShowFavorites(false)}
-                  className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer shadow-sm"
+                  className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs sm:text-sm font-bold transition active:scale-95 cursor-pointer shadow-sm"
                 >
                   <ArrowRight className="w-4 h-4" />
                   <span>العودة للفيديوهات</span>
@@ -1051,14 +1054,14 @@ export default function KidHomeScreen({
               debouncedSearch ? (
                 <div className="max-w-lg mx-auto my-6 px-4">
                   <div className="bg-white/90 rounded-3xl border border-rose-100 p-8 text-center space-y-4 shadow-sm">
-                    <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto shadow-sm">
+                    <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto shadow-sm">
                       <Search className="w-8 h-8" />
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-base sm:text-lg font-black text-stone-900">
                         مفيش فيديو مفضل بهذا الاسم
                       </h3>
-                      <p className="text-xs text-stone-500 max-w-md mx-auto">
+                      <p className="text-xs text-stone-600 max-w-md mx-auto font-medium">
                         تأكد من كتابة الاسم بشكل صحيح أو امسح البحث لمشاهدة كل مفضلاتك.
                       </p>
                     </div>
@@ -1068,7 +1071,7 @@ export default function KidHomeScreen({
                         setSearchInput('');
                         setDebouncedSearch('');
                       }}
-                      className="px-5 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
+                      className="px-5 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95"
                     >
                       عرض كل الفيديوهات المفضلة ❤️
                     </button>
@@ -1081,14 +1084,14 @@ export default function KidHomeScreen({
                   className="max-w-lg mx-auto my-8 px-4"
                 >
                   <div className="bg-white/90 rounded-3xl border border-rose-100 p-8 sm:p-10 text-center space-y-4 shadow-sm flex flex-col items-center">
-                    <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto border border-rose-100 shadow-sm">
-                      <Heart className="w-8 h-8 fill-rose-500" />
+                    <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100 shadow-sm">
+                      <Heart className="w-8 h-8 fill-rose-600" />
                     </div>
                     <div className="space-y-1.5 max-w-md mx-auto">
                       <h3 className="text-base sm:text-lg font-black text-stone-900">
                         لسه مفيش فيديوهات حبيتها ❤️
                       </h3>
-                      <p className="text-xs sm:text-sm text-stone-500 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-medium">
                         اضغط على القلب وانت بتتفرج عشان تحفظها هنا!
                       </p>
                     </div>
@@ -1096,7 +1099,7 @@ export default function KidHomeScreen({
                       id="back-to-feed-from-empty-favorites-btn"
                       type="button"
                       onClick={() => setShowFavorites(false)}
-                      className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer active:scale-95 flex items-center gap-1.5"
+                      className="px-6 py-2.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer active:scale-95 flex items-center gap-1.5"
                     >
                       <ArrowRight className="w-4 h-4" />
                       <span>العودة للفيديوهات</span>
@@ -1171,14 +1174,14 @@ export default function KidHomeScreen({
 
                 <div id="deep-search-archive-section">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center shadow-xs">
                       <Sparkles className="w-5 h-5" />
                     </div>
                     <div>
                       <h3 className="text-base sm:text-lg font-black text-stone-900">
                         Results from channel archive
                       </h3>
-                      <p className="text-xs text-stone-500 font-medium">
+                      <p className="text-xs text-stone-600 font-medium">
                         نتائج من أرشيف القنوات الموسع ({deepSearchResults.length} فيديو)
                       </p>
                     </div>
@@ -1211,8 +1214,8 @@ export default function KidHomeScreen({
               </div>
             ) : isDeepSearching ? (
               <div className="max-w-lg mx-auto my-12 px-4 text-center space-y-4">
-                <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mx-auto" />
-                <p className="text-sm font-bold text-stone-600">
+                <div className="w-12 h-12 border-4 border-amber-600/20 border-t-amber-600 rounded-full animate-spin mx-auto" />
+                <p className="text-sm font-bold text-stone-700">
                   جاري البحث في أرشيف القنوات الموسع...
                 </p>
               </div>
@@ -1227,7 +1230,7 @@ export default function KidHomeScreen({
                     <h3 className="text-base sm:text-lg font-black text-stone-900">
                       مفيش فيديوهات بالاسم ده جوه القنوات المسموحة
                     </h3>
-                    <p className="text-xs sm:text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+                    <p className="text-xs sm:text-sm text-stone-600 max-w-sm mx-auto leading-relaxed font-medium">
                       هذا البحث يعمل فقط داخل مكتبة القنوات الآمنة المصرح بها للطفل ولا يبحث في الإنترنت الخارجي.
                     </p>
                   </div>
@@ -1239,7 +1242,7 @@ export default function KidHomeScreen({
                       setDebouncedSearch('');
                       setDeepSearchResults([]);
                     }}
-                    className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer active:scale-95"
+                    className="px-6 py-2.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer active:scale-95"
                   >
                     مسح البحث وعرض كل الفيديوهات ✨
                   </button>
@@ -1256,7 +1259,7 @@ export default function KidHomeScreen({
                   <h3 className="text-base sm:text-lg font-black text-stone-900">
                     لا توجد فيديوهات في هذا القسم حالياً
                   </h3>
-                  <p className="text-xs sm:text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+                  <p className="text-xs sm:text-sm text-stone-600 max-w-sm mx-auto leading-relaxed font-medium">
                     يمكنك تصفح باقي الأقسام الممتعة أو العودة لقسم &quot;الكل&quot; لمشاهدة جميع الفيديوهات.
                   </p>
                 </div>
@@ -1267,7 +1270,7 @@ export default function KidHomeScreen({
                     setSelectedCategory('all');
                     void loadVideos(false);
                   }}
-                  className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer active:scale-95"
+                  className="px-6 py-2.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer active:scale-95"
                 >
                   عرض جميع الفيديوهات ✨
                 </button>

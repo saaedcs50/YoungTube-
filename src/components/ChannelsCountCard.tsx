@@ -89,19 +89,19 @@ export default function ChannelsCountCard({
       <div>
         <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm">
               <Tv className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-bold text-stone-900">أرشيف القنوات الحي</h2>
-              <span className="text-[11px] text-stone-400 font-mono">/api/channels-latest</span>
+              <span className="text-[11px] text-stone-600 font-mono">/api/channels-latest</span>
             </div>
           </div>
           <button
             id="retest-channels-btn"
             onClick={fetchChannelsLatest}
             disabled={loading}
-            className="min-h-[44px] sm:min-h-[40px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition duration-150 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm shrink-0"
+            className="min-h-[44px] sm:min-h-[40px] px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition duration-150 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm shrink-0"
             title="تحديث عدد القنوات"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -112,7 +112,7 @@ export default function ChannelsCountCard({
         {/* Status / Count Display */}
         {loading ? (
           <div className="p-4 rounded-xl bg-stone-50 border border-stone-200/70 text-xs text-stone-600 animate-pulse flex items-center gap-2.5">
-            <RefreshCw className="w-4 h-4 animate-spin text-amber-500 shrink-0" />
+            <RefreshCw className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
             <span>جاري جلب القنوات والبيانات المدمجة من السحابة...</span>
           </div>
         ) : error ? (
@@ -131,15 +131,15 @@ export default function ChannelsCountCard({
             {/* 2x2 Stats Grid */}
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/60 space-y-0.5">
-                <span className="text-[11px] text-stone-500 font-bold block">إجمالي القنوات</span>
+                <span className="text-[11px] text-stone-600 font-bold block">إجمالي القنوات</span>
                 <span className="text-lg font-extrabold text-stone-900 font-mono">{totalChannels} قناة</span>
               </div>
               <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/60 space-y-0.5">
-                <span className="text-[11px] text-stone-500 font-bold block">قنوات بأرشيف نشط</span>
-                <span className="text-lg font-extrabold text-amber-600 font-mono">{channelsWithVideos} قناة</span>
+                <span className="text-[11px] text-stone-600 font-bold block">قنوات بأرشيف نشط</span>
+                <span className="text-lg font-extrabold text-amber-700 font-mono">{channelsWithVideos} قناة</span>
               </div>
               <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/60 space-y-0.5">
-                <span className="text-[11px] text-stone-500 font-bold block">إجمالي الفيديوهات</span>
+                <span className="text-[11px] text-stone-600 font-bold block">إجمالي الفيديوهات</span>
                 <span className="text-lg font-extrabold text-stone-900 font-mono">{totalVideos} فيديو</span>
               </div>
               <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/70 space-y-0.5">
@@ -151,7 +151,7 @@ export default function ChannelsCountCard({
               </div>
             </div>
 
-            <div className="text-[10px] text-stone-400 font-mono pt-0.5 text-left">
+            <div className="text-[10px] text-stone-600 font-mono pt-0.5 text-left">
               آخر تحديث ناجح: {lastChecked}
             </div>
           </div>
@@ -159,12 +159,12 @@ export default function ChannelsCountCard({
       </div>
 
       <div className="pt-3 border-t border-stone-100">
-        <div className="flex items-center justify-between text-[11px] text-stone-500">
-          <span className="flex items-center gap-1 text-stone-600 font-medium">
-            <Film className="w-3.5 h-3.5 text-amber-500" />
+        <div className="flex items-center justify-between text-[11px] text-stone-600">
+          <span className="flex items-center gap-1 text-stone-700 font-medium">
+            <Film className="w-3.5 h-3.5 text-amber-600" />
             <span>بحد أقصى 200 فيديو لكل قناة</span>
           </span>
-          <span className="font-mono text-[10px] text-stone-400">Cloudflare KV + Seed</span>
+          <span className="font-mono text-[10px] text-stone-600">Cloudflare KV + Seed</span>
         </div>
       </div>
     </div>

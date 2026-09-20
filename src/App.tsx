@@ -7,10 +7,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { useSessionTimer } from './hooks/useSessionTimer';
 import { ensureChannelsArchiveSynced } from './filtering';
 import KidHomeScreen from './screens/KidHomeScreen';
-import { PlayerView } from './screens/PlayerView';
-import SessionEndScreen from './components/SessionEndScreen';
 import { startParentSession, endParentSession, endChildSession, createSessionId } from './services/telemetry';
-import AnnouncementModal from './components/AnnouncementModal';
 import {
   fetchAnnouncements,
   getVisibleAnnouncements,
@@ -20,9 +17,15 @@ import {
 } from './services/announcements';
 
 // Lazy-load heavy surfaces so kid-facing feed route starts immediately
+const WelcomeValueScreen = React.lazy(() => import('./components/WelcomeValueScreen'));
 const Onboarding = React.lazy(() => import('./components/Onboarding'));
+const PostSetupChecklist = React.lazy(() => import('./components/PostSetupChecklist'));
 const PinLockModal = React.lazy(() => import('./components/PinLockModal'));
 const AdBlockNotice = React.lazy(() => import('./components/AdBlockNotice'));
+const PlayerView = React.lazy(() => import('./screens/PlayerView').then((m) => ({ default: m.PlayerView })));
+const SessionEndScreen = React.lazy(() => import('./components/SessionEndScreen'));
+const AnnouncementModal = React.lazy(() => import('./components/AnnouncementModal'));
+const DashboardShell = React.lazy(() => import('./components/dashboard/DashboardShell').then((m) => ({ default: m.DashboardShell })));
 const ChannelsCountCard = React.lazy(() => import('./components/ChannelsCountCard'));
 const FilteringResultCard = React.lazy(() => import('./components/FilteringResultCard'));
 const ChildProfileSection = React.lazy(() => import('./components/ChildProfileSection').then((m) => ({ default: m.ChildProfileSection })));
@@ -33,8 +36,7 @@ const FilteringTab = React.lazy(() => import('./components/FilteringTab').then((
 const SavedVideosTab = React.lazy(() => import('./components/SavedVideosTab').then((m) => ({ default: m.SavedVideosTab })));
 const AddByUrlCard = React.lazy(() => import('./components/AddByUrlCard'));
 const TimerTestCard = React.lazy(() => import('./components/TimerTestCard'));
-import { DashboardShell } from './components/dashboard/DashboardShell';
-import { DashboardSectionId } from './components/dashboard/DashboardNav';
+import type { DashboardSectionId } from './components/dashboard/DashboardNav';
 
 // Unified dashboard section loading skeleton
 const SectionLoadingSkeleton: React.FC = () => (
@@ -108,7 +110,9 @@ export default function App() {
   const [storageResult, setStorageResult] = useState<StorageState>({ loading: true });
 
   // Onboarding & Settings State
+  const [showWelcome, setShowWelcome] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showPostSetupChecklist, setShowPostSetupChecklist] = useState(false);
   const [mainSettings, setMainSettings] = useState<Settings | null>(null);
 
   // Stage 5 Refresh trigger for channels count card
@@ -157,7 +161,7 @@ export default function App() {
 
   // Fetch announcements for Kid feed when viewMode is 'kids'
   useEffect(() => {
-    if (showOnboarding) return;
+    if (showWelcome || showOnboarding || showPostSetupChecklist) return;
     if (viewMode !== 'kids') return;
 
     let cancelled = false;
@@ -176,11 +180,11 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, showOnboarding]);
+  }, [viewMode, showWelcome, showOnboarding, showPostSetupChecklist]);
 
   // Fetch announcements for Parent dashboard when viewMode is 'dashboard'
   useEffect(() => {
-    if (showOnboarding) return;
+    if (showWelcome || showOnboarding || showPostSetupChecklist) return;
     if (viewMode !== 'dashboard') return;
 
     let cancelled = false;
@@ -199,7 +203,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, showOnboarding]);
+  }, [viewMode, showWelcome, showOnboarding, showPostSetupChecklist]);
 
   const handleDismissKidsAnnouncement = useCallback((id: string) => {
     markDismissed(id, 'kids');
@@ -467,7 +471,8 @@ export default function App() {
     try {
       const record = await db.settings.get('main');
       if (!record || !record.pinHash) {
-        setShowOnboarding(true);
+        setShowWelcome(true);
+        setShowOnboarding(false);
         setMainSettings(null);
       } else {
         // Ensure scheduleWindow and sessionLimitMinutes defaults if missing
@@ -482,6 +487,7 @@ export default function App() {
         } else {
           setMainSettings(record);
         }
+        setShowWelcome(false);
         setShowOnboarding(false);
       }
     } catch {
@@ -827,14 +833,51 @@ export default function App() {
 
   return (
     <div className="min-h-screen font-sans">
-      {/* Onboarding Modal */}
-      {showOnboarding && (
+      {/* 1) Welcome Value Screen */}
+      {showWelcome && (
+        <Suspense fallback={null}>
+          <WelcomeValueScreen
+            onStartSetup={() => {
+              setShowWelcome(false);
+              setShowOnboarding(true);
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* 2) Onboarding Modal */}
+      {!showWelcome && showOnboarding && (
         <Suspense fallback={null}>
           <Onboarding
             onComplete={async () => {
               setShowOnboarding(false);
               await checkMainSettings();
-              // First-run flow: land directly on Dashboard with first-run guidance banner
+              setShowPostSetupChecklist(true);
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* 3) Post-Setup Checklist Modal */}
+      {!showWelcome && !showOnboarding && showPostSetupChecklist && (
+        <Suspense fallback={null}>
+          <PostSetupChecklist
+            onFinish={() => {
+              setShowPostSetupChecklist(false);
+              try {
+                localStorage.setItem('yt_post_setup_checklist_done_v1', '1');
+              } catch {
+                // Ignore storage errors
+              }
+              setViewMode('kids');
+            }}
+            onGoDashboard={() => {
+              setShowPostSetupChecklist(false);
+              try {
+                localStorage.setItem('yt_post_setup_checklist_done_v1', '1');
+              } catch {
+                // Ignore storage errors
+              }
               setIsDashboardUnlocked(true);
               setViewMode('dashboard');
             }}
@@ -843,21 +886,25 @@ export default function App() {
       )}
 
       {/* Announcements Modal - Kids Track */}
-      {!showOnboarding && viewMode === 'kids' && kidsAnnouncements.length > 0 && (
-        <AnnouncementModal
-          items={kidsAnnouncements}
-          onDismiss={handleDismissKidsAnnouncement}
-          contextLabel="رسالة للأطفال والعائلة"
-        />
+      {!showWelcome && !showOnboarding && !showPostSetupChecklist && viewMode === 'kids' && kidsAnnouncements.length > 0 && (
+        <Suspense fallback={null}>
+          <AnnouncementModal
+            items={kidsAnnouncements}
+            onDismiss={handleDismissKidsAnnouncement}
+            contextLabel="رسالة للأطفال والعائلة"
+          />
+        </Suspense>
       )}
 
       {/* Announcements Modal - Parent Track */}
-      {!showOnboarding && viewMode === 'dashboard' && parentAnnouncements.length > 0 && (
-        <AnnouncementModal
-          items={parentAnnouncements}
-          onDismiss={handleDismissParentAnnouncement}
-          contextLabel="تنبيه للوالدين"
-        />
+      {!showWelcome && !showOnboarding && !showPostSetupChecklist && viewMode === 'dashboard' && parentAnnouncements.length > 0 && (
+        <Suspense fallback={null}>
+          <AnnouncementModal
+            items={parentAnnouncements}
+            onDismiss={handleDismissParentAnnouncement}
+            contextLabel="تنبيه للوالدين"
+          />
+        </Suspense>
       )}
 
       {/* PIN Lock Modal */}
@@ -881,29 +928,37 @@ export default function App() {
 
       {/* Real Video Player Overlay */}
       {(activePlaybackVideo || showDemoPlayer) && (
-        <PlayerView
-          videoId={activePlaybackVideo?.videoId || 's6X_Q54_PBs'}
-          videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
-          channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
-          channelId={activePlaybackVideo?.channelId}
-          onVideoHidden={handleVideoHidden}
-          onChannelBlocked={handleBackfillSuccess}
-          onClose={handleClosePlayer}
-          onEnded={() => {
-            console.log('Video finished playing cleanly');
-          }}
-          forceStop={forceStop}
-          isFullscreen={isPlayerFullscreen}
-          onEnterFullscreen={handlePlayerEnterFullscreen}
-          onExitFullscreen={handlePlayerExitFullscreen}
-          isMinimized={isPlayerMinimized}
-          onEnterMinimized={handlePlayerEnterMinimized}
-          onExitMinimized={handlePlayerExitMinimized}
-          isSheetOpen={isPlayerSheetOpen}
-          onOpenSheet={handlePlayerOpenSheet}
-          onCloseSheet={handlePlayerCloseSheet}
-          onPlayingChange={setIsPlayerPlaying}
-        />
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+              <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
+            </div>
+          }
+        >
+          <PlayerView
+            videoId={activePlaybackVideo?.videoId || 's6X_Q54_PBs'}
+            videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
+            channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
+            channelId={activePlaybackVideo?.channelId}
+            onVideoHidden={handleVideoHidden}
+            onChannelBlocked={handleBackfillSuccess}
+            onClose={handleClosePlayer}
+            onEnded={() => {
+              console.log('Video finished playing cleanly');
+            }}
+            forceStop={forceStop}
+            isFullscreen={isPlayerFullscreen}
+            onEnterFullscreen={handlePlayerEnterFullscreen}
+            onExitFullscreen={handlePlayerExitFullscreen}
+            isMinimized={isPlayerMinimized}
+            onEnterMinimized={handlePlayerEnterMinimized}
+            onExitMinimized={handlePlayerExitMinimized}
+            isSheetOpen={isPlayerSheetOpen}
+            onOpenSheet={handlePlayerOpenSheet}
+            onCloseSheet={handlePlayerCloseSheet}
+            onPlayingChange={setIsPlayerPlaying}
+          />
+        </Suspense>
       )}
 
       {/* Background archive sync lives in ensureChannelsArchiveSynced (kids + dashboard).
@@ -912,12 +967,14 @@ export default function App() {
 
       {/* Phase 8: Full-Screen Session Takeover when session limit reached */}
       {sessionTimer.isLimitReached && viewMode !== 'dashboard' ? (
-        <SessionEndScreen
-          isLimitReached={sessionTimer.isLimitReached}
-          isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
-          onParentUnlock={handleOpenDashboard}
-          onResetForTesting={sessionTimer.resetTodayUsage}
-        />
+        <Suspense fallback={null}>
+          <SessionEndScreen
+            isLimitReached={sessionTimer.isLimitReached}
+            isWithinScheduleWindow={sessionTimer.isWithinScheduleWindow}
+            onParentUnlock={handleOpenDashboard}
+            onResetForTesting={sessionTimer.resetTodayUsage}
+          />
+        </Suspense>
       ) : viewMode === 'kids' ? (
         <>
           {/* VIEW 0: REAL KID-FACING UI (Default View) */}
@@ -969,16 +1026,24 @@ export default function App() {
           )}
         </>
       ) : (
-        <DashboardShell
-          activeSection={dashboardSection}
-          onSelectSection={setDashboardSection}
-          onClose={() => setViewMode('kids')}
-          onLock={handleLockDashboard}
-          hasIncompleteSetup={!mainSettings?.hasCompletedFirstSetup}
-          showTools={showTools}
-          onToggleTools={handleToggleTools}
-          headerSlot={<PWAInstallButton />}
+        <Suspense
+          fallback={
+            <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-6 text-center space-y-4">
+              <div className="w-10 h-10 border-4 border-amber-600/20 border-t-amber-600 rounded-full animate-spin" />
+              <p className="text-xs font-semibold text-stone-600">جاري فتح لوحة الوالدين...</p>
+            </div>
+          }
         >
+          <DashboardShell
+            activeSection={dashboardSection}
+            onSelectSection={setDashboardSection}
+            onClose={() => setViewMode('kids')}
+            onLock={handleLockDashboard}
+            hasIncompleteSetup={!mainSettings?.hasCompletedFirstSetup}
+            showTools={showTools}
+            onToggleTools={handleToggleTools}
+            headerSlot={<PWAInstallButton />}
+          >
           {/* First-Run Welcome / Guidance Banner */}
             {!mainSettings?.hasCompletedFirstSetup && (
               <div
@@ -1457,8 +1522,9 @@ export default function App() {
             </div>
           </div>
         )}
-      </DashboardShell>
-    )}
+          </DashboardShell>
+        </Suspense>
+      )}
 
       <OfflineIndicator />
     </div>

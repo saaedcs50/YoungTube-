@@ -3,6 +3,7 @@ import db from '../db';
 import { sha256 } from '../crypto';
 import { KeyRound, HelpCircle, Sparkles, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import AdBlockNotice from './AdBlockNotice';
+import PinOtpInput from './PinOtpInput';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -115,7 +116,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         {/* Modal Header */}
         <div className="bg-amber-500/10 border-b border-amber-200/60 p-6 text-right">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-amber-500 text-white shadow-2xs">
+            <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-amber-600 text-white shadow-2xs">
               خطوة {step} من 4
             </span>
             <span className="text-xs font-bold text-amber-900">
@@ -132,7 +133,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             {step === 3 && 'توجيه المحتوى والهوايات'}
             {step === 4 && 'حماية إضافية من الإعلانات'}
           </h2>
-          <p className="text-xs sm:text-sm text-stone-600 mt-1.5 leading-relaxed font-medium">
+          <p className="text-xs sm:text-sm text-stone-700 mt-1.5 leading-relaxed font-medium">
             {step === 1 && 'لنقم بإعداد رمز مرور سري من 6 أرقام للتحكم في لوحة الأهل وإعدادات الأطفال.'}
             {step === 2 && 'في حال نسيت رمز PIN، سيساعدك هذا السؤال على استعادة الوصول بأمان.'}
             {step === 3 && 'توجيه وتطوير اهتمامات طفلك نحو محتوى هادف وبنّاء وفق قيمكم العائلية.'}
@@ -152,47 +153,37 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           {step === 1 && (
             <form onSubmit={handlePinNext} className="space-y-5 text-right">
               <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
                   <KeyRound className="w-4.5 h-4.5" />
                 </div>
                 <span>أدخل رمز PIN المكون من 6 أرقام</span>
               </div>
-              <p className="text-xs text-stone-500 leading-relaxed font-medium">
+              <p className="text-xs text-stone-600 leading-relaxed font-medium">
                 يتم تشفير هذا الرمز تلقائياً ولا يُحفظ برقم خام، ليضمن عدم تمكن الأبناء من تعديل فلترة أو أوقات الشاشة.
               </p>
 
-              <div className="space-y-1.5">
-                <label htmlFor="onboarding-pin-input" className="block text-xs font-bold text-stone-700">
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-stone-700">
                   أدخل رمز PIN (6 أرقام):
                 </label>
-                <input
-                  id="onboarding-pin-input"
-                  type="password"
-                  maxLength={6}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                <PinOtpInput
+                  idPrefix="onboarding-pin"
                   value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••••"
-                  className="w-full text-center tracking-[1em] text-2xl font-mono min-h-[48px] p-3 rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
+                  onChange={setPin}
                   autoFocus
+                  theme="amber"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="onboarding-pin-confirm-input" className="block text-xs font-bold text-stone-700">
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-stone-700">
                   تأكيد رمز PIN:
                 </label>
-                <input
-                  id="onboarding-pin-confirm-input"
-                  type="password"
-                  maxLength={6}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                <PinOtpInput
+                  idPrefix="onboarding-confirm-pin"
                   value={confirmPin}
-                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••••"
-                  className="w-full text-center tracking-[1em] text-2xl font-mono min-h-[48px] p-3 rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
+                  onChange={setConfirmPin}
+                  theme="amber"
                 />
               </div>
 
@@ -201,7 +192,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   id="onboarding-step1-btn"
                   type="submit"
                   disabled={pin.length !== 6 || confirmPin.length !== 6}
-                  className="w-full min-h-[48px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm cursor-pointer"
+                  className="w-full min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm shadow-amber-600/20 cursor-pointer"
                 >
                   <span>التالي</span>
                   <ArrowLeft className="w-4 h-4" />
@@ -214,14 +205,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           {step === 2 && (
             <form onSubmit={handleQuestionNext} className="space-y-5 text-right">
               <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
                   <HelpCircle className="w-4.5 h-4.5" />
                 </div>
                 <span>سؤال الأمان السري (لاستعادة الرمز)</span>
               </div>
-              <p className="text-xs text-stone-500 leading-relaxed font-medium">
-                تُحفظ الإجابة بشكل مشفر للغاية (Hash) لمساعدتك في فتح اللوحة إذا نُسي رمز الرمز مستقبلاً.
-              </p>
+              <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200/80 text-xs text-amber-950 leading-relaxed space-y-1">
+                <p className="font-bold text-amber-900">
+                  الاسترجاع عبر سؤال الأمان المحفوظ على هذا الجهاز فقط
+                </p>
+                <p className="text-stone-600 text-[11px]">
+                  تُحفظ الإجابة بشكل مشفر (Hash) محلياً. تنبيه: مسح بيانات الموقع أو ذاكرة المتصفح يفقد الرمز والاسترجاع.
+                </p>
+              </div>
 
               <div className="space-y-1.5">
                 <label htmlFor="onboarding-question-select" className="block text-xs font-bold text-stone-700">
@@ -276,7 +272,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   id="onboarding-step2-btn"
                   type="submit"
                   disabled={!securityAnswer.trim()}
-                  className="w-full min-h-[48px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm cursor-pointer"
+                  className="w-full min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm shadow-amber-600/20 cursor-pointer"
                 >
                   <span>التالي</span>
                   <ArrowLeft className="w-4 h-4" />
@@ -297,7 +293,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           {step === 3 && (
             <div className="space-y-5 text-right">
               <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
                   <Sparkles className="w-4.5 h-4.5" />
                 </div>
                 <span>رؤية وتطوير المحتوى الهادف (Taste Shift)</span>
@@ -330,7 +326,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   type="button"
                   onClick={handleAdvanceToStep4}
                   disabled={isSubmitting}
-                  className="w-full min-h-[48px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm cursor-pointer"
+                  className="w-full min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm shadow-amber-600/20 cursor-pointer"
                 >
                   <span>{isSubmitting ? 'جاري الحفظ...' : 'متابعة وإدخال إعدادات الإعلانات'}</span>
                   <ArrowLeft className="w-4 h-4" />
