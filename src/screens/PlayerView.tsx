@@ -26,6 +26,7 @@ import PinLockModal from '../components/PinLockModal';
 import channelsSeed from '../../channels_seed.json';
 import { recordChildReaction, logTasteEvent, applyLoggedTasteEvent } from '../tasteShiftStorage';
 import db from '../db';
+import { trackFunnelEvent } from '../services/funnelTelemetry';
 
 export interface QueuedVideo {
   videoId: string;
@@ -880,6 +881,18 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     if (event.data === 1) {
       setIsPlaying(true);
       onPlayingChange?.(true);
+
+      // Funnel telemetry: first_play (once per install)
+      try {
+        const firstPlayKey = 'yt_funnel_first_play';
+        if (!localStorage.getItem(firstPlayKey)) {
+          localStorage.setItem(firstPlayKey, '1');
+          trackFunnelEvent('first_play');
+        }
+      } catch {
+        // Fail-open: ignore storage errors
+      }
+
       const vId = currentVideo.videoId;
       if (!openedVideoIdsRef.current.has(vId)) {
         openedVideoIdsRef.current.add(vId);

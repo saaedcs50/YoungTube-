@@ -270,6 +270,34 @@ function useColumnCount(): number {
   return cols;
 }
 
+const CATEGORY_SHORT_NAMES: Record<string, string> = {
+  all: 'الكل',
+  quran: 'قرآن',
+  stories: 'قصص',
+  cartoons: 'كرتون',
+  education: 'تعليم',
+  science: 'علوم',
+  crafts: 'فنون',
+  sports: 'رياضة',
+  gaming: 'ألعاب',
+  cooking: 'طبخ',
+  calm: 'هدوء',
+};
+
+function getCategoryShortLabel(cat: { id: string; label: string; shortLabel?: string }): string {
+  if (cat.shortLabel && cat.shortLabel.trim()) {
+    return cat.shortLabel.trim();
+  }
+  if (CATEGORY_SHORT_NAMES[cat.id]) {
+    return CATEGORY_SHORT_NAMES[cat.id];
+  }
+  const label = (cat.label || '').trim();
+  if (label.length <= 15) {
+    return label;
+  }
+  return label.slice(0, 14) + '…';
+}
+
 export default function KidHomeScreen({
   onOpenParentDashboard,
   onOpenDemoPlayer,
@@ -982,27 +1010,31 @@ export default function KidHomeScreen({
       {/* 2. Category Filter Chips (Horizontal scroll, hide scrollbar) */}
       <section className="px-4 sm:px-8 py-3.5">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto pb-1 scrollbar-none">
             {kidCategories.map((cat) => {
               const isActive = !showFavorites && selectedCategory === cat.id;
+              const shortLabel = getCategoryShortLabel(cat);
               return (
                 <button
                   key={cat.id}
                   id={`cat-chip-${cat.id}`}
                   type="button"
+                  title={cat.label}
+                  aria-label={cat.label}
+                  aria-pressed={isActive}
                   onClick={() => {
                     setShowFavorites(false);
                     setSelectedCategory(cat.id);
                     void loadVideos(false);
                   }}
-                  className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm transition duration-150 active:scale-[0.98] cursor-pointer ${
+                  className={`shrink-0 flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm whitespace-nowrap transition duration-150 active:scale-[0.98] cursor-pointer ${
                     isActive
-                      ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md shadow-amber-600/25'
-                      : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50'
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md shadow-amber-600/25 ring-2 ring-amber-600/20'
+                      : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50 hover:border-stone-300'
                   }`}
                 >
-                  <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
+                  <span className="text-base leading-none select-none">{cat.emoji || '✨'}</span>
+                  <span className="truncate max-w-[120px] sm:max-w-none">{shortLabel}</span>
                 </button>
               );
             })}

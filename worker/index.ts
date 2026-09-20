@@ -209,6 +209,119 @@ async function recordTelemetryEvent(
   } catch {}
 }
 
+export const ACCEPTED_FUNNEL_EVENTS = [
+  'welcome_seen',
+  'onboarding_started',
+  'onboarding_completed',
+  'first_play',
+] as const;
+
+export type FunnelEvent = (typeof ACCEPTED_FUNNEL_EVENTS)[number];
+
+export interface TelemetryFunnelDaily {
+  date: string; // YYYY-MM-DD UTC
+  events: Record<string, number>;
+  eventsByCountry: Record<string, Record<string, number>>;
+  uniqueByEvent: Record<string, number>;
+  updatedAt: number;
+}
+
+/**
+ * Records funnel events to KV in daily aggregate buckets.
+ * - Country derived from CF-IPCountry (defaults to XX).
+ * - Tracks total counts per event and event counts broken down by country.
+ * - Optionally tracks unique installIds count per event.
+ * - Does not store videoId, titles, or PIN data.
+ */
+async function recordFunnelEvent(
+  env: Env,
+  event: string,
+  country: string,
+  installId?: string
+): Promise<void> {
+  if (!env.CHANNELS_ARCHIVE) return;
+
+  const date = getTodayDateUtc();
+  const funnelDailyKey = `telemetry_funnel:${date}`;
+  const funnelUniquesKey = `telemetry_funnel_uniques:${date}`;
+
+  let daily: TelemetryFunnelDaily = {
+    date,
+    events: {},
+    eventsByCountry: {},
+    uniqueByEvent: {},
+    updatedAt: Date.now(),
+  };
+
+  try {
+    const rawDaily = await env.CHANNELS_ARCHIVE.get(funnelDailyKey);
+    if (rawDaily) {
+      daily = { ...daily, ...JSON.parse(rawDaily) };
+    }
+  } catch {}
+
+  daily.events = daily.events || {};
+  daily.eventsByCountry = daily.eventsByCountry || {};
+  daily.uniqueByEvent = daily.uniqueByEvent || {};
+
+  const cc = (country && country.trim().toUpperCase()) || 'XX';
+
+  // Increment total event count
+  daily.events[event] = (daily.events[event] || 0) + 1;
+
+  // Increment event count by country
+  if (!daily.eventsByCountry[event]) {
+    daily.eventsByCountry[event] = {};
+  }
+  daily.eventsByCountry[event][cc] = (daily.eventsByCountry[event][cc] || 0) + 1;
+
+  let uniques: Record<string, string[]> = {};
+  if (installId && typeof installId === 'string' && installId.trim()) {
+    const cleanId = installId.trim();
+    try {
+      const rawUniques = await env.CHANNELS_ARCHIVE.get(funnelUniquesKey);
+      if (rawUniques) {
+        uniques = JSON.parse(rawUniques);
+      }
+    } catch {}
+
+    if (!uniques[event]) uniques[event] = [];
+    if (!uniques[event].includes(cleanId)) {
+      uniques[event].push(cleanId);
+    }
+
+    for (const [ev, ids] of Object.entries(uniques)) {
+      daily.uniqueByEvent[ev] = ids.length;
+    }
+  }
+
+  daily.updatedAt = Date.now();
+
+  const puts: Promise<void>[] = [
+    env.CHANNELS_ARCHIVE.put(funnelDailyKey, JSON.stringify(daily)),
+  ];
+  if (installId && typeof installId === 'string' && installId.trim()) {
+    puts.push(env.CHANNELS_ARCHIVE.put(funnelUniquesKey, JSON.stringify(uniques)));
+  }
+  await Promise.all(puts);
+
+  try {
+    const rawIndex = await env.CHANNELS_ARCHIVE.get('telemetry_index');
+    let indexDates: string[] = [];
+    if (rawIndex) {
+      indexDates = JSON.parse(rawIndex);
+    }
+    if (!indexDates.includes(date)) {
+      indexDates.unshift(date);
+      const uniqueSorted = Array.from(new Set(indexDates))
+        .sort()
+        .reverse()
+        .slice(0, 30);
+      await env.CHANNELS_ARCHIVE.put('telemetry_index', JSON.stringify(uniqueSorted));
+    }
+  } catch {}
+}
+
 /**
  * Parses YouTube XML RSS feed into an array of VideoItem objects.
  */
@@ -2282,6 +2395,55 @@ export default {
         }
       } catch (err) {
         console.error('Telemetry record error:', err);
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: corsHeaders,
+      });
+    }
+
+    // 13b. Funnel Event Ingestion:
+    // - POST /api/telemetry/funnel-event
+    if (request.method === 'POST' && url.pathname === '/api/telemetry/funnel-event') {
+      let body: any = {};
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+          status: 400,
+          headers: corsHeaders,
+        });
+      }
+
+      const event = typeof body?.event === 'string' ? body.event.trim() : '';
+      if (!ACCEPTED_FUNNEL_EVENTS.includes(event as any)) {
+        return new Response(
+          JSON.stringify({
+            error: 'Unknown or invalid funnel event',
+            acceptedEvents: ACCEPTED_FUNNEL_EVENTS,
+          }),
+          {
+            status: 400,
+            headers: corsHeaders,
+          }
+        );
+      }
+
+      const country =
+        request.headers.get('CF-IPCountry') ||
+        request.headers.get('cf-ipcountry') ||
+        'XX';
+
+      const installId =
+        body.installId && typeof body.installId === 'string' && body.installId.trim()
+          ? body.installId.trim()
+          : undefined;
+
+      try {
+        await recordFunnelEvent(env, event, country, installId);
+      } catch (err) {
+        console.error('Funnel event record error:', err);
       }
 
       return new Response(JSON.stringify({ ok: true }), {

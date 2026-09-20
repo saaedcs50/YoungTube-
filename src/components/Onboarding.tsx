@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import db from '../db';
 import { sha256 } from '../crypto';
-import { KeyRound, HelpCircle, Sparkles, ArrowLeft, ArrowRight, Check } from 'lucide-react';
-import AdBlockNotice from './AdBlockNotice';
+import { KeyRound, HelpCircle, ArrowLeft } from 'lucide-react';
 import PinOtpInput from './PinOtpInput';
+import { trackFunnelEvent } from '../services/funnelTelemetry';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -17,7 +17,6 @@ const COMMON_SECURITY_QUESTIONS = [
 ];
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [selectedQuestion, setSelectedQuestion] = useState(COMMON_SECURITY_QUESTIONS[0]);
@@ -25,66 +24,63 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [securityAnswer, setSecurityAnswer] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSettingsSaved, setIsSettingsSaved] = useState(false);
 
-  // Step 1: Validate PIN
-  const handlePinNext = (e: React.FormEvent) => {
+  useEffect(() => {
+    try {
+      const sessionKey = 'yt_funnel_onboarding_started';
+      if (!sessionStorage.getItem(sessionKey)) {
+        sessionStorage.setItem(sessionKey, '1');
+        trackFunnelEvent('onboarding_started');
+      }
+    } catch {
+      trackFunnelEvent('onboarding_started');
+    }
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
     if (pin.length !== 6 || !/^\d{6}$/.test(pin)) {
       setError('يجب أن يتكون رمز PIN من 6 أرقام بالضبط.');
       return;
     }
+
     if (pin !== confirmPin) {
-      setError('رمزا PIN غير متطابقين، يرجى إعادة التأكيد.');
+      setError('رمزا PIN غير متطابقين، يرجى التأكد من تطابقهما.');
       return;
     }
-    setStep(2);
-  };
 
-  // Step 2: Validate Security Question
-  const handleQuestionNext = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
     const finalQuestion = customQuestion.trim() || selectedQuestion;
     if (!finalQuestion) {
       setError('يرجى اختيار أو كتابة سؤال الأمان.');
       return;
     }
+
     if (!securityAnswer.trim()) {
       setError('يرجى كتابة إجابة السؤال السري.');
       return;
     }
-    setStep(3);
-  };
 
-  // Helper to persist settings
-  const saveSettingsToDb = async () => {
-    const pinHash = await sha256(pin);
-    const securityAnswerHash = await sha256(securityAnswer.trim().toLowerCase());
-    const finalQuestion = customQuestion.trim() || selectedQuestion;
-
-    await db.settings.put({
-      id: 'main',
-      pinHash,
-      securityQuestion: finalQuestion,
-      securityAnswerHash,
-      blacklistWords: [],
-      scheduleWindow: { start: '00:00', end: '23:59' },
-      sessionLimitMinutes: 60,
-      pinAttempts: 0,
-      preloadedListVersion: 1,
-    });
-    setIsSettingsSaved(true);
-  };
-
-  // Step 3 -> Step 4: Save settings and advance to Ad-blocking notice
-  const handleAdvanceToStep4 = async () => {
     setIsSubmitting(true);
-    setError(null);
     try {
-      await saveSettingsToDb();
-      setStep(4);
+      const pinHash = await sha256(pin);
+      const securityAnswerHash = await sha256(securityAnswer.trim().toLowerCase());
+
+      await db.settings.put({
+        id: 'main',
+        pinHash,
+        securityQuestion: finalQuestion,
+        securityAnswerHash,
+        blacklistWords: [],
+        scheduleWindow: { start: '00:00', end: '23:59' },
+        sessionLimitMinutes: 60,
+        pinAttempts: 0,
+        preloadedListVersion: 1,
+      });
+
+      trackFunnelEvent('onboarding_completed');
+      onComplete();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ الإعدادات.');
     } finally {
@@ -92,20 +88,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }
   };
 
-  // Step 4 Completion (Skip or Done)
-  const handleFinalFinish = async () => {
-    if (!isSettingsSaved) {
-      setIsSubmitting(true);
-      try {
-        await saveSettingsToDb();
-      } catch (err) {
-        console.error('Error saving settings on final finish:', err);
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-    onComplete();
-  };
+  const isFormValid =
+    pin.length === 6 &&
+    confirmPin.length === 6 &&
+    securityAnswer.trim().length > 0 &&
+    (selectedQuestion !== 'custom' || customQuestion.trim().length > 0);
 
   return (
     <div className="fixed inset-0 z-50 bg-[#FAF8F5] overflow-y-auto flex items-center justify-center p-4 sm:p-6" dir="rtl">
@@ -114,53 +101,43 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         className="w-full max-w-lg bg-white rounded-3xl shadow-xl border border-stone-200/80 overflow-hidden flex flex-col my-auto"
       >
         {/* Modal Header */}
-        <div className="bg-amber-500/10 border-b border-amber-200/60 p-6 text-right">
+        <div className="bg-amber-500/10 border-b border-amber-200/60 p-5 sm:p-6 text-right">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-amber-600 text-white shadow-2xs">
-              خطوة {step} من 4
+              خطوة 1 من 1
             </span>
             <span className="text-xs font-bold text-amber-900">
-              {step <= 2
-                ? 'حماية أمان الوالدين'
-                : step === 3
-                ? 'تطوير ذوق واهتمامات الطفل'
-                : 'حجب الإعلانات المدمجة'}
+              حماية أمان الوالدين
             </span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-stone-900 mt-3">
-            {step === 1 && 'إنشاء رمز PIN للوالدين'}
-            {step === 2 && 'سؤال الأمان السري'}
-            {step === 3 && 'توجيه المحتوى والهوايات'}
-            {step === 4 && 'حماية إضافية من الإعلانات'}
+          <h2 className="text-xl sm:text-2xl font-extrabold text-stone-900 mt-2.5">
+            إعداد رمز PIN وسؤال الأمان
           </h2>
           <p className="text-xs sm:text-sm text-stone-700 mt-1.5 leading-relaxed font-medium">
-            {step === 1 && 'لنقم بإعداد رمز مرور سري من 6 أرقام للتحكم في لوحة الأهل وإعدادات الأطفال.'}
-            {step === 2 && 'في حال نسيت رمز PIN، سيساعدك هذا السؤال على استعادة الوصول بأمان.'}
-            {step === 3 && 'توجيه وتطوير اهتمامات طفلك نحو محتوى هادف وبنّاء وفق قيمكم العائلية.'}
-            {step === 4 && 'إرشادات مجانية وفعالة لحجب معظم إعلانات يوتيوب على مستوى الجهاز.'}
+            أنشئ رمز مرور سري لحماية لوحة التحكم وأوقات الشاشة، مع سؤال أمان لاستعادة الرمز بسهولة في حال نسيانه.
           </p>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6">
+        <div className="p-5 sm:p-6">
           {error && (
-            <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-bold">
+            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-bold text-right">
               {error}
             </div>
           )}
 
-          {/* STEP 1: PIN Setup */}
-          {step === 1 && (
-            <form onSubmit={handlePinNext} className="space-y-5 text-right">
-              <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm">
+          <form onSubmit={handleSubmit} className="space-y-6 text-right">
+            {/* SECTION 1: PIN Setup */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm pb-1.5 border-b border-stone-100">
                 <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
                   <KeyRound className="w-4.5 h-4.5" />
                 </div>
-                <span>أدخل رمز PIN المكون من 6 أرقام</span>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-stone-900">1. رمز PIN للوالدين (6 أرقام)</h3>
+                  <p className="text-[11px] text-stone-500 font-medium">مشفر بتقنية SHA-256 لمنع تعديل أوقات الشاشة أو الفلاتر</p>
+                </div>
               </div>
-              <p className="text-xs text-stone-600 leading-relaxed font-medium">
-                يتم تشفير هذا الرمز تلقائياً ولا يُحفظ برقم خام، ليضمن عدم تمكن الأبناء من تعديل فلترة أو أوقات الشاشة.
-              </p>
 
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-stone-700">
@@ -186,42 +163,23 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   theme="amber"
                 />
               </div>
+            </div>
 
-              <div className="pt-2">
-                <button
-                  id="onboarding-step1-btn"
-                  type="submit"
-                  disabled={pin.length !== 6 || confirmPin.length !== 6}
-                  className="w-full min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm shadow-amber-600/20 cursor-pointer"
-                >
-                  <span>التالي</span>
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* STEP 2: Security Question */}
-          {step === 2 && (
-            <form onSubmit={handleQuestionNext} className="space-y-5 text-right">
-              <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm">
+            {/* SECTION 2: Security Question */}
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm pb-1.5 border-b border-stone-100">
                 <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
                   <HelpCircle className="w-4.5 h-4.5" />
                 </div>
-                <span>سؤال الأمان السري (لاستعادة الرمز)</span>
-              </div>
-              <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200/80 text-xs text-amber-950 leading-relaxed space-y-1">
-                <p className="font-bold text-amber-900">
-                  الاسترجاع عبر سؤال الأمان المحفوظ على هذا الجهاز فقط
-                </p>
-                <p className="text-stone-600 text-[11px]">
-                  تُحفظ الإجابة بشكل مشفر (Hash) محلياً. تنبيه: مسح بيانات الموقع أو ذاكرة المتصفح يفقد الرمز والاسترجاع.
-                </p>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-stone-900">2. سؤال الأمان السري (لاستعادة الرمز)</h3>
+                  <p className="text-[11px] text-stone-500 font-medium">تُحفظ إجابته مشفرة محلياً لاسترجاع الرمز في حال نسيانه</p>
+                </div>
               </div>
 
               <div className="space-y-1.5">
                 <label htmlFor="onboarding-question-select" className="block text-xs font-bold text-stone-700">
-                  اختر سؤالاً أو اكتب سؤالك الخاص:
+                  اختر سؤال الأمان أو اكتب سؤالك الخاص:
                 </label>
                 <select
                   id="onboarding-question-select"
@@ -263,95 +221,23 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   onChange={(e) => setSecurityAnswer(e.target.value)}
                   placeholder="اكتب إجابتك هنا..."
                   className="w-full min-h-[44px] p-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
-                  autoFocus
                 />
               </div>
-
-              <div className="pt-2 flex flex-col gap-2.5">
-                <button
-                  id="onboarding-step2-btn"
-                  type="submit"
-                  disabled={!securityAnswer.trim()}
-                  className="w-full min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm shadow-amber-600/20 cursor-pointer"
-                >
-                  <span>التالي</span>
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="w-full min-h-[44px] rounded-xl border border-stone-200/80 text-stone-600 hover:bg-stone-50 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <ArrowRight className="w-3.5 h-3.5" />
-                  <span>رجوع</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* STEP 3: Taste Shift Explanation & Save */}
-          {step === 3 && (
-            <div className="space-y-5 text-right">
-              <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
-                  <Sparkles className="w-4.5 h-4.5" />
-                </div>
-                <span>رؤية وتطوير المحتوى الهادف (Taste Shift)</span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-stone-800 text-xs sm:text-sm leading-relaxed space-y-2">
-                <p>
-                  سيتمكن التطبيق مستقبلاً من توجيه وتطوير ذوق واهتمامات طفلك تدريجياً وبأمان فائق، وفقاً للقيم والمجالات التي تختارها بعناية.
-                </p>
-                <p>
-                  هذه الميزة تأتي لضمان بيئة رقمية هادفة وممتعة تنمو مع طفلك دون أي تشتيت أو خوارزميات عشوائية.
-                </p>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs text-stone-600 space-y-1.5">
-                <div className="font-bold text-stone-900">ملخص إعدادات الحماية:</div>
-                <div className="flex items-center gap-2 text-emerald-700 font-bold">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>رمز PIN مشفر بـ SHA-256 (6 أرقام)</span>
-                </div>
-                <div className="flex items-center gap-2 text-emerald-700 font-bold">
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span>سؤال أمان سري مع إجابة مشفرة</span>
-                </div>
-              </div>
-
-              <div className="pt-2 flex flex-col gap-2.5">
-                <button
-                  id="onboarding-step3-btn"
-                  type="button"
-                  onClick={handleAdvanceToStep4}
-                  disabled={isSubmitting}
-                  className="w-full min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm shadow-amber-600/20 cursor-pointer"
-                >
-                  <span>{isSubmitting ? 'جاري الحفظ...' : 'متابعة وإدخال إعدادات الإعلانات'}</span>
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="w-full min-h-[44px] rounded-xl border border-stone-200/80 text-stone-600 hover:bg-stone-50 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <ArrowRight className="w-3.5 h-3.5" />
-                  <span>رجوع</span>
-                </button>
-              </div>
             </div>
-          )}
 
-          {/* STEP 4: Ad-blocking DNS Notice */}
-          {step === 4 && (
-            <AdBlockNotice
-              mode="onboarding"
-              onSkip={handleFinalFinish}
-              onFinish={handleFinalFinish}
-              onBack={() => setStep(3)}
-            />
-          )}
+            {/* Submit Button */}
+            <div className="pt-2">
+              <button
+                id="onboarding-submit-btn"
+                type="submit"
+                disabled={!isFormValid || isSubmitting}
+                className="w-full min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm shadow-amber-600/20 cursor-pointer"
+              >
+                <span>{isSubmitting ? 'جاري حفظ الإعدادات...' : 'حفظ وإكمال الإعداد'}</span>
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import db, { FeedItem } from './db';
 import { WORKER_URL } from './config';
+import { OPT_IN_CATEGORY_IDS } from './categories';
 import {
   fetchGlobalBlocks,
   isChannelBlocked,
@@ -271,6 +272,7 @@ export async function filterAndCacheVideos(
 
   // Read blacklist words from Dexie settings ('main')
   const settings = await db.settings.get('main');
+  const enabledOptInCategories = new Set(settings?.enabledOptInCategories || []);
   const blacklistWords = (settings?.blacklistWords || [])
     .map((w) => w.trim().toLowerCase())
     .filter((w) => w.length > 0);
@@ -283,6 +285,12 @@ export async function filterAndCacheVideos(
     const cid = (channel.sourceId || '').trim();
     if (!cid) continue;
     if (isBlocked(cid, channel.sourceType)) continue;
+
+    const channelCategories = Array.isArray(channel.category) ? channel.category : [];
+    const hasUngatedOptInCategory = channelCategories.some(
+      (cat) => OPT_IN_CATEGORY_IDS.includes(cat) && !enabledOptInCategories.has(cat)
+    );
+    if (hasUngatedOptInCategory) continue;
 
     uniqueChannelIdsSet.add(cid);
     if (Array.isArray(channel.videos)) {
@@ -363,6 +371,7 @@ export async function filterAndCacheVideos(
     const channelId = (channel.sourceId || '').trim();
     if (!channelId) continue;
     if (isBlocked(channelId, channel.sourceType)) continue;
+    if (!uniqueChannelIdsSet.has(channelId)) continue;
 
     // Use in-memory per-channel existing items loaded during bulk step
     const existingForChannel = existingForChannelMap.get(channelId) || [];

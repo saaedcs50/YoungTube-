@@ -169,6 +169,7 @@ export default function PinLockModal({ isOpen, onClose, onUnlockSuccess }: PinLo
             onClick={onClose}
             className="w-9 h-9 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center transition cursor-pointer min-h-[44px]"
             title="إغلاق"
+            aria-label="إغلاق"
           >
             <X className="w-4.5 h-4.5" />
           </button>

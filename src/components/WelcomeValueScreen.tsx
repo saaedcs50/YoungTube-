@@ -1,11 +1,37 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Tv, ShieldCheck, Sparkles, ArrowLeft } from 'lucide-react';
+import { trackFunnelEvent } from '../services/funnelTelemetry';
 
 interface WelcomeValueScreenProps {
   onStartSetup: () => void;
 }
 
 export default function WelcomeValueScreen({ onStartSetup }: WelcomeValueScreenProps) {
+  useEffect(() => {
+    try {
+      const sessionKey = 'yt_funnel_welcome_seen';
+      if (!sessionStorage.getItem(sessionKey)) {
+        sessionStorage.setItem(sessionKey, '1');
+        trackFunnelEvent('welcome_seen');
+      }
+    } catch {
+      trackFunnelEvent('welcome_seen');
+    }
+  }, []);
+
+  const handleStartSetup = () => {
+    try {
+      const sessionKey = 'yt_funnel_onboarding_started';
+      if (!sessionStorage.getItem(sessionKey)) {
+        sessionStorage.setItem(sessionKey, '1');
+        trackFunnelEvent('onboarding_started');
+      }
+    } catch {
+      trackFunnelEvent('onboarding_started');
+    }
+    onStartSetup();
+  };
+
   return (
     <div
       id="welcome-value-screen"
@@ -91,7 +117,7 @@ export default function WelcomeValueScreen({ onStartSetup }: WelcomeValueScreenP
             <button
               id="start-setup-btn"
               type="button"
-              onClick={onStartSetup}
+              onClick={handleStartSetup}
               className="w-full py-3.5 px-6 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base transition shadow-md shadow-amber-600/25 flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>ابدأ الإعداد</span>

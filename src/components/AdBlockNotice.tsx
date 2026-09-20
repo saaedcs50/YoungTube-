@@ -58,14 +58,15 @@ export default function AdBlockNotice({
           <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <ShieldCheck className="w-5 h-5" />
           </div>
-          <span>خطوة أخيرة: حجب الإعلانات</span>
+          <span>{mode === 'modal' ? 'إرشادات حجب الإعلانات المدمجة' : 'خطوة أخيرة: حجب الإعلانات'}</span>
         </div>
         {mode === 'modal' && onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
             title="إغلاق"
+            aria-label="إغلاق"
           >
             <X className="w-5 h-5" />
           </button>
@@ -182,7 +183,7 @@ export default function AdBlockNotice({
 
   if (mode === 'modal') {
     return (
-      <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" dir="rtl">
         <div
           id="adblock-notice-modal"
           className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 my-auto"

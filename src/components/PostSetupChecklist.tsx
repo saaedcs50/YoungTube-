@@ -1,6 +1,7 @@
-import React from 'react';
-import { Clock, Sliders, Smartphone, CheckCircle2, ArrowLeft, LayoutDashboard } from 'lucide-react';
+import React, { useState } from 'react';
+import { Clock, Sliders, Smartphone, CheckCircle2, ArrowLeft, LayoutDashboard, ShieldCheck } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
+import AdBlockNotice from './AdBlockNotice';
 
 interface PostSetupChecklistProps {
   onFinish: () => void;
@@ -11,6 +12,8 @@ export default function PostSetupChecklist({
   onFinish,
   onGoDashboard,
 }: PostSetupChecklistProps) {
+  const [showAdBlockModal, setShowAdBlockModal] = useState(false);
+
   return (
     <div
       id="post-setup-checklist-modal"
@@ -24,14 +27,14 @@ export default function PostSetupChecklist({
             <CheckCircle2 className="w-8 h-8" />
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
-            تم الإعداد — ثلاث خطوات سريعة
+            تم إعداد الحماية — نصائح سريعة للبدء
           </h2>
           <p className="text-xs sm:text-sm text-stone-600 mt-1.5 font-medium leading-relaxed max-w-md mx-auto">
-            مرحباً بك في يونج تيوب! إليك نصائح سريعة لضمان أفضل تجربة لطفلك:
+            مرحباً بك في يونج تيوب! إليك نصائح وخطوات سريعة لضمان أفضل تجربة لطفلك:
           </p>
         </div>
 
-        {/* 3 Checklist / Guidance Rows */}
+        {/* Checklist / Guidance Rows */}
         <div className="p-5 sm:p-6 space-y-3.5">
           {/* Row 1: Session Time */}
           <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-stone-50 border border-stone-200/70">
@@ -48,17 +51,17 @@ export default function PostSetupChecklist({
             </div>
           </div>
 
-          {/* Row 2: Categories & Channels */}
+          {/* Row 2: Categories, Channels & Interests */}
           <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-stone-50 border border-stone-200/70">
             <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center shrink-0 border border-sky-300 mt-0.5">
               <Sliders className="w-4.5 h-4.5" />
             </div>
             <div className="min-w-0">
               <h3 className="text-xs sm:text-sm font-bold text-stone-900">
-                2. راجع التصنيفات والقنوات المسموحة
+                2. راجع التصنيفات واهتمامات طفلك في لوحة الأهل
               </h3>
               <p className="text-[11px] sm:text-xs text-stone-600 mt-0.5 leading-relaxed font-medium">
-                فَعّل أو عطّل التصنيفات حسب عمر واهتمامات طفلك مع إمكانية إضافة قنواتك.
+                وجّه ذوق واهتمامات طفلك، وفَعّل أو عطّل مجالات المحتوى والقنوات المسموحة بما يناسب عمره وقيم عائلتكم.
               </p>
             </div>
           </div>
@@ -80,6 +83,32 @@ export default function PostSetupChecklist({
               <div className="pt-0.5">
                 <PWAInstallButton />
               </div>
+            </div>
+          </div>
+
+          {/* Row 4: Optional Ad-blocking tip */}
+          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-stone-50 border border-stone-200/70">
+            <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center shrink-0 border border-purple-300 mt-0.5">
+              <ShieldCheck className="w-4.5 h-4.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-xs sm:text-sm font-bold text-stone-900">
+                  4. حماية إضافية من الإعلانات (اختياري)
+                </h3>
+              </div>
+              <p className="text-[11px] sm:text-xs text-stone-600 mt-0.5 leading-relaxed font-medium">
+                لحجب معظم إعلانات يوتيوب على مستوى الجهاز مجاناً، يمكنك الاستفادة من ميزة Private DNS.
+              </p>
+              <button
+                id="checklist-adblock-btn"
+                type="button"
+                onClick={() => setShowAdBlockModal(true)}
+                className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+              >
+                <span>عرض إرشادات حجب الإعلانات</span>
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
@@ -109,6 +138,10 @@ export default function PostSetupChecklist({
           </div>
         </div>
       </div>
+
+      {showAdBlockModal && (
+        <AdBlockNotice mode="modal" onClose={() => setShowAdBlockModal(false)} />
+      )}
     </div>
   );
 }
