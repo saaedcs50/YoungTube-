@@ -65,6 +65,91 @@ function checkAdminAuth(request: Request, env: Env): boolean {
   return false;
 }
 
+/**
+ * Rate Limiting Constants for Targeted Public GET Endpoints (Phase P3.2)
+ *
+ * Rules & Invariants:
+ * - Window: 60 seconds
+ * - Limit: 60 requests per IP per window (1 req/sec average, generous for multiple kids sharing NAT)
+ * - Exceeded response: HTTP 429 with { error: 'rate_limit' }, Retry-After: 60, and CORS headers
+ * - Excludes admin Bearer / X-Admin-Key routes
+ * - Zero high-volume KV writes: Uses in-memory counting within Durable Object (with in-memory worker isolate fallback)
+ */
+export const RATE_LIMIT_WINDOW_SECONDS = 60;
+export const RATE_LIMIT_MAX_REQUESTS = 60;
+export const RATE_LIMITED_ROUTES = new Set([
+  '/api/categories',
+  '/api/channels-latest',
+  '/api/announcements',
+  '/api/global-blocks',
+  '/api/rss',
+]);
+
+// In-memory fallback map for worker isolates when Durable Objects are unavailable or during tests
+const fallbackRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+let lastFallbackSweep = Date.now();
+
+function checkFallbackRateLimit(ip: string): boolean {
+  const now = Date.now();
+  if (now - lastFallbackSweep > 60000) {
+    lastFallbackSweep = now;
+    for (const [key, entry] of fallbackRateLimitMap.entries()) {
+      if (now > entry.resetAt) {
+        fallbackRateLimitMap.delete(key);
+      }
+    }
+  }
+
+  const windowMs = RATE_LIMIT_WINDOW_SECONDS * 1000;
+  let entry = fallbackRateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    fallbackRateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Checks rate limit for public GET requests via Durable Object (Approach A)
+ * or gracefully falls back to worker isolate in-memory state.
+ */
+async function checkPublicRateLimit(request: Request, env: Env): Promise<boolean> {
+  const ip =
+    request.headers.get('CF-Connecting-IP') ||
+    request.headers.get('x-real-ip') ||
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    '127.0.0.1';
+
+  if (env.TELEMETRY_DO) {
+    try {
+      const id = env.TELEMETRY_DO.idFromName('rate-limiter-v1');
+      const stub = env.TELEMETRY_DO.get(id);
+      const res = await stub.fetch('http://do/rate_limit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ip,
+          limit: RATE_LIMIT_MAX_REQUESTS,
+          windowSec: RATE_LIMIT_WINDOW_SECONDS,
+        }),
+      });
+      if (res.ok) {
+        const data: any = await res.json();
+        return data.allowed !== false;
+      }
+    } catch (err) {
+      console.warn('DO rate limit check failed, using in-memory fallback:', err);
+    }
+  }
+
+  return checkFallbackRateLimit(ip);
+}
+
 export interface TelemetryDaily {
   date: string; // YYYY-MM-DD UTC
 
@@ -549,6 +634,417 @@ export async function refreshChannelsBatch(env: Env): Promise<{
   };
 }
 
+export interface MaintenanceLock {
+  lockedBy: string; // 'scheduled' | 'manual_admin' | 'manual_admin_cleanup'
+  startedAt: string; // ISO string
+  until: string; // ISO string
+}
+
+export interface MaintenanceStatus {
+  lastRunTime: string | null;
+  cursor: number;
+  lastError: string | null;
+  lastProcessed: { sourceId: string; title: string; videoCount: number }[];
+  lastFailed: any[];
+  isLocked: boolean;
+  lockUntil: string | null;
+  primaryTask: string;
+  batchSize: number;
+  totalChannels: number;
+}
+
+export interface BackfillBatchResult {
+  processedChannels: { sourceId: string; title: string; videoCount: number }[];
+  failedChannels: (
+    | { sourceId: string; title: string; error: 'youtube_rate_limited'; status: number }
+    | { sourceId: string; title: string; error: 'other'; message: string }
+  )[];
+  cursorBefore: number;
+  cursorAfter: number;
+  totalChannels: number;
+  wrappedAround: boolean;
+}
+
+/**
+ * Checks KV for an active maintenance_lock.
+ * Returns true if locked and unexpired.
+ */
+export async function checkMaintenanceLock(env: Env): Promise<{
+  isLocked: boolean;
+  lock?: MaintenanceLock;
+  until?: string;
+}> {
+  if (!env.CHANNELS_ARCHIVE) {
+    return { isLocked: false };
+  }
+  try {
+    const raw = await env.CHANNELS_ARCHIVE.get('maintenance_lock');
+    if (!raw) return { isLocked: false };
+    const lock: MaintenanceLock = JSON.parse(raw);
+    const untilMs = new Date(lock.until).getTime();
+    if (!isNaN(untilMs) && untilMs > Date.now()) {
+      return { isLocked: true, lock, until: lock.until };
+    }
+  } catch {
+    // Treat corrupt lock as unlocked
+  }
+  return { isLocked: false };
+}
+
+/**
+ * Acquires a maintenance lock in KV with an ISO expiration timestamp to prevent overlaps.
+ */
+export async function acquireMaintenanceLock(
+  env: Env,
+  lockedBy: string,
+  ttlMs: number = 5 * 60 * 1000 // 5 minutes default
+): Promise<MaintenanceLock | null> {
+  if (!env.CHANNELS_ARCHIVE) return null;
+  const now = new Date();
+  const until = new Date(now.getTime() + ttlMs).toISOString();
+  const lock: MaintenanceLock = {
+    lockedBy,
+    startedAt: now.toISOString(),
+    until,
+  };
+  await env.CHANNELS_ARCHIVE.put('maintenance_lock', JSON.stringify(lock));
+  return lock;
+}
+
+/**
+ * Releases the maintenance lock in KV.
+ */
+export async function releaseMaintenanceLock(env: Env): Promise<void> {
+  if (!env.CHANNELS_ARCHIVE) return;
+  try {
+    await env.CHANNELS_ARCHIVE.delete('maintenance_lock');
+  } catch {}
+}
+
+/**
+ * Saves maintenance status and metrics to KV for monitoring.
+ */
+export async function saveMaintenanceStatus(
+  env: Env,
+  update: Partial<MaintenanceStatus>
+): Promise<void> {
+  if (!env.CHANNELS_ARCHIVE) return;
+  try {
+    let current: Partial<MaintenanceStatus> = {};
+    const raw = await env.CHANNELS_ARCHIVE.get('maintenance_status');
+    if (raw) {
+      current = JSON.parse(raw);
+    }
+    const merged = { ...current, ...update };
+    await env.CHANNELS_ARCHIVE.put('maintenance_status', JSON.stringify(merged));
+  } catch {}
+}
+
+/**
+ * Primary maintenance task: Option A - backfill-all-batch (archives channel videos from YouTube API).
+ * BATCH_SIZE = 2 ensures worst-case 2 channels * 20 maxPages = 40 external subrequests,
+ * safely under Cloudflare Workers free plan 50 subrequests per invocation limit.
+ */
+export async function runBackfillAllBatch(
+  env: Env,
+  options?: { reset?: boolean; initiatedBy?: 'scheduled' | 'manual_admin' }
+): Promise<BackfillBatchResult> {
+  const reset = options?.reset === true;
+  const totalChannels = channelsSeed.length;
+  const BATCH_SIZE = 2;
+
+  if (!env.YOUTUBE_API_KEY) {
+    throw new Error('Server configuration error: YOUTUBE_API_KEY is not set');
+  }
+
+  let cursor = 0;
+  if (!reset && env.CHANNELS_ARCHIVE) {
+    try {
+      const rawCursor =
+        (await env.CHANNELS_ARCHIVE.get('maintenance_cursor')) ||
+        (await env.CHANNELS_ARCHIVE.get('_backfill_all_cursor'));
+      if (rawCursor) {
+        const parsed = parseInt(rawCursor, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+          cursor = parsed % totalChannels;
+        }
+      }
+    } catch {
+      cursor = 0;
+    }
+  }
+  const cursorBefore = cursor;
+
+  // Select 2 channels from channelsSeed using cursor
+  const batch: { channel: any; originalIndex: number }[] = [];
+  for (let i = 0; i < BATCH_SIZE; i++) {
+    const idx = (cursorBefore + i) % totalChannels;
+    batch.push({
+      channel: channelsSeed[idx],
+      originalIndex: idx,
+    });
+  }
+
+  // Load existing fullMergedList once for the batch
+  let fullMergedList: any[] = [];
+  if (env.CHANNELS_ARCHIVE) {
+    try {
+      const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+      if (rawMerged) {
+        const parsed = JSON.parse(rawMerged);
+        if (Array.isArray(parsed)) {
+          fullMergedList = parsed;
+        }
+      }
+    } catch {
+      // Ignore parse error
+    }
+
+    if (fullMergedList.length === 0) {
+      fullMergedList = channelsSeed.map((ch: any) => ({
+        ...ch,
+        videos: [],
+        videoCount: 0,
+      }));
+    }
+  }
+
+  // Async function to process a single channel's pagination and individual archive
+  const processOneChannel = async (channel: any) => {
+    const sourceId = channel.sourceId;
+    const sourceType = channel.sourceType || 'channel';
+
+    let playlistId = sourceId;
+    if (sourceType === 'playlist' || sourceId.startsWith('PL')) {
+      playlistId = sourceId;
+    } else if (sourceId.startsWith('UC')) {
+      playlistId = 'UU' + sourceId.slice(2);
+    }
+
+    const allVideos: VideoItem[] = [];
+    let pageToken: string | undefined = undefined;
+    let pageCount = 0;
+    const maxPages = 20; // Fetch up to 1000 videos (50 per page)
+
+    while (pageCount < maxPages) {
+      const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+      apiUrl.searchParams.set('part', 'snippet');
+      apiUrl.searchParams.set('playlistId', playlistId);
+      apiUrl.searchParams.set('maxResults', '50');
+      if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
+      apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
+
+      const ytRes = await fetch(apiUrl.toString());
+      if (!ytRes.ok) {
+        const errText = await ytRes.text();
+        const apiError = new Error(
+          `YouTube API error (${ytRes.status}) for ${sourceId}: ${errText}`
+        ) as Error & { status?: number };
+        apiError.status = ytRes.status;
+        throw apiError;
+      }
+
+      const data: any = await ytRes.json();
+      const items = data.items || [];
+      for (const item of items) {
+        const vId = item.snippet?.resourceId?.videoId;
+        const title = item.snippet?.title;
+        const publishedAt = item.snippet?.publishedAt;
+        if (vId && title && title !== 'Private video' && title !== 'Deleted video') {
+          allVideos.push({
+            videoId: vId,
+            title,
+            publishedAt: publishedAt || new Date().toISOString(),
+          });
+        }
+      }
+
+      pageToken = data.nextPageToken;
+      pageCount++;
+      if (!pageToken || items.length === 0) break;
+    }
+
+    // Save the individual channel archive (up to 1000 videos)
+    if (env.CHANNELS_ARCHIVE) {
+      await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(allVideos));
+    }
+
+    return {
+      channel,
+      sourceId,
+      sourceType,
+      allVideos,
+    };
+  };
+
+  // Run batch channels concurrently
+  const batchResults = await Promise.allSettled(
+    batch.map(({ channel }) => processOneChannel(channel))
+  );
+
+  const processedChannels: { sourceId: string; title: string; videoCount: number }[] = [];
+  const failedChannels: (
+    | { sourceId: string; title: string; error: 'youtube_rate_limited'; status: number }
+    | { sourceId: string; title: string; error: 'other'; message: string }
+  )[] = [];
+
+  for (let i = 0; i < batchResults.length; i++) {
+    const res = batchResults[i];
+    const channel = batch[i].channel;
+    const sourceId = channel.sourceId;
+
+    if (res.status === 'fulfilled') {
+      const { sourceType, allVideos } = res.value;
+
+      // Update channel in fullMergedList (capped at 300 videos for the shared merged key)
+      if (fullMergedList.length > 0) {
+        const targetIdx = fullMergedList.findIndex((ch: any) => ch.sourceId === sourceId);
+        const updatedChannel: any = {
+          ...(targetIdx >= 0 ? fullMergedList[targetIdx] : { sourceId, sourceType }),
+          sourceId,
+          sourceType,
+          videos: allVideos.slice(0, 300),
+          videoCount: Math.min(allVideos.length, 300),
+        };
+
+        const seedChannel = channelsSeed.find((ch: any) => ch.sourceId === sourceId);
+        if (seedChannel) {
+          Object.assign(updatedChannel, seedChannel, {
+            videos: allVideos.slice(0, 300),
+            videoCount: Math.min(allVideos.length, 300),
+          });
+        }
+
+        if (targetIdx >= 0) {
+          fullMergedList[targetIdx] = updatedChannel;
+        } else {
+          fullMergedList.push(updatedChannel);
+        }
+      }
+
+      processedChannels.push({
+        sourceId,
+        title: channel.title || sourceId,
+        videoCount: allVideos.length,
+      });
+    } else {
+      const reason = res.reason;
+      console.error(`Error backfilling channel ${sourceId} in batch:`, reason);
+
+      const status = reason?.status;
+      if (status === 403 || status === 429) {
+        failedChannels.push({
+          sourceId,
+          title: channel.title || sourceId,
+          error: 'youtube_rate_limited',
+          status,
+        });
+      } else {
+        failedChannels.push({
+          sourceId,
+          title: channel.title || sourceId,
+          error: 'other',
+          message: reason instanceof Error ? reason.message : String(reason || 'Unknown error'),
+        });
+      }
+    }
+  }
+
+  // Write fullMergedList back to _channels_latest_merged once after the batch
+  if (env.CHANNELS_ARCHIVE && processedChannels.length > 0 && fullMergedList.length > 0) {
+    try {
+      await env.CHANNELS_ARCHIVE.put(
+        '_channels_latest_merged',
+        JSON.stringify(fullMergedList)
+      );
+    } catch (e) {
+      console.error('Failed to update _channels_latest_merged after batch backfill:', e);
+    }
+  }
+
+  // Advance and save the cursor (syncing both maintenance_cursor and _backfill_all_cursor)
+  const cursorAfter = (cursorBefore + BATCH_SIZE) % totalChannels;
+  if (env.CHANNELS_ARCHIVE) {
+    try {
+      await env.CHANNELS_ARCHIVE.put('_backfill_all_cursor', cursorAfter.toString());
+      await env.CHANNELS_ARCHIVE.put('maintenance_cursor', cursorAfter.toString());
+    } catch (e) {
+      console.error('Failed to save cursor:', e);
+    }
+  }
+
+  const wrappedAround = cursorAfter < cursorBefore;
+
+  // Save execution status to KV
+  await saveMaintenanceStatus(env, {
+    lastRunTime: new Date().toISOString(),
+    cursor: cursorAfter,
+    lastError:
+      failedChannels.length > 0
+        ? (failedChannels[0] as any).message || failedChannels[0].error
+        : null,
+    lastProcessed: processedChannels,
+    lastFailed: failedChannels,
+    primaryTask: 'backfill-all-batch',
+    batchSize: BATCH_SIZE,
+    totalChannels,
+  });
+
+  return {
+    processedChannels,
+    failedChannels,
+    cursorBefore,
+    cursorAfter,
+    totalChannels,
+    wrappedAround,
+  };
+}
+
+/**
+ * Executes a single scheduled maintenance batch under lock.
+ * Bounded by BATCH_SIZE = 2, keeping subrequests under 40 (within 50 cap).
+ */
+export async function runScheduledMaintenance(env: Env): Promise<void> {
+  if (!env.YOUTUBE_API_KEY) {
+    console.warn('Scheduled maintenance skipped: YOUTUBE_API_KEY is not configured.');
+    await saveMaintenanceStatus(env, {
+      lastRunTime: new Date().toISOString(),
+      lastError: 'YOUTUBE_API_KEY is not configured',
+    });
+    return;
+  }
+
+  // 1. Check lock to prevent overlapping runs
+  const activeLock = await checkMaintenanceLock(env);
+  if (activeLock.isLocked) {
+    console.log(`Scheduled maintenance skipped: lock active until ${activeLock.until}`);
+    return;
+  }
+
+  // 2. Acquire lock (5-minute TTL)
+  await acquireMaintenanceLock(env, 'scheduled', 5 * 60 * 1000);
+
+  try {
+    const result = await runBackfillAllBatch(env, {
+      reset: false,
+      initiatedBy: 'scheduled',
+    });
+    console.log(
+      `Scheduled maintenance completed batch. Processed: ${result.processedChannels.length} channels, Cursor: ${result.cursorBefore} -> ${result.cursorAfter}`
+    );
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('Scheduled maintenance batch error:', errMsg);
+    await saveMaintenanceStatus(env, {
+      lastRunTime: new Date().toISOString(),
+      lastError: errMsg,
+    });
+  } finally {
+    // 3. Always release lock
+    await releaseMaintenanceLock(env);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -580,6 +1076,24 @@ export default {
           headers: corsHeaders,
         }
       );
+    }
+
+    // 1.5 Lightweight rate limit for targeted public GET endpoints (Phase P3.2)
+    // Limits abusive scrapers & bursts (60 req/min per IP) without penalizing kid apps on shared NATs
+    // Preserves CORS headers and excludes requests with valid ADMIN_KEY or admin endpoints
+    if (request.method === 'GET' && RATE_LIMITED_ROUTES.has(url.pathname)) {
+      if (!checkAdminAuth(request, env)) {
+        const allowed = await checkPublicRateLimit(request, env);
+        if (!allowed) {
+          return new Response(JSON.stringify({ error: 'rate_limit' }), {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              'Retry-After': String(RATE_LIMIT_WINDOW_SECONDS),
+            },
+          });
+        }
+      }
     }
 
     // 2. GET /api/rss?type=channel|playlist&id=SOURCE_ID
@@ -828,6 +1342,17 @@ export default {
         );
       }
 
+      const activeLock = await checkMaintenanceLock(env);
+      if (activeLock.isLocked) {
+        return new Response(
+          JSON.stringify({
+            error: `Maintenance is currently in progress (locked until ${activeLock.until}). Please wait for the current batch to complete.`,
+            lock: activeLock.lock,
+          }),
+          { status: 409, headers: corsHeaders }
+        );
+      }
+
       let reset = false;
       try {
         const body: any = await request.json();
@@ -838,236 +1363,13 @@ export default {
         // Empty or non-JSON body is valid, defaults reset to false
       }
 
+      await acquireMaintenanceLock(env, 'manual_admin');
       try {
-        const totalChannels = channelsSeed.length;
-        // BATCH_SIZE = 2 ensures worst-case 2 channels * 20 maxPages = 40 external subrequests,
-        // safely under Cloudflare Workers free plan 50 subrequests per invocation limit.
-        const BATCH_SIZE = 2;
-
-        let cursor = 0;
-        if (!reset && env.CHANNELS_ARCHIVE) {
-          try {
-            const rawCursor = await env.CHANNELS_ARCHIVE.get('_backfill_all_cursor');
-            if (rawCursor) {
-              const parsed = parseInt(rawCursor, 10);
-              if (!isNaN(parsed) && parsed >= 0) {
-                cursor = parsed % totalChannels;
-              }
-            }
-          } catch {
-            cursor = 0;
-          }
-        }
-        const cursorBefore = cursor;
-
-        // Select 2 channels from channelsSeed using cursor
-        const batch: { channel: any; originalIndex: number }[] = [];
-        for (let i = 0; i < BATCH_SIZE; i++) {
-          const idx = (cursorBefore + i) % totalChannels;
-          batch.push({
-            channel: channelsSeed[idx],
-            originalIndex: idx,
-          });
-        }
-
-        // Load existing fullMergedList once for the batch
-        let fullMergedList: any[] = [];
-        if (env.CHANNELS_ARCHIVE) {
-          try {
-            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
-            if (rawMerged) {
-              const parsed = JSON.parse(rawMerged);
-              if (Array.isArray(parsed)) {
-                fullMergedList = parsed;
-              }
-            }
-          } catch {
-            // Ignore parse error
-          }
-
-          if (fullMergedList.length === 0) {
-            fullMergedList = channelsSeed.map((ch: any) => ({
-              ...ch,
-              videos: [],
-              videoCount: 0,
-            }));
-          }
-        }
-
-        // Async function to process a single channel's pagination and individual archive
-        const processOneChannel = async (channel: any) => {
-          const sourceId = channel.sourceId;
-          const sourceType = channel.sourceType || 'channel';
-
-          let playlistId = sourceId;
-          if (sourceType === 'playlist' || sourceId.startsWith('PL')) {
-            playlistId = sourceId;
-          } else if (sourceId.startsWith('UC')) {
-            playlistId = 'UU' + sourceId.slice(2);
-          }
-
-          const allVideos: VideoItem[] = [];
-          let pageToken: string | undefined = undefined;
-          let pageCount = 0;
-          const maxPages = 20; // Fetch up to 1000 videos (50 per page)
-
-          while (pageCount < maxPages) {
-            const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
-            apiUrl.searchParams.set('part', 'snippet');
-            apiUrl.searchParams.set('playlistId', playlistId);
-            apiUrl.searchParams.set('maxResults', '50');
-            if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
-            apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
-
-            const ytRes = await fetch(apiUrl.toString());
-            if (!ytRes.ok) {
-              const errText = await ytRes.text();
-              const apiError = new Error(`YouTube API error (${ytRes.status}) for ${sourceId}: ${errText}`) as Error & { status?: number };
-              apiError.status = ytRes.status;
-              throw apiError;
-            }
-
-            const data: any = await ytRes.json();
-            const items = data.items || [];
-            for (const item of items) {
-              const vId = item.snippet?.resourceId?.videoId;
-              const title = item.snippet?.title;
-              const publishedAt = item.snippet?.publishedAt;
-              if (vId && title && title !== 'Private video' && title !== 'Deleted video') {
-                allVideos.push({
-                  videoId: vId,
-                  title,
-                  publishedAt: publishedAt || new Date().toISOString(),
-                });
-              }
-            }
-
-            pageToken = data.nextPageToken;
-            pageCount++;
-            if (!pageToken || items.length === 0) break;
-          }
-
-          // Save the individual channel archive (up to 1000 videos)
-          if (env.CHANNELS_ARCHIVE) {
-            await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(allVideos));
-          }
-
-          return {
-            channel,
-            sourceId,
-            sourceType,
-            allVideos,
-          };
-        };
-
-        // Run batch channels concurrently
-        const batchResults = await Promise.allSettled(
-          batch.map(({ channel }) => processOneChannel(channel))
-        );
-
-        const processedChannels: { sourceId: string; title: string; videoCount: number }[] = [];
-        const failedChannels: (
-          | { sourceId: string; title: string; error: 'youtube_rate_limited'; status: number }
-          | { sourceId: string; title: string; error: 'other'; message: string }
-        )[] = [];
-
-        for (let i = 0; i < batchResults.length; i++) {
-          const res = batchResults[i];
-          const channel = batch[i].channel;
-          const sourceId = channel.sourceId;
-
-          if (res.status === 'fulfilled') {
-            const { sourceType, allVideos } = res.value;
-
-            // Update channel in fullMergedList (capped at 300 videos for the shared merged key)
-            if (fullMergedList.length > 0) {
-              const targetIdx = fullMergedList.findIndex((ch: any) => ch.sourceId === sourceId);
-              const updatedChannel: any = {
-                ...(targetIdx >= 0 ? fullMergedList[targetIdx] : { sourceId, sourceType }),
-                sourceId,
-                sourceType,
-                videos: allVideos.slice(0, 300),
-                videoCount: Math.min(allVideos.length, 300),
-              };
-
-              const seedChannel = channelsSeed.find((ch: any) => ch.sourceId === sourceId);
-              if (seedChannel) {
-                Object.assign(updatedChannel, seedChannel, {
-                  videos: allVideos.slice(0, 300),
-                  videoCount: Math.min(allVideos.length, 300),
-                });
-              }
-
-              if (targetIdx >= 0) {
-                fullMergedList[targetIdx] = updatedChannel;
-              } else {
-                fullMergedList.push(updatedChannel);
-              }
-            }
-
-            processedChannels.push({
-              sourceId,
-              title: channel.title || sourceId,
-              videoCount: allVideos.length,
-            });
-          } else {
-            const reason = res.reason;
-            console.error(`Error backfilling channel ${sourceId} in batch:`, reason);
-
-            const status = reason?.status;
-            if (status === 403 || status === 429) {
-              failedChannels.push({
-                sourceId,
-                title: channel.title || sourceId,
-                error: 'youtube_rate_limited',
-                status,
-              });
-            } else {
-              failedChannels.push({
-                sourceId,
-                title: channel.title || sourceId,
-                error: 'other',
-                message: reason instanceof Error ? reason.message : String(reason || 'Unknown error'),
-              });
-            }
-          }
-        }
-
-        // Write fullMergedList back to _channels_latest_merged once after the batch
-        if (env.CHANNELS_ARCHIVE && processedChannels.length > 0 && fullMergedList.length > 0) {
-          try {
-            await env.CHANNELS_ARCHIVE.put(
-              '_channels_latest_merged',
-              JSON.stringify(fullMergedList)
-            );
-          } catch (e) {
-            console.error('Failed to update _channels_latest_merged after batch backfill:', e);
-          }
-        }
-
-        // Advance and save the cursor
-        const cursorAfter = (cursorBefore + BATCH_SIZE) % totalChannels;
-        if (env.CHANNELS_ARCHIVE) {
-          try {
-            await env.CHANNELS_ARCHIVE.put('_backfill_all_cursor', cursorAfter.toString());
-          } catch (e) {
-            console.error('Failed to save _backfill_all_cursor:', e);
-          }
-        }
-
-        const wrappedAround = cursorAfter < cursorBefore;
-
-        return new Response(
-          JSON.stringify({
-            processedChannels,
-            failedChannels,
-            cursorBefore,
-            cursorAfter,
-            totalChannels,
-            wrappedAround,
-          }),
-          { status: 200, headers: corsHeaders }
-        );
+        const result = await runBackfillAllBatch(env, {
+          reset,
+          initiatedBy: 'manual_admin',
+        });
+        return new Response(JSON.stringify(result), { status: 200, headers: corsHeaders });
       } catch (err) {
         return new Response(
           JSON.stringify({
@@ -1075,6 +1377,8 @@ export default {
           }),
           { status: 500, headers: corsHeaders }
         );
+      } finally {
+        await releaseMaintenanceLock(env);
       }
     }
 
@@ -1094,6 +1398,17 @@ export default {
         );
       }
 
+      const activeLock = await checkMaintenanceLock(env);
+      if (activeLock.isLocked) {
+        return new Response(
+          JSON.stringify({
+            error: `Maintenance is currently in progress (locked until ${activeLock.until}). Please wait for the current batch to complete.`,
+            lock: activeLock.lock,
+          }),
+          { status: 409, headers: corsHeaders }
+        );
+      }
+
       let reset = false;
       try {
         const body: any = await request.json();
@@ -1104,6 +1419,7 @@ export default {
         // Empty or non-JSON body is valid, defaults reset to false
       }
 
+      await acquireMaintenanceLock(env, 'manual_admin_cleanup');
       try {
         const totalChannels = channelsSeed.length;
         let cursor = 0;
@@ -1363,6 +1679,97 @@ export default {
         return new Response(
           JSON.stringify({
             error: err instanceof Error ? err.message : 'Error executing cleanup dead videos batch',
+          }),
+          { status: 500, headers: corsHeaders }
+        );
+      } finally {
+        await releaseMaintenanceLock(env);
+      }
+    }
+
+    // 3.7 GET /api/admin/maintenance-status (Protected with Bearer ADMIN_KEY or X-Admin-Key)
+    if (url.pathname === '/api/admin/maintenance-status' && request.method === 'GET') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      let currentCursor = 0;
+      if (env.CHANNELS_ARCHIVE) {
+        try {
+          const raw =
+            (await env.CHANNELS_ARCHIVE.get('maintenance_cursor')) ||
+            (await env.CHANNELS_ARCHIVE.get('_backfill_all_cursor'));
+          if (raw) currentCursor = parseInt(raw, 10) || 0;
+        } catch {}
+      }
+
+      let statusData: any = {};
+      if (env.CHANNELS_ARCHIVE) {
+        try {
+          const raw = await env.CHANNELS_ARCHIVE.get('maintenance_status');
+          if (raw) statusData = JSON.parse(raw);
+        } catch {}
+      }
+
+      const activeLock = await checkMaintenanceLock(env);
+
+      return new Response(
+        JSON.stringify({
+          lastRunTime: statusData.lastRunTime || null,
+          cursor: currentCursor,
+          lastError: statusData.lastError || null,
+          isLocked: activeLock.isLocked,
+          lock: activeLock.lock || null,
+          primaryTask: 'backfill-all-batch',
+          batchSize: 2,
+          totalChannels: channelsSeed.length,
+          lastProcessed: statusData.lastProcessed || [],
+          lastFailed: statusData.lastFailed || [],
+        }),
+        { status: 200, headers: corsHeaders }
+      );
+    }
+
+    // 3.8 POST /api/admin/maintenance-run (Protected: Trigger one scheduled maintenance batch on demand)
+    if (url.pathname === '/api/admin/maintenance-run' && request.method === 'POST') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      if (!env.YOUTUBE_API_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error: YOUTUBE_API_KEY is not set' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      const activeLock = await checkMaintenanceLock(env);
+      if (activeLock.isLocked) {
+        return new Response(
+          JSON.stringify({
+            error: `Maintenance is currently in progress (locked until ${activeLock.until}).`,
+            lock: activeLock.lock,
+          }),
+          { status: 409, headers: corsHeaders }
+        );
+      }
+
+      try {
+        await runScheduledMaintenance(env);
+        return new Response(
+          JSON.stringify({ ok: true, message: 'Maintenance batch executed successfully' }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : 'Error executing scheduled maintenance',
           }),
           { status: 500, headers: corsHeaders }
         );
@@ -2609,14 +3016,45 @@ export default {
   },
 
   /**
-   * Cron Trigger handler: Runs periodically (every 6 hours)
-   * to refresh the next batch of 45 channels safely under the 50 subrequests limit.
+   * Cron Trigger handler:
+   * - Respects Cloudflare Workers free plan limit (at most 50 subrequests per invocation).
+   * - Executes at most ONE batch per run: either live RSS refresh (45 channels) OR
+   *   server-scheduled archive maintenance batch (2 channels, max 40 subrequests) under maintenance_lock.
+   * - Branches based on cron pattern (e.g. minute :30 for maintenance vs minute :00 for refresh)
+   *   or alternates via KV (_last_cron_task) when triggered on a single schedule.
+   * - Sweeps pending DO telemetry aggregates.
    */
   async scheduled(controller: any, env: Env, ctx?: any): Promise<void> {
-    try {
-      await refreshChannelsBatch(env);
-    } catch (err) {
-      console.error('Scheduled cron execution error:', err);
+    const cronTrigger = (controller && typeof controller.cron === 'string') ? controller.cron : '';
+    let taskToRun: 'refresh' | 'maintenance' = 'refresh';
+
+    if (cronTrigger.includes('30')) {
+      taskToRun = 'maintenance';
+    } else if (cronTrigger.includes('0')) {
+      taskToRun = 'refresh';
+    } else if (env.CHANNELS_ARCHIVE) {
+      // Fallback branching for single cron trigger or manual testing: alternate tasks
+      try {
+        const lastTask = await env.CHANNELS_ARCHIVE.get('_last_cron_task');
+        taskToRun = lastTask === 'refresh' ? 'maintenance' : 'refresh';
+        await env.CHANNELS_ARCHIVE.put('_last_cron_task', taskToRun);
+      } catch {
+        taskToRun = 'maintenance';
+      }
+    }
+
+    if (taskToRun === 'maintenance') {
+      try {
+        await runScheduledMaintenance(env);
+      } catch (err) {
+        console.error('Scheduled cron maintenance error:', err);
+      }
+    } else {
+      try {
+        await refreshChannelsBatch(env);
+      } catch (err) {
+        console.error('Scheduled cron refresh error:', err);
+      }
     }
 
     if (env.TELEMETRY_DO) {

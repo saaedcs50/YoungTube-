@@ -32,6 +32,9 @@ export class TelemetryAggregator {
   state: any;
   ctx: any;
 
+  private rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+  private lastRateLimitSweep = Date.now();
+
   constructor(state: any, _env?: any) {
     this.state = state;
     this.ctx = state;
@@ -46,6 +49,18 @@ export class TelemetryAggregator {
       try {
         body = await request.json();
       } catch {}
+
+      // In-memory rate limiting for public GET endpoints (Phase P3.2)
+      if (url.pathname === '/rate_limit') {
+        const ip = (body.ip && typeof body.ip === 'string') ? body.ip.trim() : 'unknown';
+        const limit = Number(body.limit) || 60;
+        const windowSec = Number(body.windowSec) || 60;
+        const result = this.handleRateLimit(ip, limit, windowSec);
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
 
       const country = (body.country && String(body.country).trim().toUpperCase()) || 'XX';
       const installId = body.installId && typeof body.installId === 'string' ? body.installId.trim() : undefined;
@@ -100,6 +115,44 @@ export class TelemetryAggregator {
     }
 
     return new Response('Not Found', { status: 404 });
+  }
+
+  /**
+   * In-memory sliding/fixed window rate-limiter per IP.
+   * Runs in Durable Object memory with zero KV writes and zero storage I/O.
+   */
+  private handleRateLimit(
+    ip: string,
+    limit: number,
+    windowSec: number
+  ): { allowed: boolean; count: number; resetInSec: number } {
+    const now = Date.now();
+    // Periodic sweep of expired IP records to prevent memory growth
+    if (now - this.lastRateLimitSweep > 60000) {
+      this.lastRateLimitSweep = now;
+      for (const [key, entry] of this.rateLimitMap.entries()) {
+        if (now > entry.resetAt) {
+          this.rateLimitMap.delete(key);
+        }
+      }
+    }
+
+    const windowMs = (windowSec || 60) * 1000;
+    const maxRequests = limit || 60;
+
+    let entry = this.rateLimitMap.get(ip);
+    if (!entry || now > entry.resetAt) {
+      entry = { count: 1, resetAt: now + windowMs };
+      this.rateLimitMap.set(ip, entry);
+      return { allowed: true, count: 1, resetInSec: windowSec };
+    }
+
+    entry.count++;
+    const resetInSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+    if (entry.count > maxRequests) {
+      return { allowed: false, count: entry.count, resetInSec };
+    }
+    return { allowed: true, count: entry.count, resetInSec };
   }
 
   private async getStorage(): Promise<any> {
