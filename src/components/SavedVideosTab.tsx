@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import db, { Interaction } from '../db';
 import channelsSeed from '../../channels_seed.json';
 import { Bookmark, Play, Trash2, Film } from 'lucide-react';
+import { getThumbnailCandidateUrls } from './VideoCard';
 
 interface SavedVideoItem {
   videoId: string;
@@ -11,6 +12,67 @@ interface SavedVideoItem {
   thumbnail: string;
   lastWatched?: number;
 }
+
+const SavedVideoRowThumbnail: React.FC<{
+  videoId: string;
+  initialThumbnail?: string;
+  title: string;
+}> = ({ videoId, initialThumbnail, title }) => {
+  const candidates = useMemo(
+    () => getThumbnailCandidateUrls(videoId, initialThumbnail),
+    [videoId, initialThumbnail]
+  );
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [thumbFailed, setThumbFailed] = useState(false);
+
+  useEffect(() => {
+    setCandidateIndex(0);
+    setThumbFailed(false);
+  }, [videoId]);
+
+  const handleImageError = () => {
+    setCandidateIndex((prevIndex) => {
+      const nextIndex = prevIndex + 1;
+      if (nextIndex >= candidates.length) {
+        setThumbFailed(true);
+        return prevIndex;
+      }
+      return nextIndex;
+    });
+  };
+
+  const currentUrl = candidates[candidateIndex];
+
+  return (
+    <div
+      className="relative w-16 h-11 sm:w-20 sm:h-13 rounded-xl overflow-hidden shrink-0 bg-stone-200 border border-stone-200/80"
+      data-thumb-failed={thumbFailed ? 'true' : undefined}
+    >
+      {thumbFailed ? (
+        <div className="w-full h-full bg-stone-200 flex items-center justify-center text-stone-400">
+          <Play className="w-4 h-4 fill-stone-400 text-stone-400 translate-x-0.5" />
+        </div>
+      ) : (
+        <img
+          key={currentUrl}
+          src={currentUrl}
+          alt={title}
+          className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          decoding="async"
+          onError={handleImageError}
+        />
+      )}
+      {/* Small Play Overlay on hover */}
+      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 flex items-center justify-center transition">
+        <div className="w-6 h-6 rounded-full bg-white/90 text-amber-600 flex items-center justify-center shadow-sm">
+          <Play className="w-3 h-3 fill-current translate-x-0.2" />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface SavedVideosTabProps {
   onSelectVideo?: (videoId: string, title?: string, channelName?: string, channelId?: string) => void;
@@ -151,23 +213,11 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
               >
                 {/* Thumbnail + Video Info */}
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative w-16 h-11 sm:w-20 sm:h-13 rounded-xl overflow-hidden shrink-0 bg-stone-200 border border-stone-200/80">
-                    <img
-                      src={video.thumbnail}
-                      alt={video.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`;
-                      }}
-                    />
-                    {/* Small Play Overlay on hover */}
-                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 flex items-center justify-center transition">
-                      <div className="w-6 h-6 rounded-full bg-white/90 text-amber-600 flex items-center justify-center shadow-sm">
-                        <Play className="w-3 h-3 fill-current translate-x-0.2" />
-                      </div>
-                    </div>
-                  </div>
+                  <SavedVideoRowThumbnail
+                    videoId={video.videoId}
+                    initialThumbnail={video.thumbnail}
+                    title={video.title}
+                  />
 
                   <div className="min-w-0">
                     <h5

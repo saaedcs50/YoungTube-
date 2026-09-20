@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { FeedItem } from '../db';
-import { VolumeX, Heart } from 'lucide-react';
+import { VolumeX, Heart, Play } from 'lucide-react';
 import { TasteReactionBar } from './TasteReactionBar';
 import { formatViewCount } from '../services/youtubeViewCounts';
 
@@ -20,6 +20,22 @@ export interface VideoCardProps {
   onTasteReacted?: () => void;
 }
 
+const THUMBNAIL_QUALITIES = ['hqdefault', 'mqdefault', 'sddefault', 'hq720'] as const;
+
+export function getThumbnailCandidateUrls(videoId: string, customThumbnail?: string): string[] {
+  const candidates: string[] = [];
+  if (customThumbnail && typeof customThumbnail === 'string' && /^https:\/\//i.test(customThumbnail)) {
+    candidates.push(customThumbnail);
+  }
+  for (const quality of THUMBNAIL_QUALITIES) {
+    const url = `https://i.ytimg.com/vi/${videoId}/${quality}.jpg`;
+    if (!candidates.includes(url)) {
+      candidates.push(url);
+    }
+  }
+  return candidates;
+}
+
 export const VideoCard = React.memo(
   function VideoCard({
     video,
@@ -31,10 +47,29 @@ export const VideoCard = React.memo(
     onOpenDemoPlayer,
     onTasteReacted,
   }: VideoCardProps) {
-    const isNarrow = typeof window !== 'undefined' && window.innerWidth < 640;
-    const thumbnailUrl = `https://i.ytimg.com/vi/${video.videoId}/${
-      isNarrow ? 'mqdefault' : 'hqdefault'
-    }.jpg`;
+    const candidates = useMemo(
+      () => getThumbnailCandidateUrls(video.videoId, (video as any).thumbnail),
+      [video.videoId, (video as any).thumbnail]
+    );
+
+    const [candidateIndex, setCandidateIndex] = useState(0);
+    const [thumbFailed, setThumbFailed] = useState(false);
+
+    useEffect(() => {
+      setCandidateIndex(0);
+      setThumbFailed(false);
+    }, [video.videoId]);
+
+    const handleImageError = () => {
+      setCandidateIndex((prevIndex) => {
+        const nextIndex = prevIndex + 1;
+        if (nextIndex >= candidates.length) {
+          setThumbFailed(true);
+          return prevIndex;
+        }
+        return nextIndex;
+      });
+    };
 
     const formattedViews = formatViewCount(video.viewCount);
 
@@ -46,6 +81,8 @@ export const VideoCard = React.memo(
       }
     };
 
+    const currentUrl = candidates[candidateIndex];
+
     return (
       <div
         id={isFavorite ? `favorite-card-${video.videoId}` : `video-card-${video.videoId}`}
@@ -53,20 +90,31 @@ export const VideoCard = React.memo(
         className="group bg-white rounded-[28px] overflow-hidden border border-stone-100 shadow-sm hover:shadow-md transition-all duration-150 active:scale-[0.98] flex flex-col text-right cursor-pointer"
       >
         {/* Thumbnail: 16:9, object-cover, no padding on the image, rounded top only */}
-        <div className="relative aspect-video w-full bg-stone-100 overflow-hidden">
-          <img
-            src={thumbnailUrl}
-            alt={video.title}
-            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"
-            referrerPolicy="no-referrer"
-            loading="lazy"
-            decoding="async"
-            width={320}
-            height={180}
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`;
-            }}
-          />
+        <div
+          className="relative aspect-video w-full bg-stone-100 overflow-hidden"
+          data-thumb-failed={thumbFailed ? 'true' : undefined}
+        >
+          {thumbFailed ? (
+            <div className="w-full h-full bg-stone-200 flex flex-col items-center justify-center text-stone-400 gap-1.5 select-none">
+              <div className="w-12 h-12 rounded-full bg-stone-300/70 flex items-center justify-center text-stone-500 shadow-inner">
+                <Play className="w-6 h-6 fill-stone-500 text-stone-500 translate-x-0.5" />
+              </div>
+              <span className="text-[10px] font-bold text-stone-500">معاينة غير متوفرة</span>
+            </div>
+          ) : (
+            <img
+              key={currentUrl}
+              src={currentUrl}
+              alt={video.title}
+              className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+              decoding="async"
+              width={320}
+              height={180}
+              onError={handleImageError}
+            />
+          )}
 
           {/* Favorite Badge */}
           {isFavorite && (
@@ -140,6 +188,7 @@ export const VideoCard = React.memo(
       prev.video.title === next.video.title &&
       prev.video.hasMusic === next.video.hasMusic &&
       prev.video.viewCount === next.video.viewCount &&
+      (prev.video as any).thumbnail === (next.video as any).thumbnail &&
       prev.channelTitle === next.channelTitle &&
       prev.isFavorite === next.isFavorite &&
       prev.isTasteShiftTarget === next.isTasteShiftTarget &&
