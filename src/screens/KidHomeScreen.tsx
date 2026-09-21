@@ -310,6 +310,9 @@ export default function KidHomeScreen({
   const { kidCategories } = useAllCategories();
   const [videos, setVideos] = useState<FeedItem[]>([]);
   const [dbChannelsList, setDbChannelsList] = useState<Channel[]>([]);
+  const [remoteChannelsList, setRemoteChannelsList] = useState<
+    Array<{ sourceId: string; sourceType?: string; title?: string; categories: string[]; thumbnail?: string }>
+  >([]);
   const [childName, setChildName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -396,8 +399,18 @@ export default function KidHomeScreen({
         });
       }
     }
+    for (const remote of remoteChannelsList) {
+      if (remote.sourceId && !map.has(remote.sourceId)) {
+        map.set(remote.sourceId, {
+          title: remote.title || 'قناة أطفال',
+          categories: remote.categories || [],
+          thumbnail: remote.thumbnail,
+          enabled: true,
+        });
+      }
+    }
     return map;
-  }, [dbChannelsList]);
+  }, [dbChannelsList, remoteChannelsList]);
 
   // 2. Load safe videos using indexed, bounded query on enabled channels
   const loadVideos = useCallback(async (silent = false) => {
@@ -417,6 +430,8 @@ export default function KidHomeScreen({
       }
 
       setDbChannelsList(storedChannels);
+      const remoteList = settings?.remoteChannelsCache || [];
+      setRemoteChannelsList(remoteList);
 
       const cachedBlocks = loadCachedBlocks();
       const blockedChannelSet = new Set(cachedBlocks.channelIds);
@@ -430,6 +445,7 @@ export default function KidHomeScreen({
         new Set([
           ...storedChannels.filter((c) => c.enabled !== false).map((c) => c.sourceId),
           ...(channelsSeed as any[]).map((c) => c.sourceId),
+          ...remoteList.map((c) => c.sourceId),
         ])
       ).filter((id) => !disabledChannelIds.has(id) && !blockedChannelSet.has(id));
 

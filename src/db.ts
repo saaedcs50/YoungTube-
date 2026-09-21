@@ -29,6 +29,13 @@ interface Settings {
     choiceWeekNumber?: number;
     perCategory?: Record<string, PerCategoryState>;
   };
+  remoteChannelsCache?: Array<{
+    sourceId: string;
+    sourceType?: string;
+    title?: string;
+    categories: string[];
+    thumbnail?: string;
+  }>;
 }
 
 interface Channel {

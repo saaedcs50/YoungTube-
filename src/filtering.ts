@@ -237,6 +237,22 @@ export async function ensureChannelsArchiveSynced(): Promise<boolean> {
         return false;
       }
       await filterAndCacheVideos(data, blocks);
+
+      try {
+        const remoteChannelsCache = (data as any[])
+          .filter((ch) => ch && ch.sourceId)
+          .map((ch) => ({
+            sourceId: ch.sourceId,
+            sourceType: ch.sourceType || 'channel',
+            title: ch.title || ch.originalName || 'قناة أطفال',
+            categories: Array.isArray(ch.categories || ch.category) ? (ch.categories || ch.category) : [],
+            thumbnail: ch.thumbnail,
+          }));
+        await db.settings.update('main', { remoteChannelsCache });
+      } catch (cacheErr) {
+        console.warn('Failed to cache remote channels list:', cacheErr);
+      }
+
       return true;
     } catch (err) {
       console.warn('ensureChannelsArchiveSynced failed:', err);

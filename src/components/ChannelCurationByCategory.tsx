@@ -137,6 +137,38 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
         }
       }
 
+      // 3. Add channels present in the Worker's live list (added via the admin dashboard) but not in channels_seed.json or db.channels
+      const settings = await db.settings.get('main');
+      const remoteChannels = settings?.remoteChannelsCache || [];
+      for (const remote of remoteChannels) {
+        if (remote.sourceId && !processedSourceIds.has(remote.sourceId)) {
+          processedSourceIds.add(remote.sourceId);
+          const dbOverride = dbMap.get(remote.sourceId);
+          if (dbOverride) {
+            merged.push({
+              ...dbOverride,
+              title: dbOverride.title || remote.title || 'قناة أطفال',
+              category:
+                Array.isArray(dbOverride.category) && dbOverride.category.length > 0
+                  ? dbOverride.category
+                  : remote.categories,
+              thumbnail: dbOverride.thumbnail || remote.thumbnail,
+              isPreloaded: true,
+            });
+          } else {
+            merged.push({
+              sourceType: (remote.sourceType as 'channel' | 'playlist') || 'channel',
+              sourceId: remote.sourceId,
+              title: remote.title || 'قناة أطفال',
+              thumbnail: remote.thumbnail,
+              category: remote.categories,
+              isPreloaded: true,
+              enabled: true,
+            });
+          }
+        }
+      }
+
       setChannels(merged);
     } catch (err) {
       console.error('Failed to load channels in ChannelCurationByCategory:', err);
