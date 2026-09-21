@@ -129,6 +129,66 @@ function checkAdminAuth(request: Request, env: Env): boolean {
 }
 
 /**
+ * Parses ISO 8601 duration string (e.g. "PT1M30S", "PT45S", "PT2H3M10S") into total seconds.
+ */
+function parseIsoDuration(durationStr: string): number {
+  if (!durationStr) return 0;
+  const match = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  const hours = match[1] ? parseInt(match[1], 10) : 0;
+  const minutes = match[2] ? parseInt(match[2], 10) : 0;
+  const seconds = match[3] ? parseInt(match[3], 10) : 0;
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+/**
+ * Parses JPEG image dimensions (width and height) from an ArrayBuffer of JPEG header bytes.
+ */
+function getJpegDimensions(buffer: ArrayBuffer): { width: number; height: number } | null {
+  if (!buffer || buffer.byteLength < 4) return null;
+  const view = new DataView(buffer);
+  if (view.getUint8(0) !== 0xFF || view.getUint8(1) !== 0xD8) {
+    return null;
+  }
+
+  const SOF_MARKERS = new Set([
+    0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF,
+  ]);
+
+  let offset = 2;
+  let iterations = 0;
+
+  while (offset + 1 < buffer.byteLength) {
+    if (++iterations > 500) return null;
+
+    if (view.getUint8(offset) !== 0xFF) {
+      return null;
+    }
+
+    const marker = view.getUint8(offset + 1);
+
+    if (marker === 0xFF) {
+      offset += 1;
+      continue;
+    }
+
+    if (SOF_MARKERS.has(marker)) {
+      if (offset + 8 >= buffer.byteLength) return null;
+      const height = view.getUint16(offset + 5, false);
+      const width = view.getUint16(offset + 7, false);
+      return { width, height };
+    }
+
+    if (offset + 3 >= buffer.byteLength) return null;
+    const segmentLength = view.getUint16(offset + 2, false);
+    if (segmentLength < 2) return null;
+    offset += 2 + segmentLength;
+  }
+
+  return null;
+}
+
+/**
  * Rate Limiting Constants for Targeted Public GET Endpoints (Phase P3.2)
  *
  * Rules & Invariants:
@@ -1742,6 +1802,353 @@ export default {
         return new Response(
           JSON.stringify({
             error: err instanceof Error ? err.message : 'Error executing cleanup dead videos batch',
+          }),
+          { status: 500, headers: corsHeaders }
+        );
+      } finally {
+        await releaseMaintenanceLock(env);
+      }
+    }
+
+    // 3.6b POST /api/admin/scan-cleanup-batch (Protected with Bearer ADMIN_KEY or X-Admin-Key)
+    if (url.pathname === '/api/admin/scan-cleanup-batch' && request.method === 'POST') {
+      if (!checkAdminAuth(request, env)) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+          { status: 401, headers: corsHeaders }
+        );
+      }
+
+      if (!env.YOUTUBE_API_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Server configuration error: YOUTUBE_API_KEY is not set' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      const activeLock = await checkMaintenanceLock(env);
+      if (activeLock.isLocked) {
+        return new Response(
+          JSON.stringify({
+            error: `Maintenance is currently in progress (locked until ${activeLock.until}). Please wait for the current batch to complete.`,
+            lock: activeLock.lock,
+          }),
+          { status: 409, headers: corsHeaders }
+        );
+      }
+
+      let reset = false;
+      try {
+        const body: any = await request.json();
+        if (body && typeof body === 'object' && body.reset === true) {
+          reset = true;
+        }
+      } catch {
+        // Empty or non-JSON body is valid, defaults reset to false
+      }
+
+      await acquireMaintenanceLock(env, 'manual_admin_scan_cleanup');
+      try {
+        const totalChannels = channelsSeed.length;
+        let cursor = 0;
+        if (!reset && env.CHANNELS_ARCHIVE) {
+          try {
+            const rawCursor = await env.CHANNELS_ARCHIVE.get('_scan_cleanup_cursor');
+            if (rawCursor) {
+              const parsed = parseInt(rawCursor, 10);
+              if (!isNaN(parsed) && parsed >= 0) {
+                cursor = parsed % totalChannels;
+              }
+            }
+          } catch {
+            cursor = 0;
+          }
+        }
+        const cursorBefore = cursor;
+
+        const MAX_CHANNELS = 15;
+        const MAX_VIDEOS = 40;
+        let channelsIncluded = 0;
+        const batchChannels: { channel: any; videos: VideoItem[] }[] = [];
+        const failedChannels: {
+          sourceId: string;
+          title: string;
+          error: string;
+          message?: string;
+        }[] = [];
+        let accumulatedVideoCount = 0;
+
+        for (let step = 0; step < MAX_CHANNELS; step++) {
+          const idx = (cursorBefore + step) % totalChannels;
+          const seed = channelsSeed[idx];
+          const sourceId = seed.sourceId;
+
+          let channelVideos: VideoItem[] = [];
+          if (env.CHANNELS_ARCHIVE) {
+            try {
+              const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  channelVideos = parsed;
+                }
+              }
+            } catch (err) {
+              console.error(`Error reading archive for channel ${sourceId}:`, err);
+              failedChannels.push({
+                sourceId,
+                title: seed.title || sourceId,
+                error: 'read_archive_failed',
+                message: err instanceof Error ? err.message : String(err),
+              });
+              channelsIncluded++;
+              continue;
+            }
+          }
+
+          if (channelVideos.length === 0) {
+            channelsIncluded++;
+            batchChannels.push({ channel: seed, videos: [] });
+            continue;
+          }
+
+          if (accumulatedVideoCount > 0 && accumulatedVideoCount + channelVideos.length > MAX_VIDEOS) {
+            break;
+          }
+
+          channelsIncluded++;
+          batchChannels.push({ channel: seed, videos: channelVideos });
+          accumulatedVideoCount += channelVideos.length;
+        }
+
+        const allVideoIdSet = new Set<string>();
+        for (const { videos } of batchChannels) {
+          for (const v of videos) {
+            if (v && v.videoId) {
+              allVideoIdSet.add(v.videoId);
+            }
+          }
+        }
+        const allVideoIds = Array.from(allVideoIdSet);
+        const toDeleteReasons = new Map<string, 'short_duration' | 'portrait'>();
+
+        // Step 4a & 4b: Chunk videoIds into groups of 50 and check duration via YouTube API
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < allVideoIds.length; i += CHUNK_SIZE) {
+          const chunk = allVideoIds.slice(i, i + CHUNK_SIZE);
+          const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+          apiUrl.searchParams.set('part', 'contentDetails');
+          apiUrl.searchParams.set('id', chunk.join(','));
+          apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
+
+          const res = await fetch(apiUrl.toString());
+          if (!res.ok) {
+            const errText = await res.text();
+            const apiError = new Error(`YouTube API error (${res.status}): ${errText}`) as Error & { status?: number };
+            apiError.status = res.status;
+            throw apiError;
+          }
+
+          const data: any = await res.json();
+          const items = data.items || [];
+          for (const item of items) {
+            const vId = item?.id;
+            const durationStr = item?.contentDetails?.duration;
+            if (vId && durationStr) {
+              const seconds = parseIsoDuration(durationStr);
+              if (seconds < 120) {
+                toDeleteReasons.set(vId, 'short_duration');
+              }
+            }
+          }
+        }
+
+        // Step 4c: Check orientation for videos not in toDelete (duration >= 120s)
+        for (const vId of allVideoIds) {
+          if (toDeleteReasons.has(vId)) continue;
+          try {
+            const thumbUrl = `https://i.ytimg.com/vi/${encodeURIComponent(vId)}/hqdefault.jpg`;
+            const thumbRes = await fetch(thumbUrl);
+            if (thumbRes.ok) {
+              const buffer = await thumbRes.arrayBuffer();
+              const dims = getJpegDimensions(buffer);
+              if (dims && dims.height > dims.width) {
+                toDeleteReasons.set(vId, 'portrait');
+              }
+            }
+          } catch {
+            // Fail open: do NOT add video to toDelete on fetch or parse error
+          }
+        }
+
+        // Step 5: Filter channel archives and update in-memory fullMergedList
+        let fullMergedList: any[] = [];
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+            if (rawMerged) {
+              const parsed = JSON.parse(rawMerged);
+              if (Array.isArray(parsed)) {
+                fullMergedList = parsed;
+              }
+            }
+          } catch {
+            // Ignore parse error
+          }
+
+          if (fullMergedList.length === 0) {
+            fullMergedList = channelsSeed.map((ch: any) => ({
+              ...ch,
+              videos: [],
+              videoCount: 0,
+            }));
+          }
+        }
+
+        const channelsProcessed: {
+          sourceId: string;
+          title: string;
+          videosChecked: number;
+          removedShortDuration: number;
+          removedPortrait: number;
+        }[] = [];
+        let totalRemovedShortDuration = 0;
+        let totalRemovedPortrait = 0;
+
+        for (const { channel, videos } of batchChannels) {
+          const sourceId = channel.sourceId;
+          const sourceType = channel.sourceType || 'channel';
+          const title = channel.title || sourceId;
+
+          if (videos.length === 0) {
+            channelsProcessed.push({
+              sourceId,
+              title,
+              videosChecked: 0,
+              removedShortDuration: 0,
+              removedPortrait: 0,
+            });
+            continue;
+          }
+
+          try {
+            let removedShortDuration = 0;
+            let removedPortrait = 0;
+
+            const filtered = videos.filter((v) => {
+              const reason = toDeleteReasons.get(v.videoId);
+              if (reason === 'short_duration') {
+                removedShortDuration++;
+                return false;
+              }
+              if (reason === 'portrait') {
+                removedPortrait++;
+                return false;
+              }
+              return true;
+            });
+
+            totalRemovedShortDuration += removedShortDuration;
+            totalRemovedPortrait += removedPortrait;
+            const totalRemoved = removedShortDuration + removedPortrait;
+
+            // Write back to individual channel archive if any videos were removed
+            if (totalRemoved > 0 && env.CHANNELS_ARCHIVE) {
+              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(filtered));
+            }
+
+            // Update channel in fullMergedList (capped at 300 videos)
+            if (fullMergedList.length > 0) {
+              const targetIdx = fullMergedList.findIndex((ch: any) => ch.sourceId === sourceId);
+              const updatedChannel: any = {
+                ...(targetIdx >= 0 ? fullMergedList[targetIdx] : { sourceId, sourceType }),
+                sourceId,
+                sourceType,
+                videos: filtered.slice(0, 300),
+                videoCount: Math.min(filtered.length, 300),
+              };
+
+              const seedChannel = channelsSeed.find((ch: any) => ch.sourceId === sourceId);
+              if (seedChannel) {
+                Object.assign(updatedChannel, seedChannel, {
+                  videos: filtered.slice(0, 300),
+                  videoCount: Math.min(filtered.length, 300),
+                });
+              }
+
+              if (targetIdx >= 0) {
+                fullMergedList[targetIdx] = updatedChannel;
+              } else {
+                fullMergedList.push(updatedChannel);
+              }
+            }
+
+            channelsProcessed.push({
+              sourceId,
+              title,
+              videosChecked: videos.length,
+              removedShortDuration,
+              removedPortrait,
+            });
+          } catch (chErr) {
+            console.error(`Error processing scan cleanup for channel ${sourceId}:`, chErr);
+            failedChannels.push({
+              sourceId,
+              title,
+              error: 'process_channel_failed',
+              message: chErr instanceof Error ? chErr.message : String(chErr),
+            });
+          }
+        }
+
+        // Write fullMergedList back ONCE at the end of the batch if any videos were removed
+        const totalRemovedAll = totalRemovedShortDuration + totalRemovedPortrait;
+        if (env.CHANNELS_ARCHIVE && totalRemovedAll > 0 && fullMergedList.length > 0) {
+          try {
+            await env.CHANNELS_ARCHIVE.put(
+              '_channels_latest_merged',
+              JSON.stringify(fullMergedList)
+            );
+          } catch (e) {
+            console.error('Failed to update _channels_latest_merged after scan cleanup batch:', e);
+          }
+        }
+
+        // Step 6: Advance and save cursor
+        const cursorAfter = (cursorBefore + channelsIncluded) % totalChannels;
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            await env.CHANNELS_ARCHIVE.put(
+              '_scan_cleanup_cursor',
+              cursorAfter.toString()
+            );
+          } catch (e) {
+            console.error('Failed to save _scan_cleanup_cursor:', e);
+          }
+        }
+
+        const wrappedAround = cursorAfter < cursorBefore;
+        const totalVideosChecked = channelsProcessed.reduce((sum, ch) => sum + ch.videosChecked, 0);
+
+        // Step 7: Return JSON response
+        return new Response(
+          JSON.stringify({
+            channelsProcessed,
+            failedChannels,
+            totalVideosChecked,
+            totalRemovedShortDuration,
+            totalRemovedPortrait,
+            cursorBefore,
+            cursorAfter,
+            totalChannels,
+            wrappedAround,
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : 'Error executing scan cleanup batch',
           }),
           { status: 500, headers: corsHeaders }
         );
