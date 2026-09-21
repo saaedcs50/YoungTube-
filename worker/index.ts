@@ -1930,6 +1930,31 @@ export default {
         }
 
         let pageToken: string | undefined = undefined;
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            const storedToken = await env.CHANNELS_ARCHIVE.get(`_channel_pagetoken:${sourceId}`);
+            if (storedToken === 'DONE') {
+              const sliced = existingVideos.slice(0, max);
+              return new Response(
+                JSON.stringify({
+                  sourceId,
+                  videos: sliced,
+                  count: sliced.length,
+                  nextPageToken: null,
+                  deepened: false,
+                  exhausted: true,
+                }),
+                { status: 200, headers: corsHeaders }
+              );
+            }
+            if (storedToken && storedToken.trim().length > 0) {
+              pageToken = storedToken.trim();
+            }
+          } catch (tokenReadErr) {
+            console.error(`Failed to read pageToken for ${sourceId}:`, tokenReadErr);
+          }
+        }
+
         let pageCount = 0;
         const maxPages = 10; // Cap to stay under worker subrequest limits
         let lastNextPageToken: string | null = null;
@@ -1966,6 +1991,15 @@ export default {
           lastNextPageToken = pageToken || null;
           pageCount++;
           if (!pageToken || items.length === 0) break;
+        }
+
+        if (env.CHANNELS_ARCHIVE && pageCount > 0) {
+          const tokenToStore = lastNextPageToken || 'DONE';
+          try {
+            await env.CHANNELS_ARCHIVE.put(`_channel_pagetoken:${sourceId}`, tokenToStore);
+          } catch (tokenErr) {
+            console.error(`Failed to store pageToken for ${sourceId}:`, tokenErr);
+          }
         }
 
         const mergedVideos = Array.from(videoMap.values());
@@ -2042,6 +2076,7 @@ export default {
             count: sliced.length,
             nextPageToken: lastNextPageToken,
             deepened: true,
+            exhausted: false,
           }),
           { status: 200, headers: corsHeaders }
         );
