@@ -1982,6 +1982,56 @@ export default {
           } catch (putErr) {
             console.warn(`Failed to put deepened archive for ${sourceId}:`, putErr);
           }
+
+          // Also update this channel's entry inside _channels_latest_merged
+          try {
+            let fullMergedList: any[] = [];
+            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+            if (rawMerged) {
+              const parsed = JSON.parse(rawMerged);
+              if (Array.isArray(parsed)) {
+                fullMergedList = parsed;
+              }
+            }
+
+            if (fullMergedList.length === 0) {
+              fullMergedList = channelsSeed.map((ch: any) => ({
+                ...ch,
+                videos: [],
+                videoCount: 0,
+              }));
+            }
+
+            const targetIdx = fullMergedList.findIndex((ch: any) => ch.sourceId === sourceId);
+            const updatedChannel: any = {
+              ...(targetIdx >= 0 ? fullMergedList[targetIdx] : { sourceId, sourceType }),
+              sourceId,
+              sourceType,
+              videos: mergedVideos.slice(0, 300),
+              videoCount: Math.min(mergedVideos.length, 300),
+            };
+
+            const seedChannel = channelsSeed.find((ch: any) => ch.sourceId === sourceId);
+            if (seedChannel) {
+              Object.assign(updatedChannel, seedChannel, {
+                videos: mergedVideos.slice(0, 300),
+                videoCount: Math.min(mergedVideos.length, 300),
+              });
+            }
+
+            if (targetIdx >= 0) {
+              fullMergedList[targetIdx] = updatedChannel;
+            } else {
+              fullMergedList.push(updatedChannel);
+            }
+
+            await env.CHANNELS_ARCHIVE.put(
+              '_channels_latest_merged',
+              JSON.stringify(fullMergedList)
+            );
+          } catch (mergedErr) {
+            console.error(`Failed to update _channels_latest_merged during deepen for ${sourceId}:`, mergedErr);
+          }
         }
 
         const sliced = mergedVideos.slice(0, max);
