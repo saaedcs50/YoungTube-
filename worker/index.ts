@@ -113,6 +113,67 @@ async function mergeAndStoreKVArchive(
 }
 
 /**
+ * Updates a single channel's entry inside _channels_latest_merged in KV.
+ */
+async function updateMergedListForChannel(
+  env: Env,
+  seedChannel: any,
+  updatedVideos: VideoItem[]
+): Promise<void> {
+  if (!env.CHANNELS_ARCHIVE || !seedChannel) return;
+  try {
+    let fullMergedList: any[] = [];
+    const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+    if (rawMerged) {
+      const parsed = JSON.parse(rawMerged);
+      if (Array.isArray(parsed)) {
+        fullMergedList = parsed;
+      }
+    }
+
+    if (fullMergedList.length === 0) {
+      fullMergedList = channelsSeed.map((ch: any) => ({
+        ...ch,
+        videos: [],
+        videoCount: 0,
+      }));
+    }
+
+    const sourceId = seedChannel.sourceId;
+    const sourceType = seedChannel.sourceType || 'channel';
+    const targetIdx = fullMergedList.findIndex((ch: any) => ch.sourceId === sourceId);
+
+    const updatedChannel: any = {
+      ...(targetIdx >= 0 ? fullMergedList[targetIdx] : seedChannel),
+      sourceId,
+      sourceType,
+      videos: updatedVideos.slice(0, 300),
+      videoCount: Math.min(updatedVideos.length, 300),
+    };
+
+    if (seedChannel) {
+      Object.assign(updatedChannel, seedChannel, {
+        videos: updatedVideos.slice(0, 300),
+        videoCount: Math.min(updatedVideos.length, 300),
+      });
+    }
+
+    if (targetIdx >= 0) {
+      fullMergedList[targetIdx] = updatedChannel;
+    } else {
+      fullMergedList.push(updatedChannel);
+    }
+
+    await env.CHANNELS_ARCHIVE.put(
+      '_channels_latest_merged',
+      JSON.stringify(fullMergedList)
+    );
+  } catch (e) {
+    console.error(`Failed to update _channels_latest_merged for ${seedChannel?.sourceId}:`, e);
+  }
+}
+
+/**
  * Validates admin requests using Authorization: Bearer ADMIN_KEY (or legacy X-Admin-Key).
  */
 function checkAdminAuth(request: Request, env: Env): boolean {
@@ -1865,283 +1926,314 @@ export default {
           }
         }
         const cursorBefore = cursor;
+        const seed = channelsSeed[cursorBefore];
+        const sourceId = seed.sourceId;
+        const title = seed.title || sourceId;
 
-        const MAX_CHANNELS = 15;
-        const MAX_VIDEOS = 40;
-        let channelsIncluded = 0;
-        const batchChannels: { channel: any; videos: VideoItem[] }[] = [];
-        const failedChannels: {
+        const failedChannels: Array<{
           sourceId: string;
           title: string;
           error: string;
+          status?: number;
           message?: string;
-        }[] = [];
-        let accumulatedVideoCount = 0;
+        }> = [];
 
-        for (let step = 0; step < MAX_CHANNELS; step++) {
-          const idx = (cursorBefore + step) % totalChannels;
-          const seed = channelsSeed[idx];
-          const sourceId = seed.sourceId;
+        if (reset && env.CHANNELS_ARCHIVE) {
+          try {
+            await env.CHANNELS_ARCHIVE.delete(`_scan_cleanup_video_offset:${sourceId}`);
+          } catch {}
+        }
 
-          let channelVideos: VideoItem[] = [];
-          if (env.CHANNELS_ARCHIVE) {
-            try {
-              const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                  channelVideos = parsed;
-                }
+        // 1. Read individual channel archive
+        let channelVideos: VideoItem[] = [];
+        if (env.CHANNELS_ARCHIVE) {
+          try {
+            const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                channelVideos = parsed;
               }
-            } catch (err) {
-              console.error(`Error reading archive for channel ${sourceId}:`, err);
+            }
+          } catch (err) {
+            console.error(`Error reading archive for channel ${sourceId}:`, err);
+            const status = (err as any)?.status;
+            if (status === 403 || status === 429) {
               failedChannels.push({
                 sourceId,
-                title: seed.title || sourceId,
-                error: 'read_archive_failed',
-                message: err instanceof Error ? err.message : String(err),
+                title,
+                error: 'youtube_rate_limited',
+                status,
               });
-              channelsIncluded++;
-              continue;
-            }
-          }
-
-          if (channelVideos.length === 0) {
-            channelsIncluded++;
-            batchChannels.push({ channel: seed, videos: [] });
-            continue;
-          }
-
-          if (accumulatedVideoCount > 0 && accumulatedVideoCount + channelVideos.length > MAX_VIDEOS) {
-            break;
-          }
-
-          channelsIncluded++;
-          batchChannels.push({ channel: seed, videos: channelVideos });
-          accumulatedVideoCount += channelVideos.length;
-        }
-
-        const allVideoIdSet = new Set<string>();
-        for (const { videos } of batchChannels) {
-          for (const v of videos) {
-            if (v && v.videoId) {
-              allVideoIdSet.add(v.videoId);
+            } else {
+              failedChannels.push({
+                sourceId,
+                title,
+                error: 'other',
+                message: err instanceof Error ? err.message : String(err || 'read_archive_failed'),
+              });
             }
           }
         }
-        const allVideoIds = Array.from(allVideoIdSet);
-        const toDeleteReasons = new Map<string, 'short_duration' | 'portrait'>();
 
-        // Step 4a & 4b: Chunk videoIds into groups of 50 and check duration via YouTube API
+        // Handle empty channel archive or failed archive read
+        if (channelVideos.length === 0 || failedChannels.length > 0) {
+          let cursorAfter = cursorBefore;
+          let isChannelComplete = true;
+
+          if (failedChannels.length === 0) {
+            // Channel is genuinely empty
+            cursorAfter = (cursorBefore + 1) % totalChannels;
+            if (env.CHANNELS_ARCHIVE) {
+              try {
+                await env.CHANNELS_ARCHIVE.delete(`_scan_cleanup_video_offset:${sourceId}`);
+                await env.CHANNELS_ARCHIVE.put('_scan_cleanup_cursor', cursorAfter.toString());
+              } catch {}
+            }
+          } else {
+            // Read archive failed: do NOT mark complete or advance cursor
+            isChannelComplete = false;
+          }
+
+          const wrappedAround = cursorAfter < cursorBefore && isChannelComplete;
+
+          return new Response(
+            JSON.stringify({
+              sourceId,
+              title,
+              videosCheckedThisCall: 0,
+              removedShortDuration: 0,
+              removedPortrait: 0,
+              channelComplete: isChannelComplete,
+              cursorBefore,
+              cursorAfter,
+              totalChannels,
+              wrappedAround,
+              failedChannels,
+              totalVideosChecked: 0,
+              totalRemovedShortDuration: 0,
+              totalRemovedPortrait: 0,
+              channelsProcessed: [
+                {
+                  sourceId,
+                  title,
+                  videosChecked: 0,
+                  removedShortDuration: 0,
+                  removedPortrait: 0,
+                  channelComplete: isChannelComplete,
+                },
+              ],
+            }),
+            { status: 200, headers: corsHeaders }
+          );
+        }
+
+        // 2. Duration check across ALL videos in channelVideos (part=contentDetails in chunks of 50)
+        const allVideoIds = channelVideos
+          .map((v) => v.videoId)
+          .filter(Boolean);
+
+        const shortDurationVideoIds = new Set<string>();
         const CHUNK_SIZE = 50;
-        for (let i = 0; i < allVideoIds.length; i += CHUNK_SIZE) {
-          const chunk = allVideoIds.slice(i, i + CHUNK_SIZE);
-          const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-          apiUrl.searchParams.set('part', 'contentDetails');
-          apiUrl.searchParams.set('id', chunk.join(','));
-          apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
 
-          const res = await fetch(apiUrl.toString());
-          if (!res.ok) {
-            const errText = await res.text();
-            const apiError = new Error(`YouTube API error (${res.status}): ${errText}`) as Error & { status?: number };
-            apiError.status = res.status;
-            throw apiError;
-          }
+        try {
+          for (let i = 0; i < allVideoIds.length; i += CHUNK_SIZE) {
+            const chunk = allVideoIds.slice(i, i + CHUNK_SIZE);
+            const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+            apiUrl.searchParams.set('part', 'contentDetails');
+            apiUrl.searchParams.set('id', chunk.join(','));
+            apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
 
-          const data: any = await res.json();
-          const items = data.items || [];
-          for (const item of items) {
-            const vId = item?.id;
-            const durationStr = item?.contentDetails?.duration;
-            if (vId && durationStr) {
-              const seconds = parseIsoDuration(durationStr);
-              if (seconds < 120) {
-                toDeleteReasons.set(vId, 'short_duration');
+            const res = await fetch(apiUrl.toString());
+            if (!res.ok) {
+              const errText = await res.text();
+              const apiError = new Error(`YouTube API error (${res.status}): ${errText}`) as Error & { status?: number };
+              apiError.status = res.status;
+              throw apiError;
+            }
+
+            const data: any = await res.json();
+            const items = data.items || [];
+            for (const item of items) {
+              const vId = item?.id;
+              const durationStr = item?.contentDetails?.duration;
+              if (vId && durationStr) {
+                const seconds = parseIsoDuration(durationStr);
+                if (seconds < 120) {
+                  shortDurationVideoIds.add(vId);
+                }
               }
             }
           }
+        } catch (durationErr) {
+          console.error(`Error checking video durations for channel ${sourceId}:`, durationErr);
+          const status = (durationErr as any)?.status;
+          if (status === 403 || status === 429) {
+            failedChannels.push({
+              sourceId,
+              title,
+              error: 'youtube_rate_limited',
+              status,
+            });
+          } else {
+            failedChannels.push({
+              sourceId,
+              title,
+              error: 'other',
+              message: durationErr instanceof Error ? durationErr.message : String(durationErr),
+            });
+          }
+
+          return new Response(
+            JSON.stringify({
+              sourceId,
+              title,
+              videosCheckedThisCall: 0,
+              removedShortDuration: 0,
+              removedPortrait: 0,
+              channelComplete: false,
+              cursorBefore,
+              cursorAfter: cursorBefore,
+              totalChannels,
+              wrappedAround: false,
+              failedChannels,
+              totalVideosChecked: 0,
+              totalRemovedShortDuration: 0,
+              totalRemovedPortrait: 0,
+              channelsProcessed: [],
+            }),
+            { status: 200, headers: corsHeaders }
+          );
         }
 
-        // Step 4c: Check orientation for videos not in toDelete (duration >= 120s)
-        for (const vId of allVideoIds) {
-          if (toDeleteReasons.has(vId)) continue;
+        // Filter short duration videos
+        let remainingAfterDuration = channelVideos;
+        let removedShortDuration = 0;
+
+        if (shortDurationVideoIds.size > 0) {
+          remainingAfterDuration = channelVideos.filter((v) => !shortDurationVideoIds.has(v.videoId));
+          removedShortDuration = channelVideos.length - remainingAfterDuration.length;
+
+          if (env.CHANNELS_ARCHIVE) {
+            try {
+              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(remainingAfterDuration));
+              await updateMergedListForChannel(env, seed, remainingAfterDuration);
+            } catch (e) {
+              console.error(`Failed to update archive/merged list after short-duration cleanup for ${sourceId}:`, e);
+            }
+          }
+        }
+
+        // 3. Read per-channel resumable offset
+        let offset = 0;
+        const offsetKey = `_scan_cleanup_video_offset:${sourceId}`;
+        if (!reset && env.CHANNELS_ARCHIVE) {
           try {
-            const thumbUrl = `https://i.ytimg.com/vi/${encodeURIComponent(vId)}/hqdefault.jpg`;
+            const rawOffset = await env.CHANNELS_ARCHIVE.get(offsetKey);
+            if (rawOffset) {
+              const parsed = parseInt(rawOffset, 10);
+              if (!isNaN(parsed) && parsed >= 0) {
+                offset = parsed;
+              }
+            }
+          } catch {
+            offset = 0;
+          }
+        }
+
+        // 4. Take slice of remainingAfterDuration (max 35 videos)
+        const MAX_PORTRAIT_CHECK_BATCH = 35;
+        const sliceToProcess = remainingAfterDuration.slice(offset, offset + MAX_PORTRAIT_CHECK_BATCH);
+        const portraitVideoIds = new Set<string>();
+
+        // 5. Run portrait check using frame0.jpg
+        for (const v of sliceToProcess) {
+          if (!v || !v.videoId) continue;
+          try {
+            const thumbUrl = `https://i.ytimg.com/vi/${encodeURIComponent(v.videoId)}/frame0.jpg`;
             const thumbRes = await fetch(thumbUrl);
             if (thumbRes.ok) {
               const buffer = await thumbRes.arrayBuffer();
               const dims = getJpegDimensions(buffer);
               if (dims && dims.height > dims.width) {
-                toDeleteReasons.set(vId, 'portrait');
+                portraitVideoIds.add(v.videoId);
               }
             }
           } catch {
-            // Fail open: do NOT add video to toDelete on fetch or parse error
+            // Fail open: do not add to portraitVideoIds on fetch or parse error
           }
         }
 
-        // Step 5: Filter channel archives and update in-memory fullMergedList
-        let fullMergedList: any[] = [];
-        if (env.CHANNELS_ARCHIVE) {
-          try {
-            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
-            if (rawMerged) {
-              const parsed = JSON.parse(rawMerged);
-              if (Array.isArray(parsed)) {
-                fullMergedList = parsed;
-              }
+        // Filter portrait videos if any were found
+        let removedPortrait = 0;
+        if (portraitVideoIds.size > 0) {
+          removedPortrait = portraitVideoIds.size;
+          remainingAfterDuration = remainingAfterDuration.filter((v) => !portraitVideoIds.has(v.videoId));
+
+          if (env.CHANNELS_ARCHIVE) {
+            try {
+              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(remainingAfterDuration));
+              await updateMergedListForChannel(env, seed, remainingAfterDuration);
+            } catch (e) {
+              console.error(`Failed to update archive/merged list after portrait cleanup for ${sourceId}:`, e);
             }
-          } catch {
-            // Ignore parse error
-          }
-
-          if (fullMergedList.length === 0) {
-            fullMergedList = channelsSeed.map((ch: any) => ({
-              ...ch,
-              videos: [],
-              videoCount: 0,
-            }));
           }
         }
 
-        const channelsProcessed: {
-          sourceId: string;
-          title: string;
-          videosChecked: number;
-          removedShortDuration: number;
-          removedPortrait: number;
-        }[] = [];
-        let totalRemovedShortDuration = 0;
-        let totalRemovedPortrait = 0;
+        // 6. Compute newOffset and check channel completion
+        const newOffset = offset + sliceToProcess.length;
+        const isChannelComplete = newOffset >= remainingAfterDuration.length;
 
-        for (const { channel, videos } of batchChannels) {
-          const sourceId = channel.sourceId;
-          const sourceType = channel.sourceType || 'channel';
-          const title = channel.title || sourceId;
-
-          if (videos.length === 0) {
-            channelsProcessed.push({
-              sourceId,
-              title,
-              videosChecked: 0,
-              removedShortDuration: 0,
-              removedPortrait: 0,
-            });
-            continue;
-          }
-
-          try {
-            let removedShortDuration = 0;
-            let removedPortrait = 0;
-
-            const filtered = videos.filter((v) => {
-              const reason = toDeleteReasons.get(v.videoId);
-              if (reason === 'short_duration') {
-                removedShortDuration++;
-                return false;
-              }
-              if (reason === 'portrait') {
-                removedPortrait++;
-                return false;
-              }
-              return true;
-            });
-
-            totalRemovedShortDuration += removedShortDuration;
-            totalRemovedPortrait += removedPortrait;
-            const totalRemoved = removedShortDuration + removedPortrait;
-
-            // Write back to individual channel archive if any videos were removed
-            if (totalRemoved > 0 && env.CHANNELS_ARCHIVE) {
-              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(filtered));
+        let cursorAfter = cursorBefore;
+        if (isChannelComplete) {
+          cursorAfter = (cursorBefore + 1) % totalChannels;
+          if (env.CHANNELS_ARCHIVE) {
+            try {
+              await env.CHANNELS_ARCHIVE.delete(offsetKey);
+              await env.CHANNELS_ARCHIVE.put('_scan_cleanup_cursor', cursorAfter.toString());
+            } catch (e) {
+              console.error(`Failed to delete offset key or update cursor for ${sourceId}:`, e);
             }
-
-            // Update channel in fullMergedList (capped at 300 videos)
-            if (fullMergedList.length > 0) {
-              const targetIdx = fullMergedList.findIndex((ch: any) => ch.sourceId === sourceId);
-              const updatedChannel: any = {
-                ...(targetIdx >= 0 ? fullMergedList[targetIdx] : { sourceId, sourceType }),
-                sourceId,
-                sourceType,
-                videos: filtered.slice(0, 300),
-                videoCount: Math.min(filtered.length, 300),
-              };
-
-              const seedChannel = channelsSeed.find((ch: any) => ch.sourceId === sourceId);
-              if (seedChannel) {
-                Object.assign(updatedChannel, seedChannel, {
-                  videos: filtered.slice(0, 300),
-                  videoCount: Math.min(filtered.length, 300),
-                });
-              }
-
-              if (targetIdx >= 0) {
-                fullMergedList[targetIdx] = updatedChannel;
-              } else {
-                fullMergedList.push(updatedChannel);
-              }
+          }
+        } else {
+          if (env.CHANNELS_ARCHIVE) {
+            try {
+              await env.CHANNELS_ARCHIVE.put(offsetKey, newOffset.toString());
+            } catch (e) {
+              console.error(`Failed to save offset key for ${sourceId}:`, e);
             }
-
-            channelsProcessed.push({
-              sourceId,
-              title,
-              videosChecked: videos.length,
-              removedShortDuration,
-              removedPortrait,
-            });
-          } catch (chErr) {
-            console.error(`Error processing scan cleanup for channel ${sourceId}:`, chErr);
-            failedChannels.push({
-              sourceId,
-              title,
-              error: 'process_channel_failed',
-              message: chErr instanceof Error ? chErr.message : String(chErr),
-            });
           }
         }
 
-        // Write fullMergedList back ONCE at the end of the batch if any videos were removed
-        const totalRemovedAll = totalRemovedShortDuration + totalRemovedPortrait;
-        if (env.CHANNELS_ARCHIVE && totalRemovedAll > 0 && fullMergedList.length > 0) {
-          try {
-            await env.CHANNELS_ARCHIVE.put(
-              '_channels_latest_merged',
-              JSON.stringify(fullMergedList)
-            );
-          } catch (e) {
-            console.error('Failed to update _channels_latest_merged after scan cleanup batch:', e);
-          }
-        }
+        const wrappedAround = cursorAfter < cursorBefore && isChannelComplete;
+        const videosCheckedThisCall = allVideoIds.length + sliceToProcess.length;
 
-        // Step 6: Advance and save cursor
-        const cursorAfter = (cursorBefore + channelsIncluded) % totalChannels;
-        if (env.CHANNELS_ARCHIVE) {
-          try {
-            await env.CHANNELS_ARCHIVE.put(
-              '_scan_cleanup_cursor',
-              cursorAfter.toString()
-            );
-          } catch (e) {
-            console.error('Failed to save _scan_cleanup_cursor:', e);
-          }
-        }
-
-        const wrappedAround = cursorAfter < cursorBefore;
-        const totalVideosChecked = channelsProcessed.reduce((sum, ch) => sum + ch.videosChecked, 0);
-
-        // Step 7: Return JSON response
         return new Response(
           JSON.stringify({
-            channelsProcessed,
-            failedChannels,
-            totalVideosChecked,
-            totalRemovedShortDuration,
-            totalRemovedPortrait,
+            sourceId,
+            title,
+            videosCheckedThisCall,
+            removedShortDuration,
+            removedPortrait,
+            channelComplete: isChannelComplete,
             cursorBefore,
             cursorAfter,
             totalChannels,
             wrappedAround,
+            failedChannels,
+            totalVideosChecked: videosCheckedThisCall,
+            totalRemovedShortDuration: removedShortDuration,
+            totalRemovedPortrait: removedPortrait,
+            channelsProcessed: [
+              {
+                sourceId,
+                title,
+                videosChecked: videosCheckedThisCall,
+                removedShortDuration,
+                removedPortrait,
+                channelComplete: isChannelComplete,
+              },
+            ],
           }),
           { status: 200, headers: corsHeaders }
         );
