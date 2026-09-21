@@ -46,8 +46,71 @@ const corsHeaders: Record<string, string> = {
   'Content-Type': 'application/json; charset=utf-8',
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization',
+  'Access-Control-Allow-Headers':
+    'Content-Type, X-Admin-Key, Authorization, X-Family-Youtube-Key, x-family-youtube-key',
 };
+
+/**
+ * Resolves the YouTube API key from request headers or environment variable.
+ * Priority: X-Family-Youtube-Key header > env.YOUTUBE_API_KEY.
+ * Never logs key value.
+ */
+function resolveYouTubeApiKey(request: Request, env: Env): string {
+  const headerKey =
+    request.headers.get('X-Family-Youtube-Key') ||
+    request.headers.get('x-family-youtube-key') ||
+    '';
+  const trimmedHeader = headerKey.trim();
+  if (trimmedHeader) {
+    return trimmedHeader;
+  }
+  return (env.YOUTUBE_API_KEY || '').trim();
+}
+
+/**
+ * Merges new videos with existing KV archive for sourceId, dedupes by videoId,
+ * sorts by publishedAt desc, caps stored list at 2000 items, and saves back to KV best-effort.
+ */
+async function mergeAndStoreKVArchive(
+  env: Env,
+  sourceId: string,
+  newVideos: VideoItem[]
+): Promise<VideoItem[]> {
+  if (!env.CHANNELS_ARCHIVE || !sourceId) return newVideos;
+
+  let existing: VideoItem[] = [];
+  try {
+    const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) existing = parsed;
+    }
+  } catch {}
+
+  const videoMap = new Map<string, VideoItem>();
+  for (const v of existing) {
+    if (v && v.videoId) videoMap.set(v.videoId, v);
+  }
+  for (const v of newVideos) {
+    if (v && v.videoId) videoMap.set(v.videoId, v);
+  }
+
+  const merged = Array.from(videoMap.values());
+  merged.sort((a, b) => {
+    const timeA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+    const timeB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  const capped = merged.slice(0, 2000);
+  try {
+    await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(capped));
+  } catch (err) {
+    console.warn(`Failed to store merged KV archive for ${sourceId}:`, err);
+  }
+
+  return merged;
+}
 
 /**
  * Validates admin requests using Authorization: Bearer ADMIN_KEY (or legacy X-Admin-Key).
@@ -1803,35 +1866,334 @@ export default {
       });
     }
 
-    // 4.1 GET /api/channel-archive?id={sourceId} (Public, no auth - read-only channel archive)
+    // 4.1 GET /api/channel-archive?id={sourceId}&sourceType={channel|playlist}&max={50..2000}&deepen={0|1}
     if (url.pathname === '/api/channel-archive' && request.method === 'GET') {
       const sourceId = (url.searchParams.get('id') || url.searchParams.get('sourceId') || '').trim();
-      if (!sourceId || !env.CHANNELS_ARCHIVE) {
+      const sourceType = (url.searchParams.get('sourceType') || 'channel').toLowerCase();
+
+      const rawMax = url.searchParams.get('max');
+      let max = 500;
+      if (rawMax) {
+        const parsedMax = parseInt(rawMax, 10);
+        if (!isNaN(parsedMax)) {
+          max = Math.max(50, Math.min(2000, parsedMax));
+        }
+      }
+
+      const deepen = url.searchParams.get('deepen') === '1';
+
+      if (!sourceId) {
         return new Response(
-          JSON.stringify({ sourceId: sourceId || '', videos: [], count: 0 }),
+          JSON.stringify({ sourceId: '', videos: [], count: 0, nextPageToken: null, deepened: false }),
           { status: 200, headers: corsHeaders }
         );
       }
 
       try {
-        const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
-        if (!raw) {
+        let existingVideos: VideoItem[] = [];
+        if (env.CHANNELS_ARCHIVE) {
+          const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) existingVideos = parsed;
+          }
+        }
+
+        const apiKey = resolveYouTubeApiKey(request, env);
+
+        // Return immediately if deepen is not requested, or we already have >= max items in KV, or no API key is available
+        if (!deepen || existingVideos.length >= max || !apiKey) {
+          const sliced = existingVideos.slice(0, max);
           return new Response(
-            JSON.stringify({ sourceId, videos: [], count: 0 }),
+            JSON.stringify({
+              sourceId,
+              videos: sliced,
+              count: sliced.length,
+              nextPageToken: null,
+              deepened: false,
+            }),
             { status: 200, headers: corsHeaders }
           );
         }
 
-        const parsed = JSON.parse(raw);
-        const videos = Array.isArray(parsed) ? parsed : [];
+        // Deepen from YouTube API
+        let playlistId = sourceId;
+        if (sourceType === 'playlist' || sourceId.startsWith('PL')) {
+          playlistId = sourceId;
+        } else if (sourceId.startsWith('UC')) {
+          playlistId = 'UU' + sourceId.slice(2);
+        }
+
+        const videoMap = new Map<string, VideoItem>();
+        for (const v of existingVideos) {
+          if (v && v.videoId) videoMap.set(v.videoId, v);
+        }
+
+        let pageToken: string | undefined = undefined;
+        let pageCount = 0;
+        const maxPages = 10; // Cap to stay under worker subrequest limits
+        let lastNextPageToken: string | null = null;
+
+        while (pageCount < maxPages && videoMap.size < max) {
+          const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+          apiUrl.searchParams.set('part', 'snippet');
+          apiUrl.searchParams.set('playlistId', playlistId);
+          apiUrl.searchParams.set('maxResults', '50');
+          if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
+          apiUrl.searchParams.set('key', apiKey);
+
+          const ytRes = await fetch(apiUrl.toString());
+          if (!ytRes.ok) {
+            break;
+          }
+
+          const data: any = await ytRes.json();
+          const items = data.items || [];
+          for (const item of items) {
+            const vId = item.snippet?.resourceId?.videoId;
+            const title = item.snippet?.title;
+            const publishedAt = item.snippet?.publishedAt;
+            if (vId && title && title !== 'Private video' && title !== 'Deleted video') {
+              videoMap.set(vId, {
+                videoId: vId,
+                title,
+                publishedAt: publishedAt || new Date().toISOString(),
+              });
+            }
+          }
+
+          pageToken = data.nextPageToken;
+          lastNextPageToken = pageToken || null;
+          pageCount++;
+          if (!pageToken || items.length === 0) break;
+        }
+
+        const mergedVideos = Array.from(videoMap.values());
+        mergedVideos.sort((a, b) => {
+          const timeA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+          const timeB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+          return timeB - timeA;
+        });
+
+        if (env.CHANNELS_ARCHIVE) {
+          const storedCap = mergedVideos.slice(0, 2000);
+          try {
+            await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(storedCap));
+          } catch (putErr) {
+            console.warn(`Failed to put deepened archive for ${sourceId}:`, putErr);
+          }
+        }
+
+        const sliced = mergedVideos.slice(0, max);
         return new Response(
-          JSON.stringify({ sourceId, videos, count: videos.length }),
+          JSON.stringify({
+            sourceId,
+            videos: sliced,
+            count: sliced.length,
+            nextPageToken: lastNextPageToken,
+            deepened: true,
+          }),
           { status: 200, headers: corsHeaders }
         );
       } catch {
         return new Response(
-          JSON.stringify({ sourceId, videos: [], count: 0 }),
+          JSON.stringify({ sourceId, videos: [], count: 0, nextPageToken: null, deepened: false }),
           { status: 200, headers: corsHeaders }
+        );
+      }
+    }
+
+    // 4.2 GET /api/channel-videos-page?sourceId={sourceId}&sourceType={channel|playlist}&pageToken={token}&pageSize={50}
+    if (url.pathname === '/api/channel-videos-page' && request.method === 'GET') {
+      const sourceId = (url.searchParams.get('id') || url.searchParams.get('sourceId') || '').trim();
+      const sourceType = (url.searchParams.get('sourceType') || 'channel').toLowerCase();
+      const pageToken = url.searchParams.get('pageToken') || undefined;
+
+      const rawPageSize = url.searchParams.get('pageSize');
+      let pageSize = 50;
+      if (rawPageSize) {
+        const parsed = parseInt(rawPageSize, 10);
+        if (!isNaN(parsed)) {
+          pageSize = Math.max(1, Math.min(50, parsed));
+        }
+      }
+
+      if (!sourceId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required parameter "sourceId"' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      const apiKey = resolveYouTubeApiKey(request, env);
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: 'no_api_key' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      let playlistId = sourceId;
+      if (sourceType === 'playlist' || sourceId.startsWith('PL')) {
+        playlistId = sourceId;
+      } else if (sourceId.startsWith('UC')) {
+        playlistId = 'UU' + sourceId.slice(2);
+      }
+
+      try {
+        const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+        apiUrl.searchParams.set('part', 'snippet');
+        apiUrl.searchParams.set('playlistId', playlistId);
+        apiUrl.searchParams.set('maxResults', String(pageSize));
+        if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
+        apiUrl.searchParams.set('key', apiKey);
+
+        const ytRes = await fetch(apiUrl.toString());
+        if (!ytRes.ok) {
+          const errText = await ytRes.text();
+          return new Response(
+            JSON.stringify({ error: `YouTube API error (${ytRes.status}): ${errText}` }),
+            { status: ytRes.status, headers: corsHeaders }
+          );
+        }
+
+        const data: any = await ytRes.json();
+        const items = data.items || [];
+        const newVideos: VideoItem[] = [];
+
+        for (const item of items) {
+          const vId = item.snippet?.resourceId?.videoId;
+          const title = item.snippet?.title;
+          const publishedAt = item.snippet?.publishedAt;
+          if (vId && title && title !== 'Private video' && title !== 'Deleted video') {
+            newVideos.push({
+              videoId: vId,
+              title,
+              publishedAt: publishedAt || new Date().toISOString(),
+            });
+          }
+        }
+
+        // Merge new items into KV archive best-effort
+        if (env.CHANNELS_ARCHIVE && newVideos.length > 0) {
+          void mergeAndStoreKVArchive(env, sourceId, newVideos);
+        }
+
+        return new Response(
+          JSON.stringify({
+            sourceId,
+            videos: newVideos,
+            nextPageToken: data.nextPageToken || null,
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        return new Response(
+          JSON.stringify({ error: errMsg }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+    }
+
+    // 4.3 GET /api/channel-search?sourceId={sourceId}&q={query}&pageToken={token}&maxResults={25}
+    if (url.pathname === '/api/channel-search' && request.method === 'GET') {
+      const sourceId = (url.searchParams.get('sourceId') || url.searchParams.get('id') || '').trim();
+      let q = (url.searchParams.get('q') || '').trim();
+      if (q.length > 100) {
+        q = q.slice(0, 100);
+      }
+
+      const pageToken = url.searchParams.get('pageToken') || undefined;
+
+      const rawMax = url.searchParams.get('maxResults');
+      let maxResults = 25;
+      if (rawMax) {
+        const parsed = parseInt(rawMax, 10);
+        if (!isNaN(parsed)) {
+          maxResults = Math.max(1, Math.min(50, parsed));
+        }
+      }
+
+      if (!sourceId || !q || q.length < 1) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required parameter "sourceId" or "q"' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      const apiKey = resolveYouTubeApiKey(request, env);
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: 'no_api_key' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      try {
+        const apiUrl = new URL('https://www.googleapis.com/youtube/v3/search');
+        apiUrl.searchParams.set('part', 'snippet');
+        apiUrl.searchParams.set('type', 'video');
+        apiUrl.searchParams.set('channelId', sourceId);
+        apiUrl.searchParams.set('q', q);
+        apiUrl.searchParams.set('maxResults', String(maxResults));
+        apiUrl.searchParams.set('safeSearch', 'strict');
+        if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
+        apiUrl.searchParams.set('key', apiKey);
+
+        const ytRes = await fetch(apiUrl.toString());
+        if (!ytRes.ok) {
+          if (ytRes.status === 403 || ytRes.status === 429) {
+            return new Response(
+              JSON.stringify({ error: 'YouTube API quota or access error' }),
+              { status: ytRes.status === 429 ? 429 : 502, headers: corsHeaders }
+            );
+          }
+          return new Response(
+            JSON.stringify({ error: `YouTube API error (${ytRes.status})` }),
+            { status: ytRes.status >= 500 ? 502 : ytRes.status, headers: corsHeaders }
+          );
+        }
+
+        const data: any = await ytRes.json();
+        const items = data.items || [];
+        const videos = items
+          .map((item: any) => {
+            const vId = item.id?.videoId || '';
+            const title = item.snippet?.title || '';
+            const publishedAt = item.snippet?.publishedAt || '';
+            const thumbnail =
+              item.snippet?.thumbnails?.medium?.url ||
+              item.snippet?.thumbnails?.high?.url ||
+              item.snippet?.thumbnails?.default?.url ||
+              undefined;
+
+            return {
+              videoId: vId,
+              title,
+              publishedAt,
+              thumbnail,
+              channelId: sourceId,
+            };
+          })
+          .filter(
+            (v: any) =>
+              v.videoId && v.title && v.title !== 'Private video' && v.title !== 'Deleted video'
+          );
+
+        return new Response(
+          JSON.stringify({
+            sourceId,
+            q,
+            videos,
+            nextPageToken: data.nextPageToken || null,
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Failed to search channel videos' }),
+          { status: 500, headers: corsHeaders }
         );
       }
     }

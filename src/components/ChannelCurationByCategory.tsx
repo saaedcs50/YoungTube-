@@ -3,6 +3,7 @@ import db, { Channel } from '../db';
 import { KidCategory, matchCategory } from '../categories';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { syncSingleChannelRss } from '../filtering';
+import { WORKER_URL } from '../config';
 import { YoutubeSearchBar } from './YoutubeSearchBar';
 import { CustomCategoryManager } from './CustomCategoryManager';
 import channelsSeed from '../../channels_seed.json';
@@ -46,6 +47,21 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
     if (!channel.sourceId) return;
     setRefreshingSourceId(channel.sourceId);
     setRefreshStatusMap((prev) => ({ ...prev, [channel.sourceId]: {} }));
+
+    // Fire deepen=1 request to update KV archive with family key if available
+    void (async () => {
+      try {
+        const settings = await db.settings.get('main');
+        const headers: Record<string, string> = {};
+        if (settings?.familyYoutubeApiKey) {
+          headers['X-Family-Youtube-Key'] = settings.familyYoutubeApiKey;
+        }
+        const deepenUrl = `${WORKER_URL}/api/channel-archive?id=${encodeURIComponent(channel.sourceId)}&sourceType=${encodeURIComponent(channel.sourceType || 'channel')}&deepen=1&max=500`;
+        await fetch(deepenUrl, { headers });
+      } catch {
+        // Ignore deepen error
+      }
+    })();
 
     const res = await syncSingleChannelRss(
       channel.sourceType || 'channel',

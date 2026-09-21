@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import db, { Channel } from '../db';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { syncSingleChannelRss } from '../filtering';
+import { WORKER_URL } from '../config';
 import {
   Search,
   KeyRound,
@@ -215,12 +216,48 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
         [item.sourceId]: { loading: true, message: 'جاري جلب الفيديوهات...' },
       }));
 
+      // Fire-and-forget request to deepen archive
+      void (async () => {
+        try {
+          const settings = await db.settings.get('main');
+          const headers: Record<string, string> = {};
+          if (settings?.familyYoutubeApiKey) {
+            headers['X-Family-Youtube-Key'] = settings.familyYoutubeApiKey;
+          }
+          const deepenUrl = `${WORKER_URL}/api/channel-archive?id=${encodeURIComponent(item.sourceId)}&sourceType=${encodeURIComponent(item.sourceType)}&deepen=1&max=500`;
+          const res = await fetch(deepenUrl, { headers });
+          if (res.ok) {
+            const data = await res.json().catch(() => null);
+            if (data && typeof data.count === 'number' && data.count > 0) {
+              setSyncStatusMap((prev) => {
+                const current = prev[item.sourceId];
+                if (current && !current.error) {
+                  return {
+                    ...prev,
+                    [item.sourceId]: {
+                      loading: false,
+                      message: `تم — ${data.count} فيديو بأرشيف القناة`,
+                    },
+                  };
+                }
+                return prev;
+              });
+            }
+          }
+        } catch {
+          // Ignore deepen errors as RSS path still works
+        }
+      })();
+
       const rssRes = await syncSingleChannelRss(item.sourceType, item.sourceId, item.title);
 
       if (rssRes.success) {
         setSyncStatusMap((prev) => ({
           ...prev,
-          [item.sourceId]: { loading: false, message: `تم — ${rssRes.count} فيديو جاهز` },
+          [item.sourceId]: {
+            loading: false,
+            message: `تم — ${rssRes.count} فيديو جاهز (جاري جلب المزيد من الفيديوهات...)`,
+          },
         }));
         onChannelAdded?.();
       } else {
@@ -269,15 +306,20 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
               <KeyRound className="w-4 h-4" />
             </div>
             <div className="space-y-1 grow">
-              <h4 className="text-xs font-bold text-amber-900">
-                مفتاح YouTube Data API v3 الخاص بالعائلة
-              </h4>
-              <p className="text-xs text-amber-800 leading-relaxed">
-                أدخل مفتاح YouTube API الخاص بعائلتك للبحث عن قنوات وقوائم تشغيل جديدة وإضافتها لتطبيق طفلك.
-              </p>
-              <p className="text-[11px] text-amber-700/90 font-medium">
-                🔒 تنبيه الخصوصية: هذا المفتاح يُخزن محلياً على هذا الجهاز فقط ولا يُرسل أبداً لأي خادم وسيط.
-              </p>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-amber-900">
+                  مفتاح YouTube Data API v3 الخاص بالعائلة
+                </h4>
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900">
+                  اختياري
+                </span>
+              </div>
+              <ul className="text-xs text-amber-800/95 space-y-1 pt-1 font-medium leading-relaxed list-disc list-inside">
+                <li>المفتاح اختياري</li>
+                <li>يستخدم لجلب فيديوهات أقدم والبحث داخل القناة</li>
+                <li>لا يُرسل إلا إلى خادم يونج تيوب عبر HTTPS</li>
+                <li>الفيد الرئيسي يبقى خفيفًا؛ المكتبة الكاملة من شاشة القناة</li>
+              </ul>
             </div>
           </div>
 
