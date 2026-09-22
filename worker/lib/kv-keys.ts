@@ -33,6 +33,10 @@ export function scanCleanupVideoOffsetKey(sourceId: string): string {
   return `_scan_cleanup_video_offset:${sourceId}`;
 }
 
+export function scanCleanupOffsetKey(sourceId: string): string {
+  return scanCleanupVideoOffsetKey(sourceId);
+}
+
 export function telemetryDailyKey(date: string): string {
   return `telemetry_daily:${date}`;
 }
