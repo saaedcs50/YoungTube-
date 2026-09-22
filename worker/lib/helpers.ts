@@ -1,4 +1,5 @@
 import channelsSeed from '../../channels_seed.json';
+import { runKvCursorBatch } from './batch-runner';
 import {
   CHANNELS_LATEST_MERGED,
   RSS_REFRESH_CURSOR,
@@ -440,148 +441,147 @@ export async function runBackfillAllBatch(
     };
   }
 
-  let cursor = 0;
-  if (!resetCursor) {
-    try {
-      const rawCursor = await env.CHANNELS_ARCHIVE.get(BACKFILL_ALL_CURSOR);
-      if (rawCursor) {
-        const parsed = parseInt(rawCursor, 10);
-        if (!isNaN(parsed) && parsed >= 0) {
-          cursor = parsed % totalChannels;
-        }
-      }
-    } catch {}
-  }
-
-  const cursorBefore = cursor;
   const batchSize = Math.max(1, Math.min(customBatchSize, 5));
-  let wrappedAround = false;
 
-  const targetChannels = [];
-  for (let i = 0; i < batchSize; i++) {
-    const targetIdx = (cursorBefore + i) % totalChannels;
-    if (cursorBefore + i >= totalChannels) {
-      wrappedAround = true;
-    }
-    targetChannels.push(allChannels[targetIdx]);
-  }
-
-  const processedChannels: { sourceId: string; title: string; videoCount: number }[] = [];
-  const failedChannels: (
+  const runnerResult = await runKvCursorBatch<
+    any,
+    { sourceId: string; title: string; videoCount: number },
     | { sourceId: string; title: string; error: 'youtube_rate_limited'; status: number }
     | { sourceId: string; title: string; error: 'other'; message: string }
-  )[] = [];
+  >({
+    env,
+    cursorKey: BACKFILL_ALL_CURSOR,
+    lockBy: 'manual_admin',
+    reset: resetCursor,
+    manageLock: false, // Lock is managed by caller (scheduled maintenance or admin route)
+    totalItems: totalChannels,
+    batchSize,
+    itemsArray: allChannels,
+    processWork: async (targetChannels) => {
+      const processedChannels: { sourceId: string; title: string; videoCount: number }[] = [];
+      const failedChannels: (
+        | { sourceId: string; title: string; error: 'youtube_rate_limited'; status: number }
+        | { sourceId: string; title: string; error: 'other'; message: string }
+      )[] = [];
 
-  for (const channel of targetChannels) {
-    const sourceId = channel.sourceId;
-    const title = channel.name || sourceId;
+      for (const channel of targetChannels) {
+        const sourceId = channel.sourceId;
+        const title = channel.name || sourceId;
 
-    try {
-      const uploadsPlaylistId = sourceId.startsWith('UC') ? 'UU' + sourceId.slice(2) : sourceId;
-      const allFetchedVideos: VideoItem[] = [];
-      let pageToken: string | undefined = undefined;
-      let pageCount = 0;
-      const maxPages = 40; // up to 2000 videos
-      let hitRateLimit = false;
+        try {
+          const uploadsPlaylistId = sourceId.startsWith('UC') ? 'UU' + sourceId.slice(2) : sourceId;
+          const allFetchedVideos: VideoItem[] = [];
+          let pageToken: string | undefined = undefined;
+          let pageCount = 0;
+          const maxPages = 40; // up to 2000 videos
+          let hitRateLimit = false;
 
-      while (pageCount < maxPages) {
-        const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
-        apiUrl.searchParams.set('part', 'snippet');
-        apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
-        apiUrl.searchParams.set('maxResults', '50');
-        if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
-        apiUrl.searchParams.set('key', apiKey);
+          while (pageCount < maxPages) {
+            const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+            apiUrl.searchParams.set('part', 'snippet');
+            apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
+            apiUrl.searchParams.set('maxResults', '50');
+            if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
+            apiUrl.searchParams.set('key', apiKey);
 
-        const res = await fetch(apiUrl.toString());
-        if (!res.ok) {
-          if (res.status === 403 || res.status === 429) {
-            hitRateLimit = true;
-            failedChannels.push({
-              sourceId,
-              title,
-              error: 'youtube_rate_limited',
-              status: res.status,
-            });
+            const res = await fetch(apiUrl.toString());
+            if (!res.ok) {
+              if (res.status === 403 || res.status === 429) {
+                hitRateLimit = true;
+                failedChannels.push({
+                  sourceId,
+                  title,
+                  error: 'youtube_rate_limited',
+                  status: res.status,
+                });
+                break;
+              }
+              const errText = await res.text();
+              failedChannels.push({
+                sourceId,
+                title,
+                error: 'other',
+                message: `YouTube API ${res.status}: ${errText}`,
+              });
+              break;
+            }
+
+            const data: any = await res.json();
+            const items = data.items || [];
+            for (const item of items) {
+              const vId = item.snippet?.resourceId?.videoId;
+              const vTitle = item.snippet?.title;
+              const pubAt = item.snippet?.publishedAt;
+              if (vId && vTitle && vTitle !== 'Private video' && vTitle !== 'Deleted video') {
+                allFetchedVideos.push({
+                  videoId: vId,
+                  title: vTitle,
+                  publishedAt: pubAt || new Date().toISOString(),
+                });
+              }
+            }
+
+            pageToken = data.nextPageToken;
+            pageCount++;
+            if (!pageToken || items.length === 0) break;
+          }
+
+          if (hitRateLimit) {
             break;
           }
-          const errText = await res.text();
-          failedChannels.push({
-            sourceId,
-            title,
-            error: 'other',
-            message: `YouTube API ${res.status}: ${errText}`,
-          });
-          break;
-        }
 
-        const data: any = await res.json();
-        const items = data.items || [];
-        for (const item of items) {
-          const vId = item.snippet?.resourceId?.videoId;
-          const vTitle = item.snippet?.title;
-          const pubAt = item.snippet?.publishedAt;
-          if (vId && vTitle && vTitle !== 'Private video' && vTitle !== 'Deleted video') {
-            allFetchedVideos.push({
-              videoId: vId,
-              title: vTitle,
-              publishedAt: pubAt || new Date().toISOString(),
+          if (allFetchedVideos.length > 0) {
+            const storeRes = await mergeAndStoreKVArchive(env, sourceId, allFetchedVideos);
+            if (storeRes.success) {
+              processedChannels.push({
+                sourceId,
+                title,
+                videoCount: storeRes.newCount,
+              });
+            } else {
+              failedChannels.push({
+                sourceId,
+                title,
+                error: 'other',
+                message: storeRes.error || 'Failed to store in KV',
+              });
+            }
+          } else {
+            processedChannels.push({
+              sourceId,
+              title,
+              videoCount: 0,
             });
           }
-        }
-
-        pageToken = data.nextPageToken;
-        pageCount++;
-        if (!pageToken || items.length === 0) break;
-      }
-
-      if (hitRateLimit) {
-        break;
-      }
-
-      if (allFetchedVideos.length > 0) {
-        const storeRes = await mergeAndStoreKVArchive(env, sourceId, allFetchedVideos);
-        if (storeRes.success) {
-          processedChannels.push({
-            sourceId,
-            title,
-            videoCount: storeRes.newCount,
-          });
-        } else {
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
           failedChannels.push({
             sourceId,
             title,
             error: 'other',
-            message: storeRes.error || 'Failed to store in KV',
+            message: errMsg,
           });
         }
-      } else {
-        processedChannels.push({
-          sourceId,
-          title,
-          videoCount: 0,
-        });
       }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      failedChannels.push({
-        sourceId,
-        title,
-        error: 'other',
-        message: errMsg,
-      });
-    }
+
+      return {
+        processed: processedChannels,
+        failed: failedChannels,
+      };
+    },
+  });
+
+  if (runnerResult.isLocked === true) {
+    throw new Error('Maintenance lock active');
   }
 
-  const cursorAfter = (cursorBefore + batchSize) % totalChannels;
-  await env.CHANNELS_ARCHIVE.put(BACKFILL_ALL_CURSOR, String(cursorAfter));
-
   return {
-    processedChannels,
-    failedChannels,
-    cursorBefore,
-    cursorAfter,
-    totalChannels,
-    wrappedAround,
+    processedChannels: runnerResult.processed,
+    failedChannels: runnerResult.failed,
+    cursorBefore: runnerResult.cursorBefore,
+    cursorAfter: runnerResult.cursorAfter,
+    totalChannels: runnerResult.totalChannels,
+    wrappedAround: runnerResult.wrappedAround,
   };
 }
 
