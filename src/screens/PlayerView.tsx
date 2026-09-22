@@ -27,6 +27,7 @@ import { getChannelBySourceId, listRegistryChannels } from '../data/channelRegis
 import { recordChildReaction, logTasteEvent, applyLoggedTasteEvent } from '../tasteShiftStorage';
 import db from '../db';
 import { trackFunnelEvent } from '../services/funnelTelemetry';
+import { WORKER_URL } from '../config';
 
 export interface QueuedVideo {
   videoId: string;
@@ -1001,17 +1002,29 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     setShowBlockChannelPinModal(false);
 
     try {
-      const targetChannelId = await resolveChannelId(
+      let targetChannelId = await resolveChannelId(
         currentVideo.videoId,
         currentVideo.channelTitle,
         propChannelId
       );
 
+      if (targetChannelId.startsWith('@')) {
+        try {
+          const res = await fetch(`${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(targetChannelId.replace(/^@+/, ''))}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.sourceId && !data.sourceId.startsWith('@')) {
+              targetChannelId = data.sourceId;
+            }
+          }
+        } catch {}
+      }
+
       // 1. db.channels: find row or create with enabled: false
       const existing = await db.channels.where('sourceId').equals(targetChannelId).first();
       if (existing && existing.id) {
         await db.channels.update(existing.id, { enabled: false });
-      } else {
+      } else if (!targetChannelId.startsWith('@')) {
         const regMatch = await getChannelBySourceId(targetChannelId);
         await db.channels.add({
           sourceType: 'channel',

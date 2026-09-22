@@ -3,6 +3,7 @@ import db, { Channel } from '../db';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { syncSingleChannelRss } from '../filtering';
 import { WORKER_URL } from '../config';
+import { extractChannelHandleOrUrl } from './AddByUrlCard';
 import {
   Search,
   KeyRound,
@@ -121,8 +122,81 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
     e.preventDefault();
     const cleanQuery = query.trim();
     if (!cleanQuery) return;
+
+    const channelInfo = extractChannelHandleOrUrl(cleanQuery);
+    const isDirectUC = /^UC[\w-]{22}$/.test(cleanQuery);
+    const isHandle = cleanQuery.startsWith('@') || Boolean(channelInfo?.handle);
+    const isUrl = cleanQuery.includes('youtube.com') || cleanQuery.includes('youtu.be') || Boolean(channelInfo?.rawUrl);
+
+    // If it's a handle, channel URL, or direct UC id, resolve via WORKER_URL/api/resolve-channel
+    if (isHandle || isUrl || isDirectUC) {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        let resolveUrl = '';
+        if (channelInfo?.handle) {
+          resolveUrl = `${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(channelInfo.handle)}`;
+        } else if (channelInfo?.channelId || isDirectUC) {
+          resolveUrl = `${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(channelInfo?.channelId || cleanQuery)}`;
+        } else {
+          resolveUrl = `${WORKER_URL}/api/resolve-channel?url=${encodeURIComponent(cleanQuery)}`;
+        }
+
+        const res = await fetch(resolveUrl);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          if (res.status === 404) {
+            throw new Error('لم يتم العثور على القناة. تأكد من صحة الرابط أو المعرف.');
+          } else if (errData.error === 'no_api_key') {
+            throw new Error('خدمة التعرف على القنوات غير مهيأة بمفتاح API على الخادم.');
+          } else {
+            throw new Error(errData.error || 'تعذر التعرف على القناة');
+          }
+        }
+
+        const data: { sourceId: string; title: string; sourceType: 'channel'; thumbnail?: string } = await res.json();
+        const resolvedId = (data.sourceId || '').trim();
+
+        // INVARIANT: Block if sourceId starts with "@"
+        if (!resolvedId || resolvedId.startsWith('@')) {
+          throw new Error('لا يمكن إضافة قناة بمعرف يبدأ بـ @. تأكد من صحة القناة.');
+        }
+
+        const formattedResult: YoutubeSearchResult = {
+          sourceType: 'channel',
+          sourceId: resolvedId, // Guaranteed UC... ONLY
+          title: decodeHtmlEntities(data.title || resolvedId), // from API
+          description: 'تم التعرف على القناة عبر الرابط / المعرف',
+          thumbnail: data.thumbnail || '',
+          channelTitle: decodeHtmlEntities(data.title || resolvedId),
+        };
+
+        setResults([formattedResult]);
+
+        // Refresh addedChannels mapping to ensure accurate state
+        const existing = await db.channels.toArray();
+        const map: Record<string, { dbId: number; category: string[] }> = {};
+        for (const ch of existing) {
+          if (ch.id) {
+            map[ch.sourceId] = { dbId: ch.id, category: ch.category || [] };
+          }
+        }
+        setAddedChannels(map);
+      } catch (err: any) {
+        console.error('Resolve channel error:', err);
+        setErrorMessage(err.message || 'تعذر جلب بيانات القناة.');
+        setResults([]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     if (!apiKey) {
-      setErrorMessage('يرجى حفظ مفتاح YouTube API أولاً للتمكن من البحث');
+      setErrorMessage(
+        'يرجى حفظ مفتاح YouTube API للبحث بالكلمات المفتاحية، أو يمكنك لصق رابط القناة أو معرفها (@handle) للبحث والإضافة مباشرة بدون مفتاح.'
+      );
       return;
     }
 
@@ -185,17 +259,44 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
 
   const handleAddChannel = async (item: YoutubeSearchResult) => {
     try {
+      let finalSourceId = (item.sourceId || '').trim();
+
+      // If sourceId starts with @, resolve via WORKER_URL/api/resolve-channel before db.channels.add
+      if (finalSourceId.startsWith('@')) {
+        const cleanHandle = finalSourceId.replace(/^@+/, '');
+        const res = await fetch(`${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(cleanHandle)}`);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'فشل في حل معرف القناة عبر الخادم');
+        }
+        const resolved = await res.json();
+        if (!resolved.sourceId || resolved.sourceId.startsWith('@')) {
+          throw new Error('لا يمكن حفظ قناة يبدأ معرفها بـ @. يرجى التأكد من صحة القناة.');
+        }
+        finalSourceId = resolved.sourceId;
+        item.sourceId = resolved.sourceId;
+        if (resolved.title) item.title = decodeHtmlEntities(resolved.title);
+        if (resolved.thumbnail) item.thumbnail = resolved.thumbnail;
+      }
+
+      // CRITICAL INVARIANT: Block add if sourceId starts with "@"
+      if (finalSourceId.startsWith('@')) {
+        setErrorMessage('تم حظر الإضافة: لا يمكن حفظ قناة يبدأ معرفها بـ @');
+        return;
+      }
+
       // Check if already in DB
-      const existing = await db.channels.where('sourceId').equals(item.sourceId).first();
+      const existing = await db.channels.where('sourceId').equals(finalSourceId).first();
       let recordId: number;
 
       if (existing && existing.id) {
         recordId = existing.id;
+        await db.channels.update(existing.id, { enabled: true });
       } else {
         recordId = (await db.channels.add({
           sourceType: item.sourceType,
-          sourceId: item.sourceId,
-          title: item.title,
+          sourceId: finalSourceId, // UC... ONLY
+          title: item.title,       // from API
           thumbnail: item.thumbnail,
           category: [],
           isPreloaded: false,
@@ -401,75 +502,73 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
       )}
 
       {/* 2. Search Box with channel/playlist toggle */}
-      {apiKey && !isEditingKey && (
-        <form onSubmit={handleSearch} className="space-y-3">
-          <div className="flex flex-col sm:flex-row gap-2">
-            {/* Search Type Toggle */}
-            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 shrink-0">
-              <button
-                type="button"
-                onClick={() => setSearchType('channel')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  searchType === 'channel'
-                    ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Tv className="w-3.5 h-3.5" />
-                <span>قناة</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSearchType('playlist')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  searchType === 'playlist'
-                    ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <ListVideo className="w-3.5 h-3.5" />
-                <span>قائمة تشغيل</span>
-              </button>
-            </div>
-
-            {/* Input & Submit */}
-            <div className="relative grow">
-              <input
-                id="youtube-search-query-input"
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={
-                  searchType === 'channel'
-                    ? 'ابحث باسم القناة (مثال: كرتون إسلامي، تجارب علمية للأطفال)...'
-                    : 'ابحث باسم قائمة التشغيل (مثال: قصص الأنبياء للصغار)...'
-                }
-                className="w-full pl-3 pr-9 py-2 text-xs rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500"
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
-            </div>
-
+      <form onSubmit={handleSearch} className="space-y-3">
+        <div className="flex flex-col sm:flex-row gap-2">
+          {/* Search Type Toggle */}
+          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 shrink-0">
             <button
-              id="execute-youtube-search-btn"
-              type="submit"
-              disabled={isLoading || !query.trim()}
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shrink-0 shadow-sm"
+              type="button"
+              onClick={() => setSearchType('channel')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                searchType === 'channel'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>جاري البحث...</span>
-                </>
-              ) : (
-                <>
-                  <Search className="w-3.5 h-3.5" />
-                  <span>بحث</span>
-                </>
-              )}
+              <Tv className="w-3.5 h-3.5" />
+              <span>قناة</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchType('playlist')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                searchType === 'playlist'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ListVideo className="w-3.5 h-3.5" />
+              <span>قائمة تشغيل</span>
             </button>
           </div>
-        </form>
-      )}
+
+          {/* Input & Submit */}
+          <div className="relative grow">
+            <input
+              id="youtube-search-query-input"
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={
+                searchType === 'channel'
+                  ? 'ابحث باسم القناة أو الصق رابطها أو معرفها (@handle)...'
+                  : 'ابحث باسم قائمة التشغيل (مثال: قصص الأنبياء للصغار)...'
+              }
+              className="w-full pl-3 pr-9 py-2 text-xs rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+            />
+            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+          </div>
+
+          <button
+            id="execute-youtube-search-btn"
+            type="submit"
+            disabled={isLoading || !query.trim()}
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shrink-0 shadow-sm"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>جاري البحث والتحقق...</span>
+              </>
+            ) : (
+              <>
+                <Search className="w-3.5 h-3.5" />
+                <span>بحث / تحليل</span>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
 
       {/* 3. Error message box */}
       {errorMessage && (

@@ -199,6 +199,13 @@ db.version(5).stores({
   tasteShiftEvents: '++id, ts, categoryId, type, videoId',
 });
 
+// INVARIANT: Block adding any channel whose sourceId starts with '@'
+db.channels.hook('creating', (_primKey, obj) => {
+  if (obj.sourceId && typeof obj.sourceId === 'string' && obj.sourceId.trim().startsWith('@')) {
+    throw new Error('Database Invariant: Channel sourceId cannot start with @. Must be resolved to canonical UC... channel ID.');
+  }
+});
+
 export default db;
 export const DEFAULT_SCHEDULE_WINDOW = { start: '00:00', end: '23:59' };
 export const DEFAULT_SESSION_LIMIT_MINUTES = 60;

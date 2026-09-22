@@ -6,6 +6,7 @@ import { syncSingleChannelRss } from '../filtering';
 import { WORKER_URL } from '../config';
 import { YoutubeSearchBar } from './YoutubeSearchBar';
 import { CustomCategoryManager } from './CustomCategoryManager';
+import { AddByUrlCard } from './AddByUrlCard';
 import { listRegistryChannels } from '../data/channelRegistry';
 import {
   FolderKanban,
@@ -125,15 +126,17 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
       } else {
         // Pure-seed channel with no Dexie row yet
         if (!nextState) {
-          await db.channels.add({
-            sourceType: channel.sourceType || 'channel',
-            sourceId: channel.sourceId,
-            title: channel.title,
-            thumbnail: channel.thumbnail,
-            category: channel.category || [],
-            isPreloaded: true,
-            enabled: false,
-          });
+          if (!channel.sourceId.startsWith('@')) {
+            await db.channels.add({
+              sourceType: channel.sourceType || 'channel',
+              sourceId: channel.sourceId,
+              title: channel.title,
+              thumbnail: channel.thumbnail,
+              category: channel.category || [],
+              isPreloaded: true,
+              enabled: false,
+            });
+          }
         }
       }
 
@@ -233,7 +236,10 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
       {/* 0. Custom Category Creation & Management */}
       <CustomCategoryManager onChanged={handleChannelAdded} />
 
-      {/* 1. YouTube Search Bar Component at Top */}
+      {/* 1. Add Channel By URL / Handle Card */}
+      <AddByUrlCard target="channel" onAdded={handleChannelAdded} />
+
+      {/* 2. YouTube Search Bar Component at Top */}
       <div className="p-4 sm:p-5 rounded-2xl bg-white border border-stone-200/70 shadow-sm">
         <YoutubeSearchBar onChannelAdded={handleChannelAdded} />
       </div>

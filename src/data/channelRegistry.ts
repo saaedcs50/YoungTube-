@@ -65,7 +65,7 @@ export async function listRegistryChannels(): Promise<RegistryChannel[]> {
 
     // 2. Add custom parent-added channels in db.channels but not in channels_seed.json
     for (const ch of dbList) {
-      if (ch.sourceId && !processedSourceIds.has(ch.sourceId)) {
+      if (ch.sourceId && !ch.sourceId.startsWith('@') && !processedSourceIds.has(ch.sourceId)) {
         processedSourceIds.add(ch.sourceId);
         merged.push(ch);
       }
@@ -75,7 +75,7 @@ export async function listRegistryChannels(): Promise<RegistryChannel[]> {
     const settings = await db.settings.get('main');
     const remoteChannels = settings?.remoteChannelsCache || [];
     for (const remote of remoteChannels) {
-      if (remote.sourceId && !processedSourceIds.has(remote.sourceId)) {
+      if (remote.sourceId && !remote.sourceId.startsWith('@') && !processedSourceIds.has(remote.sourceId)) {
         processedSourceIds.add(remote.sourceId);
         const dbOverride = dbMap.get(remote.sourceId);
         if (dbOverride) {

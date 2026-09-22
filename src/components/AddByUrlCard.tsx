@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import db, { Interaction } from '../db';
 import { WORKER_URL } from '../config';
-import { Plus, Loader2, CheckCircle2, AlertCircle, Link as LinkIcon } from 'lucide-react';
+import { syncSingleChannelRss } from '../filtering';
+import { Plus, Loader2, CheckCircle2, AlertCircle, Link as LinkIcon, Tv } from 'lucide-react';
 
 export function extractPlaylistId(url: string): string | null {
   if (!url) return null;
@@ -15,6 +16,56 @@ export function extractPlaylistId(url: string): string | null {
   }
   const match = trimmed.match(/[?&]list=([a-zA-Z0-9_-]+)/);
   if (match) return match[1];
+  return null;
+}
+
+export function extractChannelHandleOrUrl(url: string): { handle?: string; channelId?: string; rawUrl?: string } | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('@')) {
+    return { handle: trimmed.replace(/^@+/, '') };
+  }
+
+  if (/^UC[\w-]{22}$/.test(trimmed)) {
+    return { channelId: trimmed };
+  }
+
+  if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
+    try {
+      const parsed = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+      const path = parsed.pathname;
+
+      const ucMatch = path.match(/\/channel\/(UC[\w-]{22})/i);
+      if (ucMatch) {
+        return { channelId: ucMatch[1], rawUrl: trimmed };
+      }
+
+      const handleMatch = path.match(/\/@([\w.-]+)/i);
+      if (handleMatch) {
+        return { handle: handleMatch[1], rawUrl: trimmed };
+      }
+
+      const cMatch = path.match(/\/c\/([\w.-]+)/i);
+      if (cMatch) {
+        return { handle: cMatch[1], rawUrl: trimmed };
+      }
+
+      const userMatch = path.match(/\/user\/([\w.-]+)/i);
+      if (userMatch) {
+        return { handle: userMatch[1], rawUrl: trimmed };
+      }
+
+      if (!path.includes('/watch') && !path.includes('/shorts') && !path.includes('/embed') && !parsed.searchParams.get('v') && !parsed.searchParams.get('list')) {
+        const segments = path.split('/').filter(Boolean);
+        if (segments.length === 1 && !['playlist', 'feed', 'gaming', 'results', 'premium'].includes(segments[0].toLowerCase())) {
+          return { handle: segments[0], rawUrl: trimmed };
+        }
+      }
+    } catch {}
+  }
+
   return null;
 }
 
@@ -58,11 +109,11 @@ export function extractVideoId(url: string): string | null {
 }
 
 interface AddByUrlCardProps {
-  target: 'saved' | 'loved';
+  target: 'saved' | 'loved' | 'channel';
   onAdded?: () => void;
 }
 
-export default function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
+export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
   const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -74,18 +125,87 @@ export default function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
 
     setFeedback(null);
 
+    const channelInfo = extractChannelHandleOrUrl(trimmed);
     const playlistId = extractPlaylistId(trimmed);
     const videoId = extractVideoId(trimmed);
 
-    if (!playlistId && !videoId) {
-      setFeedback({ type: 'error', message: 'الرابط غير صالح' });
-      return;
+    if (target === 'channel') {
+      if (!channelInfo && !playlistId && !trimmed.includes('youtube.com')) {
+        setFeedback({
+          type: 'error',
+          message: 'الرابط أو المعرف غير صالح. يرجى إدخال رابط قناة يوتيوب أو معرفها (@handle).',
+        });
+        return;
+      }
+    } else {
+      if (!playlistId && !videoId && !channelInfo) {
+        setFeedback({ type: 'error', message: 'الرابط غير صالح' });
+        return;
+      }
     }
 
     setIsLoading(true);
 
     try {
-      if (playlistId) {
+      if (target === 'channel') {
+        // Channel resolution flow
+        let resolveUrl = '';
+        if (channelInfo?.handle) {
+          resolveUrl = `${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(channelInfo.handle)}`;
+        } else if (channelInfo?.channelId) {
+          resolveUrl = `${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(channelInfo.channelId)}`;
+        } else {
+          resolveUrl = `${WORKER_URL}/api/resolve-channel?url=${encodeURIComponent(trimmed)}`;
+        }
+
+        const res = await fetch(resolveUrl);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          if (res.status === 404) {
+            throw new Error('لم يتم العثور على القناة على يوتيوب. يرجى التحقق من صحة الرابط أو المعرف.');
+          } else if (errData.error === 'no_api_key') {
+            throw new Error('خدمة التعرف على القنوات غير مهيأة بمفتاح API على الخادم.');
+          } else {
+            throw new Error(errData.error || 'تعذر جلب بيانات القناة من يوتيوب');
+          }
+        }
+
+        const data = await res.json();
+        const resolvedSourceId = (data.sourceId || '').trim();
+
+        // STRICT INVARIANT: Block add if sourceId starts with "@"
+        if (!resolvedSourceId || resolvedSourceId.startsWith('@')) {
+          throw new Error('تم حظر الإضافة: لا يمكن حفظ قناة بمعرف يبدأ بـ @. يجب استخدام معرف قناة صالح.');
+        }
+
+        const channelTitle = data.title || resolvedSourceId;
+
+        // Persist to db.channels (sourceId = UC... ONLY)
+        const existing = await db.channels.where('sourceId').equals(resolvedSourceId).first();
+        if (existing && existing.id) {
+          await db.channels.update(existing.id, { enabled: true });
+        } else {
+          await db.channels.add({
+            sourceType: 'channel',
+            sourceId: resolvedSourceId, // UC... ONLY
+            title: channelTitle,        // from API
+            thumbnail: data.thumbnail,
+            category: [],
+            isPreloaded: false,
+            enabled: true,
+          });
+        }
+
+        // Trigger background RSS sync
+        syncSingleChannelRss('channel', resolvedSourceId, channelTitle).catch(() => {});
+
+        setFeedback({
+          type: 'success',
+          message: `تمت إضافة قناة "${channelTitle}" بنجاح! ✨`,
+        });
+        setUrlInput('');
+        onAdded?.();
+      } else if (playlistId) {
         // Fetch playlist lookup
         const res = await fetch(`${WORKER_URL}/api/playlist-lookup?id=${encodeURIComponent(playlistId)}`);
         if (!res.ok) {
@@ -158,6 +278,59 @@ export default function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
         });
         setUrlInput('');
         onAdded?.();
+      } else if (channelInfo) {
+        // Channel URL pasted into saved/loved: resolve channel and add its recent videos
+        let resolveUrl = channelInfo.handle
+          ? `${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(channelInfo.handle)}`
+          : `${WORKER_URL}/api/resolve-channel?url=${encodeURIComponent(trimmed)}`;
+
+        const res = await fetch(resolveUrl);
+        if (!res.ok) {
+          throw new Error('تعذر التعرف على القناة');
+        }
+        const chData = await res.json();
+        const ucId = (chData.sourceId || '').trim();
+        if (!ucId || ucId.startsWith('@')) {
+          throw new Error('معرف القناة غير صالح (يبدأ بـ @)');
+        }
+
+        const rssRes = await fetch(`${WORKER_URL}/api/rss?type=channel&id=${encodeURIComponent(ucId)}`);
+        if (!rssRes.ok) {
+          throw new Error('تعذر جلب فيديوهات القناة');
+        }
+        const feedData = await rssRes.json();
+        const items = feedData.items || feedData.videos || [];
+        if (items.length === 0) {
+          throw new Error('لم يتم العثور على فيديوهات حديثة في هذه القناة');
+        }
+
+        const now = Date.now();
+        for (const item of items.slice(0, 15)) {
+          const vId = item.videoId || item.id;
+          if (!vId) continue;
+          const existing = await db.interactions.get(vId);
+          await db.interactions.put({
+            videoId: vId,
+            channelId: ucId,
+            title: item.title || existing?.title || 'فيديو يوتيوب',
+            thumbnail: item.thumbnail || existing?.thumbnail,
+            parentRating: existing?.parentRating,
+            childReaction: existing?.childReaction,
+            watchTime: existing?.watchTime || 0,
+            videoDuration: existing?.videoDuration || 0,
+            completed: existing?.completed || false,
+            lastWatched: existing?.lastWatched || now,
+            savedByParent: target === 'saved' ? true : existing?.savedByParent,
+            childLoved: target === 'loved' ? true : existing?.childLoved,
+          });
+        }
+
+        setFeedback({
+          type: 'success',
+          message: `تمت إضافة فيديوهات قناة "${chData.title || ucId}" بنجاح إلى ${target === 'saved' ? 'المحفوظات' : 'المفضلة'}! ✨`,
+        });
+        setUrlInput('');
+        onAdded?.();
       }
     } catch (err: any) {
       setFeedback({
@@ -172,18 +345,30 @@ export default function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
   return (
     <div
       id={`add-by-url-card-${target}`}
-      className="bg-white rounded-2xl border border-amber-100/80 p-4 sm:p-5 shadow-xs mb-6 text-right"
+      className="bg-white rounded-2xl border border-stone-200/70 p-4 sm:p-5 shadow-xs mb-6 text-right"
     >
       <div className="flex items-center gap-2.5 mb-3">
-        <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-          <LinkIcon className="w-4 h-4" />
+        <div
+          className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+            target === 'channel'
+              ? 'bg-sky-50 text-sky-600 border-sky-100'
+              : 'bg-amber-50 text-amber-600 border-amber-100'
+          }`}
+        >
+          {target === 'channel' ? <Tv className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
         </div>
         <div>
           <h3 className="text-sm font-bold text-stone-900">
-            {target === 'saved' ? 'إضافة فيديو أو قائمة تشغيل مخصصة' : 'إضافة فيديو أو قائمة إلى المفضلة'}
+            {target === 'channel'
+              ? 'إضافة قناة مخصصة عبر الرابط أو المعرف (@handle)'
+              : target === 'saved'
+              ? 'إضافة فيديو أو قائمة تشغيل مخصصة'
+              : 'إضافة فيديو أو قائمة إلى المفضلة'}
           </h3>
           <p className="text-xs text-stone-500">
-            يمكنك لصق رابط فيديو مباشر أو رابط قائمة تشغيل كاملة من يوتيوب لإضافتها فوراً.
+            {target === 'channel'
+              ? 'ألصق رابط القناة أو معرفها (@handle) للتحقق منها وإضافتها فوراً إلى قائمة القنوات.'
+              : 'يمكنك لصق رابط فيديو مباشر أو رابط قائمة تشغيل كاملة من يوتيوب لإضافتها فوراً.'}
           </p>
         </div>
       </div>
@@ -198,7 +383,11 @@ export default function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
               setUrlInput(e.target.value);
               if (feedback) setFeedback(null);
             }}
-            placeholder="الصق رابط فيديو أو قائمة تشغيل من يوتيوب"
+            placeholder={
+              target === 'channel'
+                ? 'الصق رابط القناة أو المعرف (مثال: @spacetoon أو https://youtube.com/@...)'
+                : 'الصق رابط فيديو أو قائمة تشغيل من يوتيوب'
+            }
             disabled={isLoading}
             className="w-full px-4 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-xs sm:text-sm text-stone-900 placeholder-stone-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-all text-right"
           />
@@ -212,7 +401,7 @@ export default function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
           {isLoading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>جاري الإضافة...</span>
+              <span>جاري التحقق والإضافة...</span>
             </>
           ) : (
             <>
@@ -242,3 +431,5 @@ export default function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
     </div>
   );
 }
+
+export default AddByUrlCard;
