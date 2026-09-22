@@ -1,5 +1,27 @@
 import channelsSeed from '../channels_seed.json';
 import { TelemetryAggregator } from './telemetry_do';
+import {
+  CHANNELS_LATEST_MERGED,
+  RSS_REFRESH_CURSOR,
+  BACKFILL_ALL_CURSOR,
+  MAINTENANCE_CURSOR,
+  MAINTENANCE_LOCK,
+  MAINTENANCE_STATUS,
+  CLEANUP_DEAD_VIDEOS_CURSOR,
+  SCAN_CLEANUP_CURSOR,
+  LAST_CRON_TASK,
+  GLOBAL_BLOCKS,
+  ANNOUNCEMENTS,
+  CUSTOM_CATEGORIES,
+  TELEMETRY_INDEX,
+  channelArchiveKey,
+  channelPageTokenKey,
+  scanCleanupVideoOffsetKey,
+  telemetryDailyKey,
+  telemetryUniquesKey,
+  telemetryFunnelDailyKey,
+  telemetryFunnelUniquesKey,
+} from './lib/kv-keys';
 
 export { TelemetryAggregator };
  
@@ -80,7 +102,7 @@ async function mergeAndStoreKVArchive(
 
   let existing: VideoItem[] = [];
   try {
-    const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+    const raw = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) existing = parsed;
@@ -104,7 +126,7 @@ async function mergeAndStoreKVArchive(
 
   const capped = merged.slice(0, 2000);
   try {
-    await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(capped));
+    await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(capped));
   } catch (err) {
     console.warn(`Failed to store merged KV archive for ${sourceId}:`, err);
   }
@@ -123,7 +145,7 @@ async function updateMergedListForChannel(
   if (!env.CHANNELS_ARCHIVE || !seedChannel) return;
   try {
     let fullMergedList: any[] = [];
-    const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+    const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
     if (rawMerged) {
       const parsed = JSON.parse(rawMerged);
       if (Array.isArray(parsed)) {
@@ -165,7 +187,7 @@ async function updateMergedListForChannel(
     }
 
     await env.CHANNELS_ARCHIVE.put(
-      '_channels_latest_merged',
+      CHANNELS_LATEST_MERGED,
       JSON.stringify(fullMergedList)
     );
   } catch (e) {
@@ -380,8 +402,8 @@ async function recordTelemetryEvent(
   if (!env.CHANNELS_ARCHIVE) return;
 
   const date = getTodayDateUtc();
-  const dailyKey = `telemetry_daily:${date}`;
-  const uniquesKey = `telemetry_uniques:${date}`;
+  const dailyKey = telemetryDailyKey(date);
+  const uniquesKey = telemetryUniquesKey(date);
 
   let daily: TelemetryDaily = {
     date,
@@ -462,7 +484,7 @@ async function recordTelemetryEvent(
   ]);
 
   try {
-    const rawIndex = await env.CHANNELS_ARCHIVE.get('telemetry_index');
+    const rawIndex = await env.CHANNELS_ARCHIVE.get(TELEMETRY_INDEX);
     let indexDates: string[] = [];
     if (rawIndex) {
       indexDates = JSON.parse(rawIndex);
@@ -473,7 +495,7 @@ async function recordTelemetryEvent(
         .sort()
         .reverse()
         .slice(0, 30);
-      await env.CHANNELS_ARCHIVE.put('telemetry_index', JSON.stringify(uniqueSorted));
+      await env.CHANNELS_ARCHIVE.put(TELEMETRY_INDEX, JSON.stringify(uniqueSorted));
     }
   } catch {}
 }
@@ -511,8 +533,8 @@ async function recordFunnelEvent(
   if (!env.CHANNELS_ARCHIVE) return;
 
   const date = getTodayDateUtc();
-  const funnelDailyKey = `telemetry_funnel:${date}`;
-  const funnelUniquesKey = `telemetry_funnel_uniques:${date}`;
+  const funnelDailyKey = telemetryFunnelDailyKey(date);
+  const funnelUniquesKey = telemetryFunnelUniquesKey(date);
 
   let daily: TelemetryFunnelDaily = {
     date,
@@ -575,7 +597,7 @@ async function recordFunnelEvent(
   await Promise.all(puts);
 
   try {
-    const rawIndex = await env.CHANNELS_ARCHIVE.get('telemetry_index');
+    const rawIndex = await env.CHANNELS_ARCHIVE.get(TELEMETRY_INDEX);
     let indexDates: string[] = [];
     if (rawIndex) {
       indexDates = JSON.parse(rawIndex);
@@ -586,7 +608,7 @@ async function recordFunnelEvent(
         .sort()
         .reverse()
         .slice(0, 30);
-      await env.CHANNELS_ARCHIVE.put('telemetry_index', JSON.stringify(uniqueSorted));
+      await env.CHANNELS_ARCHIVE.put(TELEMETRY_INDEX, JSON.stringify(uniqueSorted));
     }
   } catch {}
 }
@@ -682,7 +704,7 @@ export async function refreshChannelsBatch(env: Env): Promise<{
   // 1. Get cursor from KV
   let cursor = 0;
   try {
-    const rawCursor = await env.CHANNELS_ARCHIVE.get('_rss_refresh_cursor');
+    const rawCursor = await env.CHANNELS_ARCHIVE.get(RSS_REFRESH_CURSOR);
     if (rawCursor) {
       const parsed = parseInt(rawCursor, 10);
       if (!isNaN(parsed) && parsed >= 0) {
@@ -708,7 +730,7 @@ export async function refreshChannelsBatch(env: Env): Promise<{
     batch.map(async ({ channel }) => {
       const [rssResult, existingArchive] = await Promise.allSettled([
         fetchYouTubeRss(channel.sourceType || 'channel', channel.sourceId),
-        env.CHANNELS_ARCHIVE!.get(channel.sourceId),
+        env.CHANNELS_ARCHIVE!.get(channelArchiveKey(channel.sourceId)),
       ]);
 
       const liveVideos: VideoItem[] =
@@ -749,7 +771,7 @@ export async function refreshChannelsBatch(env: Env): Promise<{
 
       // Save updated channel archive back to KV under channel.sourceId
       if (finalVideos.length > 0) {
-        await env.CHANNELS_ARCHIVE!.put(channel.sourceId, JSON.stringify(finalVideos)).catch(() => {});
+        await env.CHANNELS_ARCHIVE!.put(channelArchiveKey(channel.sourceId), JSON.stringify(finalVideos)).catch(() => {});
       }
 
       return {
@@ -762,7 +784,7 @@ export async function refreshChannelsBatch(env: Env): Promise<{
   // 4. Retrieve current full list from KV (_channels_latest_merged)
   let fullMergedList: any[] = [];
   try {
-    const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+    const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
     if (rawMerged) {
       const parsed = JSON.parse(rawMerged);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -804,11 +826,11 @@ export async function refreshChannelsBatch(env: Env): Promise<{
   }
 
   // Save updated full list back to KV
-  await env.CHANNELS_ARCHIVE.put('_channels_latest_merged', JSON.stringify(fullMergedList));
+  await env.CHANNELS_ARCHIVE.put(CHANNELS_LATEST_MERGED, JSON.stringify(fullMergedList));
 
   // 5. Update cursor for next cron run
   const nextCursor = (cursor + BATCH_SIZE) % totalChannels;
-  await env.CHANNELS_ARCHIVE.put('_rss_refresh_cursor', nextCursor.toString());
+  await env.CHANNELS_ARCHIVE.put(RSS_REFRESH_CURSOR, nextCursor.toString());
 
   return {
     updatedCount: updatedChannelNames.length,
@@ -862,7 +884,7 @@ export async function checkMaintenanceLock(env: Env): Promise<{
     return { isLocked: false };
   }
   try {
-    const raw = await env.CHANNELS_ARCHIVE.get('maintenance_lock');
+    const raw = await env.CHANNELS_ARCHIVE.get(MAINTENANCE_LOCK);
     if (!raw) return { isLocked: false };
     const lock: MaintenanceLock = JSON.parse(raw);
     const untilMs = new Date(lock.until).getTime();
@@ -891,7 +913,7 @@ export async function acquireMaintenanceLock(
     startedAt: now.toISOString(),
     until,
   };
-  await env.CHANNELS_ARCHIVE.put('maintenance_lock', JSON.stringify(lock));
+  await env.CHANNELS_ARCHIVE.put(MAINTENANCE_LOCK, JSON.stringify(lock));
   return lock;
 }
 
@@ -901,7 +923,7 @@ export async function acquireMaintenanceLock(
 export async function releaseMaintenanceLock(env: Env): Promise<void> {
   if (!env.CHANNELS_ARCHIVE) return;
   try {
-    await env.CHANNELS_ARCHIVE.delete('maintenance_lock');
+    await env.CHANNELS_ARCHIVE.delete(MAINTENANCE_LOCK);
   } catch {}
 }
 
@@ -915,12 +937,12 @@ export async function saveMaintenanceStatus(
   if (!env.CHANNELS_ARCHIVE) return;
   try {
     let current: Partial<MaintenanceStatus> = {};
-    const raw = await env.CHANNELS_ARCHIVE.get('maintenance_status');
+    const raw = await env.CHANNELS_ARCHIVE.get(MAINTENANCE_STATUS);
     if (raw) {
       current = JSON.parse(raw);
     }
     const merged = { ...current, ...update };
-    await env.CHANNELS_ARCHIVE.put('maintenance_status', JSON.stringify(merged));
+    await env.CHANNELS_ARCHIVE.put(MAINTENANCE_STATUS, JSON.stringify(merged));
   } catch {}
 }
 
@@ -945,8 +967,8 @@ export async function runBackfillAllBatch(
   if (!reset && env.CHANNELS_ARCHIVE) {
     try {
       const rawCursor =
-        (await env.CHANNELS_ARCHIVE.get('maintenance_cursor')) ||
-        (await env.CHANNELS_ARCHIVE.get('_backfill_all_cursor'));
+        (await env.CHANNELS_ARCHIVE.get(MAINTENANCE_CURSOR)) ||
+        (await env.CHANNELS_ARCHIVE.get(BACKFILL_ALL_CURSOR));
       if (rawCursor) {
         const parsed = parseInt(rawCursor, 10);
         if (!isNaN(parsed) && parsed >= 0) {
@@ -973,7 +995,7 @@ export async function runBackfillAllBatch(
   let fullMergedList: any[] = [];
   if (env.CHANNELS_ARCHIVE) {
     try {
-      const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+      const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
       if (rawMerged) {
         const parsed = JSON.parse(rawMerged);
         if (Array.isArray(parsed)) {
@@ -1050,7 +1072,7 @@ export async function runBackfillAllBatch(
 
     // Save the individual channel archive (up to 1000 videos)
     if (env.CHANNELS_ARCHIVE) {
-      await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(allVideos));
+      await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(allVideos));
     }
 
     return {
@@ -1138,7 +1160,7 @@ export async function runBackfillAllBatch(
   if (env.CHANNELS_ARCHIVE && processedChannels.length > 0 && fullMergedList.length > 0) {
     try {
       await env.CHANNELS_ARCHIVE.put(
-        '_channels_latest_merged',
+        CHANNELS_LATEST_MERGED,
         JSON.stringify(fullMergedList)
       );
     } catch (e) {
@@ -1150,8 +1172,8 @@ export async function runBackfillAllBatch(
   const cursorAfter = (cursorBefore + BATCH_SIZE) % totalChannels;
   if (env.CHANNELS_ARCHIVE) {
     try {
-      await env.CHANNELS_ARCHIVE.put('_backfill_all_cursor', cursorAfter.toString());
-      await env.CHANNELS_ARCHIVE.put('maintenance_cursor', cursorAfter.toString());
+      await env.CHANNELS_ARCHIVE.put(BACKFILL_ALL_CURSOR, cursorAfter.toString());
+      await env.CHANNELS_ARCHIVE.put(MAINTENANCE_CURSOR, cursorAfter.toString());
     } catch (e) {
       console.error('Failed to save cursor:', e);
     }
@@ -1428,12 +1450,12 @@ export default {
 
         // 1. Save the channel videos
         if (env.CHANNELS_ARCHIVE) {
-          await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(allVideos));
+          await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(allVideos));
 
           // 2. Immediately update the merged list instead of deleting it
           try {
             let fullMergedList: any[] = [];
-            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+            const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
 
             if (rawMerged) {
               const parsed = JSON.parse(rawMerged);
@@ -1480,7 +1502,7 @@ export default {
             }
 
             await env.CHANNELS_ARCHIVE.put(
-              '_channels_latest_merged',
+              CHANNELS_LATEST_MERGED,
               JSON.stringify(fullMergedList)
             );
           } catch (e) {
@@ -1609,7 +1631,7 @@ export default {
         let cursor = 0;
         if (!reset && env.CHANNELS_ARCHIVE) {
           try {
-            const rawCursor = await env.CHANNELS_ARCHIVE.get('_cleanup_dead_videos_cursor');
+            const rawCursor = await env.CHANNELS_ARCHIVE.get(CLEANUP_DEAD_VIDEOS_CURSOR);
             if (rawCursor) {
               const parsed = parseInt(rawCursor, 10);
               if (!isNaN(parsed) && parsed >= 0) {
@@ -1643,7 +1665,7 @@ export default {
           let channelVideos: VideoItem[] = [];
           if (env.CHANNELS_ARCHIVE) {
             try {
-              const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+              const raw = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
               if (raw) {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed)) {
@@ -1721,7 +1743,7 @@ export default {
         let fullMergedList: any[] = [];
         if (env.CHANNELS_ARCHIVE) {
           try {
-            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+            const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
             if (rawMerged) {
               const parsed = JSON.parse(rawMerged);
               if (Array.isArray(parsed)) {
@@ -1771,7 +1793,7 @@ export default {
 
             // Write back to individual channel archive only if dead videos were removed
             if (deadRemoved > 0 && env.CHANNELS_ARCHIVE) {
-              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(filtered));
+              await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(filtered));
             }
 
             // Update channel in fullMergedList (capped at 300 videos)
@@ -1821,7 +1843,7 @@ export default {
         if (env.CHANNELS_ARCHIVE && totalDeadVideosRemoved > 0 && fullMergedList.length > 0) {
           try {
             await env.CHANNELS_ARCHIVE.put(
-              '_channels_latest_merged',
+              CHANNELS_LATEST_MERGED,
               JSON.stringify(fullMergedList)
             );
           } catch (e) {
@@ -1834,7 +1856,7 @@ export default {
         if (env.CHANNELS_ARCHIVE) {
           try {
             await env.CHANNELS_ARCHIVE.put(
-              '_cleanup_dead_videos_cursor',
+              CLEANUP_DEAD_VIDEOS_CURSOR,
               cursorAfter.toString()
             );
           } catch (e) {
@@ -1914,7 +1936,7 @@ export default {
         let cursor = 0;
         if (!reset && env.CHANNELS_ARCHIVE) {
           try {
-            const rawCursor = await env.CHANNELS_ARCHIVE.get('_scan_cleanup_cursor');
+            const rawCursor = await env.CHANNELS_ARCHIVE.get(SCAN_CLEANUP_CURSOR);
             if (rawCursor) {
               const parsed = parseInt(rawCursor, 10);
               if (!isNaN(parsed) && parsed >= 0) {
@@ -1940,7 +1962,7 @@ export default {
 
         if (reset && env.CHANNELS_ARCHIVE) {
           try {
-            await env.CHANNELS_ARCHIVE.delete(`_scan_cleanup_video_offset:${sourceId}`);
+            await env.CHANNELS_ARCHIVE.delete(scanCleanupOffsetKey(sourceId));
           } catch {}
         }
 
@@ -1948,7 +1970,7 @@ export default {
         let channelVideos: VideoItem[] = [];
         if (env.CHANNELS_ARCHIVE) {
           try {
-            const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+            const raw = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
             if (raw) {
               const parsed = JSON.parse(raw);
               if (Array.isArray(parsed)) {
@@ -1986,8 +2008,8 @@ export default {
             cursorAfter = (cursorBefore + 1) % totalChannels;
             if (env.CHANNELS_ARCHIVE) {
               try {
-                await env.CHANNELS_ARCHIVE.delete(`_scan_cleanup_video_offset:${sourceId}`);
-                await env.CHANNELS_ARCHIVE.put('_scan_cleanup_cursor', cursorAfter.toString());
+                await env.CHANNELS_ARCHIVE.delete(scanCleanupOffsetKey(sourceId));
+                await env.CHANNELS_ARCHIVE.put(SCAN_CLEANUP_CURSOR, cursorAfter.toString());
               } catch {}
             }
           } else {
@@ -2116,7 +2138,7 @@ export default {
 
           if (env.CHANNELS_ARCHIVE) {
             try {
-              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(remainingAfterDuration));
+              await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(remainingAfterDuration));
               await updateMergedListForChannel(env, seed, remainingAfterDuration);
             } catch (e) {
               console.error(`Failed to update archive/merged list after short-duration cleanup for ${sourceId}:`, e);
@@ -2126,7 +2148,7 @@ export default {
 
         // 3. Read per-channel resumable offset
         let offset = 0;
-        const offsetKey = `_scan_cleanup_video_offset:${sourceId}`;
+        const offsetKey = scanCleanupOffsetKey(sourceId);
         if (!reset && env.CHANNELS_ARCHIVE) {
           try {
             const rawOffset = await env.CHANNELS_ARCHIVE.get(offsetKey);
@@ -2172,7 +2194,7 @@ export default {
 
           if (env.CHANNELS_ARCHIVE) {
             try {
-              await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(remainingAfterDuration));
+              await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(remainingAfterDuration));
               await updateMergedListForChannel(env, seed, remainingAfterDuration);
             } catch (e) {
               console.error(`Failed to update archive/merged list after portrait cleanup for ${sourceId}:`, e);
@@ -2190,7 +2212,7 @@ export default {
           if (env.CHANNELS_ARCHIVE) {
             try {
               await env.CHANNELS_ARCHIVE.delete(offsetKey);
-              await env.CHANNELS_ARCHIVE.put('_scan_cleanup_cursor', cursorAfter.toString());
+              await env.CHANNELS_ARCHIVE.put(SCAN_CLEANUP_CURSOR, cursorAfter.toString());
             } catch (e) {
               console.error(`Failed to delete offset key or update cursor for ${sourceId}:`, e);
             }
@@ -2262,8 +2284,8 @@ export default {
       if (env.CHANNELS_ARCHIVE) {
         try {
           const raw =
-            (await env.CHANNELS_ARCHIVE.get('maintenance_cursor')) ||
-            (await env.CHANNELS_ARCHIVE.get('_backfill_all_cursor'));
+            (await env.CHANNELS_ARCHIVE.get(MAINTENANCE_CURSOR)) ||
+            (await env.CHANNELS_ARCHIVE.get(BACKFILL_ALL_CURSOR));
           if (raw) currentCursor = parseInt(raw, 10) || 0;
         } catch {}
       }
@@ -2271,7 +2293,7 @@ export default {
       let statusData: any = {};
       if (env.CHANNELS_ARCHIVE) {
         try {
-          const raw = await env.CHANNELS_ARCHIVE.get('maintenance_status');
+          const raw = await env.CHANNELS_ARCHIVE.get(MAINTENANCE_STATUS);
           if (raw) statusData = JSON.parse(raw);
         } catch {}
       }
@@ -2346,7 +2368,7 @@ export default {
       };
       if (env.CHANNELS_ARCHIVE) {
         try {
-          const cachedMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+          const cachedMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
           if (cachedMerged) {
             return new Response(cachedMerged, {
               status: 200,
@@ -2391,7 +2413,7 @@ export default {
       try {
         let existingVideos: VideoItem[] = [];
         if (env.CHANNELS_ARCHIVE) {
-          const raw = await env.CHANNELS_ARCHIVE.get(sourceId);
+          const raw = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) existingVideos = parsed;
@@ -2431,7 +2453,7 @@ export default {
         let pageToken: string | undefined = undefined;
         if (env.CHANNELS_ARCHIVE) {
           try {
-            const storedToken = await env.CHANNELS_ARCHIVE.get(`_channel_pagetoken:${sourceId}`);
+            const storedToken = await env.CHANNELS_ARCHIVE.get(channelPageTokenKey(sourceId));
             if (storedToken === 'DONE') {
               const sliced = existingVideos.slice(0, max);
               return new Response(
@@ -2495,7 +2517,7 @@ export default {
         if (env.CHANNELS_ARCHIVE && pageCount > 0) {
           const tokenToStore = lastNextPageToken || 'DONE';
           try {
-            await env.CHANNELS_ARCHIVE.put(`_channel_pagetoken:${sourceId}`, tokenToStore);
+            await env.CHANNELS_ARCHIVE.put(channelPageTokenKey(sourceId), tokenToStore);
           } catch (tokenErr) {
             console.error(`Failed to store pageToken for ${sourceId}:`, tokenErr);
           }
@@ -2511,7 +2533,7 @@ export default {
         if (env.CHANNELS_ARCHIVE) {
           const storedCap = mergedVideos.slice(0, 2000);
           try {
-            await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(storedCap));
+            await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(storedCap));
           } catch (putErr) {
             console.warn(`Failed to put deepened archive for ${sourceId}:`, putErr);
           }
@@ -2519,7 +2541,7 @@ export default {
           // Also update this channel's entry inside _channels_latest_merged
           try {
             let fullMergedList: any[] = [];
-            const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+            const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
             if (rawMerged) {
               const parsed = JSON.parse(rawMerged);
               if (Array.isArray(parsed)) {
@@ -2559,7 +2581,7 @@ export default {
             }
 
             await env.CHANNELS_ARCHIVE.put(
-              '_channels_latest_merged',
+              CHANNELS_LATEST_MERGED,
               JSON.stringify(fullMergedList)
             );
           } catch (mergedErr) {
@@ -2816,7 +2838,7 @@ export default {
           .filter(Boolean);
 
         const kvReads = await Promise.allSettled(
-          sourceIds.map((sourceId) => env.CHANNELS_ARCHIVE!.get(sourceId))
+          sourceIds.map((sourceId) => env.CHANNELS_ARCHIVE!.get(channelArchiveKey(sourceId)))
         );
 
         const matchedVideos: Array<{ videoId: string; title: string; publishedAt: string; sourceId: string }> = [];
@@ -3157,7 +3179,7 @@ export default {
       };
       if (env.CHANNELS_ARCHIVE) {
         try {
-          const raw = await env.CHANNELS_ARCHIVE.get('global_blocks');
+          const raw = await env.CHANNELS_ARCHIVE.get(GLOBAL_BLOCKS);
           if (raw) {
             blocks = { ...blocks, ...JSON.parse(raw) };
           }
@@ -3178,7 +3200,7 @@ export default {
       let list: any[] = [];
       if (env.CHANNELS_ARCHIVE) {
         try {
-          const raw = await env.CHANNELS_ARCHIVE.get('announcements');
+          const raw = await env.CHANNELS_ARCHIVE.get(ANNOUNCEMENTS);
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
@@ -3226,7 +3248,7 @@ export default {
       let rawList: any[] = [];
       if (env.CHANNELS_ARCHIVE) {
         try {
-          const raw = await env.CHANNELS_ARCHIVE.get('custom_categories');
+          const raw = await env.CHANNELS_ARCHIVE.get(CUSTOM_CATEGORIES);
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) {
@@ -3298,7 +3320,7 @@ export default {
         let currentList: any[] = [];
         if (env.CHANNELS_ARCHIVE) {
           try {
-            const raw = await env.CHANNELS_ARCHIVE.get('custom_categories');
+            const raw = await env.CHANNELS_ARCHIVE.get(CUSTOM_CATEGORIES);
             if (raw) {
               const parsed = JSON.parse(raw);
               if (Array.isArray(parsed) && parsed.length > 0) currentList = parsed;
@@ -3345,7 +3367,7 @@ export default {
           }
 
           if (env.CHANNELS_ARCHIVE) {
-            await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(currentList));
+            await env.CHANNELS_ARCHIVE.put(CUSTOM_CATEGORIES, JSON.stringify(currentList));
           }
 
           return new Response(JSON.stringify({ ok: true, category: normalizedCat }), {
@@ -3367,7 +3389,7 @@ export default {
           currentList = currentList.filter((c: any) => String(c.id || c.categoryId) !== targetId);
 
           if (env.CHANNELS_ARCHIVE) {
-            await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(currentList));
+            await env.CHANNELS_ARCHIVE.put(CUSTOM_CATEGORIES, JSON.stringify(currentList));
           }
 
           return new Response(JSON.stringify({ ok: true, deletedId: targetId }), {
@@ -3393,7 +3415,7 @@ export default {
           }
 
           if (env.CHANNELS_ARCHIVE) {
-            await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(currentList));
+            await env.CHANNELS_ARCHIVE.put(CUSTOM_CATEGORIES, JSON.stringify(currentList));
           }
 
           return new Response(JSON.stringify({ ok: true, categories: currentList }), {
@@ -3420,7 +3442,7 @@ export default {
         const normalizedFull = listToSave.map((c: any, idx: number) => normalizeCategory(c, idx + 1));
 
         if (env.CHANNELS_ARCHIVE) {
-          await env.CHANNELS_ARCHIVE.put('custom_categories', JSON.stringify(normalizedFull));
+          await env.CHANNELS_ARCHIVE.put(CUSTOM_CATEGORIES, JSON.stringify(normalizedFull));
         }
 
         return new Response(JSON.stringify({ ok: true, count: normalizedFull.length, categories: normalizedFull }), {
@@ -3467,7 +3489,7 @@ export default {
         updatedAt: Date.now(),
       };
       try {
-        const raw = await env.CHANNELS_ARCHIVE.get('global_blocks');
+        const raw = await env.CHANNELS_ARCHIVE.get(GLOBAL_BLOCKS);
         if (raw) {
           blocks = { ...blocks, ...JSON.parse(raw) };
         }
@@ -3499,7 +3521,7 @@ export default {
       }
 
       blocks.updatedAt = Date.now();
-      await env.CHANNELS_ARCHIVE.put('global_blocks', JSON.stringify(blocks));
+      await env.CHANNELS_ARCHIVE.put(GLOBAL_BLOCKS, JSON.stringify(blocks));
 
       return new Response(
         JSON.stringify({
@@ -3539,7 +3561,7 @@ export default {
 
       let fullMergedList: any[] = [];
       try {
-        const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+        const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
         if (rawMerged) {
           fullMergedList = JSON.parse(rawMerged);
         }
@@ -3576,7 +3598,7 @@ export default {
         }
       }
 
-      await env.CHANNELS_ARCHIVE.put('_channels_latest_merged', JSON.stringify(fullMergedList));
+      await env.CHANNELS_ARCHIVE.put(CHANNELS_LATEST_MERGED, JSON.stringify(fullMergedList));
 
       return new Response(
         JSON.stringify({
@@ -3629,7 +3651,7 @@ export default {
       }
 
       try {
-        const rawChannel = await env.CHANNELS_ARCHIVE.get(sourceId);
+        const rawChannel = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
         if (!rawChannel) {
           return new Response(
             JSON.stringify({
@@ -3666,11 +3688,11 @@ export default {
         }
 
         // Write the filtered array back to the individual channel archive
-        await env.CHANNELS_ARCHIVE.put(sourceId, JSON.stringify(filteredVideos));
+        await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(filteredVideos));
 
         // Also remove the same videoId from this channel's entry inside _channels_latest_merged if present there
         try {
-          const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+          const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
           if (rawMerged) {
             const mergedList = JSON.parse(rawMerged);
             if (Array.isArray(mergedList)) {
@@ -3687,7 +3709,7 @@ export default {
               }
               if (mergedModified) {
                 await env.CHANNELS_ARCHIVE.put(
-                  '_channels_latest_merged',
+                  CHANNELS_LATEST_MERGED,
                   JSON.stringify(mergedList)
                 );
               }
@@ -3738,7 +3760,7 @@ export default {
 
       let existingList: any[] = [];
       try {
-        const raw = await env.CHANNELS_ARCHIVE.get('announcements');
+        const raw = await env.CHANNELS_ARCHIVE.get(ANNOUNCEMENTS);
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) existingList = parsed;
@@ -3772,7 +3794,7 @@ export default {
 
       // Cap at 10 items max
       existingList = existingList.slice(0, 10);
-      await env.CHANNELS_ARCHIVE.put('announcements', JSON.stringify(existingList));
+      await env.CHANNELS_ARCHIVE.put(ANNOUNCEMENTS, JSON.stringify(existingList));
 
       return new Response(
         JSON.stringify({
@@ -3800,7 +3822,7 @@ export default {
 
       if (env.CHANNELS_ARCHIVE) {
         try {
-          const rawMerged = await env.CHANNELS_ARCHIVE.get('_channels_latest_merged');
+          const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
           if (rawMerged) {
             const list = JSON.parse(rawMerged);
             if (Array.isArray(list)) channelsCount = list.length;
@@ -3808,12 +3830,12 @@ export default {
         } catch {}
 
         try {
-          const rawCursor = await env.CHANNELS_ARCHIVE.get('_rss_refresh_cursor');
+          const rawCursor = await env.CHANNELS_ARCHIVE.get(RSS_REFRESH_CURSOR);
           if (rawCursor) cursor = parseInt(rawCursor, 10) || 0;
         } catch {}
 
         try {
-          const rawBlocks = await env.CHANNELS_ARCHIVE.get('global_blocks');
+          const rawBlocks = await env.CHANNELS_ARCHIVE.get(GLOBAL_BLOCKS);
           if (rawBlocks) {
             const b = JSON.parse(rawBlocks);
             globalBlocksCount.channels = Array.isArray(b.channelIds) ? b.channelIds.length : 0;
@@ -3822,7 +3844,7 @@ export default {
         } catch {}
 
         try {
-          const rawAnn = await env.CHANNELS_ARCHIVE.get('announcements');
+          const rawAnn = await env.CHANNELS_ARCHIVE.get(ANNOUNCEMENTS);
           if (rawAnn) {
             const a = JSON.parse(rawAnn);
             if (Array.isArray(a)) {
@@ -4012,7 +4034,7 @@ export default {
 
       let indexDates: string[] = [];
       try {
-        const rawIndex = await env.CHANNELS_ARCHIVE.get('telemetry_index');
+        const rawIndex = await env.CHANNELS_ARCHIVE.get(TELEMETRY_INDEX);
         if (rawIndex) {
           indexDates = JSON.parse(rawIndex);
         }
@@ -4036,8 +4058,8 @@ export default {
         targetDates.map(async (d) => {
           try {
             const [dailyRaw, uniquesRaw] = await Promise.all([
-              env.CHANNELS_ARCHIVE!.get(`telemetry_daily:${d}`),
-              env.CHANNELS_ARCHIVE!.get(`telemetry_uniques:${d}`),
+              env.CHANNELS_ARCHIVE!.get(telemetryDailyKey(d)),
+              env.CHANNELS_ARCHIVE!.get(telemetryUniquesKey(d)),
             ]);
 
             if (dailyRaw) {
@@ -4136,9 +4158,9 @@ export default {
     } else if (env.CHANNELS_ARCHIVE) {
       // Fallback branching for single cron trigger or manual testing: alternate tasks
       try {
-        const lastTask = await env.CHANNELS_ARCHIVE.get('_last_cron_task');
+        const lastTask = await env.CHANNELS_ARCHIVE.get(LAST_CRON_TASK);
         taskToRun = lastTask === 'refresh' ? 'maintenance' : 'refresh';
-        await env.CHANNELS_ARCHIVE.put('_last_cron_task', taskToRun);
+        await env.CHANNELS_ARCHIVE.put(LAST_CRON_TASK, taskToRun);
       } catch {
         taskToRun = 'maintenance';
       }
