@@ -10,6 +10,7 @@ import {
   GLOBAL_BLOCKS,
   TELEMETRY_INDEX,
   channelArchiveKey,
+  channelPageTokenKey,
   telemetryDailyKey,
   telemetryUniquesKey,
   telemetryFunnelDailyKey,
@@ -25,6 +26,22 @@ import {
   TelemetryFunnelDaily,
   FunnelEvent,
 } from './types';
+
+/**
+ * Subrequest Budget Configuration
+ * Cloudflare Worker free tier allows max 50 subrequests per invocation.
+ *
+ * Subrequest budget math:
+ *   Subrequests ≈ (MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION * MAX_CHANNELS_PER_BACKFILL_BATCH)
+ *                + KV read/write subrequests + merged update subrequests
+ *   Max subrequests per backfill run with 4 pages & 1 channel:
+ *     - YouTube API playlistItems fetches: 4
+ *     - KV reads/writes (cursor, archive, pageToken, status): ~5
+ *     - Total subrequests: ~9-10 (Target ≤ 40, well under 50 limit).
+ */
+export const MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION = 4;
+export const MAX_CHANNELS_PER_BACKFILL_BATCH = 1;
+export const YOUTUBE_PAGE_SIZE = 50;
 
 /**
  * Helper to update a single channel's entry in _channels_latest_merged
@@ -422,7 +439,7 @@ export async function runBackfillAllBatch(
   env: Env,
   apiKey: string,
   resetCursor = false,
-  customBatchSize = 2
+  customBatchSize = 1
 ): Promise<BackfillBatchResult> {
   if (!env.CHANNELS_ARCHIVE) {
     throw new Error('CHANNELS_ARCHIVE KV is not bound');
@@ -441,7 +458,7 @@ export async function runBackfillAllBatch(
     };
   }
 
-  const batchSize = Math.max(1, Math.min(customBatchSize, 5));
+  const batchSize = Math.max(1, Math.min(customBatchSize, MAX_CHANNELS_PER_BACKFILL_BATCH));
 
   const runnerResult = await runKvCursorBatch<
     any,
@@ -464,27 +481,70 @@ export async function runBackfillAllBatch(
         | { sourceId: string; title: string; error: 'other'; message: string }
       )[] = [];
 
+      let allChannelsComplete = true;
+
       for (const channel of targetChannels) {
         const sourceId = channel.sourceId;
         const title = channel.name || sourceId;
 
+        // Clear stored pageToken if reset is explicitly requested
+        if (resetCursor && env.CHANNELS_ARCHIVE) {
+          try {
+            await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+          } catch {}
+        }
+
+        // Resume from stored pageToken if available
+        let pageToken: string | undefined = undefined;
+        if (!resetCursor && env.CHANNELS_ARCHIVE) {
+          try {
+            const savedToken = await env.CHANNELS_ARCHIVE.get(channelPageTokenKey(sourceId));
+            if (savedToken && savedToken.trim()) {
+              pageToken = savedToken.trim();
+            }
+          } catch {}
+        }
+
         try {
           const uploadsPlaylistId = sourceId.startsWith('UC') ? 'UU' + sourceId.slice(2) : sourceId;
           const allFetchedVideos: VideoItem[] = [];
-          let pageToken: string | undefined = undefined;
           let pageCount = 0;
-          const maxPages = 40; // up to 2000 videos
           let hitRateLimit = false;
+          let isSubrequestError = false;
+          let nextPageToken: string | undefined = undefined;
 
-          while (pageCount < maxPages) {
+          while (pageCount < MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION) {
             const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
             apiUrl.searchParams.set('part', 'snippet');
             apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
-            apiUrl.searchParams.set('maxResults', '50');
+            apiUrl.searchParams.set('maxResults', YOUTUBE_PAGE_SIZE.toString());
             if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
             apiUrl.searchParams.set('key', apiKey);
 
-            const res = await fetch(apiUrl.toString());
+            let res: Response;
+            try {
+              res = await fetch(apiUrl.toString());
+            } catch (fetchErr) {
+              const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+              if (errMsg.includes('Too many subrequests') || errMsg.includes('subrequest')) {
+                isSubrequestError = true;
+                failedChannels.push({
+                  sourceId,
+                  title,
+                  error: 'other',
+                  message: `Subrequest limit reached: ${errMsg}`,
+                });
+              } else {
+                failedChannels.push({
+                  sourceId,
+                  title,
+                  error: 'other',
+                  message: `Fetch error: ${errMsg}`,
+                });
+              }
+              break;
+            }
+
             if (!res.ok) {
               if (res.status === 403 || res.status === 429) {
                 hitRateLimit = true;
@@ -497,6 +557,9 @@ export async function runBackfillAllBatch(
                 break;
               }
               const errText = await res.text();
+              if (errText.includes('Too many subrequests') || errText.includes('subrequest')) {
+                isSubrequestError = true;
+              }
               failedChannels.push({
                 sourceId,
                 title,
@@ -521,12 +584,14 @@ export async function runBackfillAllBatch(
               }
             }
 
-            pageToken = data.nextPageToken;
+            nextPageToken = data.nextPageToken;
             pageCount++;
-            if (!pageToken || items.length === 0) break;
+            pageToken = nextPageToken;
+            if (!nextPageToken || items.length === 0) break;
           }
 
           if (hitRateLimit) {
+            // Move cursor past rate-limited channel to prevent infinite lock loop
             break;
           }
 
@@ -546,12 +611,24 @@ export async function runBackfillAllBatch(
                 message: storeRes.error || 'Failed to store in KV',
               });
             }
-          } else {
+          } else if (!hitRateLimit && !isSubrequestError) {
             processedChannels.push({
               sourceId,
               title,
               videoCount: 0,
             });
+          }
+
+          // Handle pageToken persistence and cursor advancement
+          if (nextPageToken && env.CHANNELS_ARCHIVE) {
+            // More pages remain for this channel: save pageToken and keep cursor here for next invocation
+            await env.CHANNELS_ARCHIVE.put(channelPageTokenKey(sourceId), nextPageToken);
+            allChannelsComplete = false;
+          } else if (env.CHANNELS_ARCHIVE) {
+            // Channel is complete for deep backfill: clear pageToken
+            try {
+              await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+            } catch {}
           }
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err);
@@ -567,6 +644,7 @@ export async function runBackfillAllBatch(
       return {
         processed: processedChannels,
         failed: failedChannels,
+        advanceCountOverride: allChannelsComplete ? batchSize : 0,
       };
     },
   });

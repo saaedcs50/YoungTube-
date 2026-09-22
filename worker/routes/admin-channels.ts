@@ -1,7 +1,12 @@
 import channelsSeed from '../../channels_seed.json';
 import { corsHeaders, checkAdminAuth, resolveYouTubeApiKey } from '../lib/cors';
-import { mergeAndStoreKVArchive, refreshChannelsBatch } from '../lib/helpers';
-import { CHANNELS_LATEST_MERGED, channelArchiveKey } from '../lib/kv-keys';
+import {
+  mergeAndStoreKVArchive,
+  refreshChannelsBatch,
+  MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION,
+  YOUTUBE_PAGE_SIZE,
+} from '../lib/helpers';
+import { CHANNELS_LATEST_MERGED, channelArchiveKey, channelPageTokenKey } from '../lib/kv-keys';
 import { Env, VideoItem } from '../lib/types';
 
 export async function handleAdminChannelsRoutes(
@@ -45,17 +50,32 @@ export async function handleAdminChannelsRoutes(
     }
 
     try {
+      const reset = body && body.reset === true;
+      let pageToken: string | undefined = undefined;
+
+      if (reset && env.CHANNELS_ARCHIVE) {
+        try {
+          await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+        } catch {}
+      } else if (env.CHANNELS_ARCHIVE) {
+        try {
+          const savedToken = await env.CHANNELS_ARCHIVE.get(channelPageTokenKey(sourceId));
+          if (savedToken && savedToken.trim()) {
+            pageToken = savedToken.trim();
+          }
+        } catch {}
+      }
+
       const uploadsPlaylistId = sourceId.startsWith('UC') ? 'UU' + sourceId.slice(2) : sourceId;
       const allFetchedVideos: VideoItem[] = [];
-      let pageToken: string | undefined = undefined;
       let pageCount = 0;
-      const maxPages = 40; // up to 2000 videos
+      let nextPageToken: string | undefined = undefined;
 
-      while (pageCount < maxPages) {
+      while (pageCount < MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION) {
         const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
         apiUrl.searchParams.set('part', 'snippet');
         apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
-        apiUrl.searchParams.set('maxResults', '50');
+        apiUrl.searchParams.set('maxResults', YOUTUBE_PAGE_SIZE.toString());
         if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
         apiUrl.searchParams.set('key', apiKey);
 
@@ -89,9 +109,18 @@ export async function handleAdminChannelsRoutes(
           }
         }
 
-        pageToken = data.nextPageToken;
+        nextPageToken = data.nextPageToken;
         pageCount++;
-        if (!pageToken || items.length === 0) break;
+        pageToken = nextPageToken;
+        if (!nextPageToken || items.length === 0) break;
+      }
+
+      if (nextPageToken && env.CHANNELS_ARCHIVE) {
+        await env.CHANNELS_ARCHIVE.put(channelPageTokenKey(sourceId), nextPageToken);
+      } else if (env.CHANNELS_ARCHIVE) {
+        try {
+          await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+        } catch {}
       }
 
       const storeRes = await mergeAndStoreKVArchive(env, sourceId, allFetchedVideos);
@@ -107,6 +136,7 @@ export async function handleAdminChannelsRoutes(
           sourceId,
           addedVideosCount: allFetchedVideos.length,
           totalVideosInArchive: storeRes.newCount,
+          hasMore: !!nextPageToken,
         }),
         { status: 200, headers: corsHeaders }
       );
