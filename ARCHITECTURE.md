@@ -31,7 +31,7 @@
 - [ ] 1 worker/lib/kv-keys.ts
 - [ ] 2 worker/routes/
 - [ ] 3 batch-runner
-- [ ] 4 channelRegistry
-- [ ] 5 categoryRegistry
+- [x] 4 channelRegistry
+- [x] 5 categoryRegistry
 - [ ] 6 admin useBatchTool
 - [ ] 7 تفكيك الشاشات الكبيرة

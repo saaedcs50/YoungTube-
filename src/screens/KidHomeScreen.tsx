@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef, Suspense } from 'react';
-import db, { FeedItem, Channel } from '../db';
-import channelsSeed from '../../channels_seed.json';
+import db, { FeedItem } from '../db';
+import { listRegistryChannels, RegistryChannel } from '../data/channelRegistry';
 import { WORKER_URL } from '../config';
 import { useAllCategories } from '../hooks/useAllCategories';
-import { matchCategory } from '../categories';
+import { matchCategory } from '../data/categoryRegistry';
 import { ensureChannelsArchiveSynced, scheduleBackgroundPortraitCheck, migrateUnhidePortraitVideos } from '../filtering';
 import { loadCachedBlocks, fetchGlobalBlocks } from '../services/globalBlocks';
 import { WeeklyChoiceCard } from '../components/WeeklyChoiceCard';
@@ -309,10 +309,7 @@ export default function KidHomeScreen({
   const columnCount = useColumnCount();
   const { kidCategories } = useAllCategories();
   const [videos, setVideos] = useState<FeedItem[]>([]);
-  const [dbChannelsList, setDbChannelsList] = useState<Channel[]>([]);
-  const [remoteChannelsList, setRemoteChannelsList] = useState<
-    Array<{ sourceId: string; sourceType?: string; title?: string; categories: string[]; thumbnail?: string }>
-  >([]);
+  const [registryChannelsList, setRegistryChannelsList] = useState<RegistryChannel[]>([]);
   const [childName, setChildName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -368,49 +365,24 @@ export default function KidHomeScreen({
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // 1. Build channel metadata lookup map combining channels_seed.json and custom db.channels
+  // 1. Build channel metadata lookup map from channel registry
   const channelMap = useMemo(() => {
     const map = new Map<
       string,
       { title: string; categories: string[]; thumbnail?: string; enabled?: boolean }
     >();
-    for (const ch of channelsSeed as any[]) {
+    for (const ch of registryChannelsList) {
       if (ch.sourceId) {
-        const cats: string[] = ch.categories || ch.category || [];
         map.set(ch.sourceId, {
-          title: ch.title || ch.originalName || 'قناة أطفال موثوقة',
-          categories: Array.isArray(cats) ? cats : [cats],
+          title: ch.title || 'قناة أطفال موثوقة',
+          categories: Array.isArray(ch.category) ? ch.category : [],
           thumbnail: ch.thumbnail,
-          enabled: true,
-        });
-      }
-    }
-    for (const ch of dbChannelsList) {
-      if (ch.sourceId) {
-        const existing = map.get(ch.sourceId);
-        map.set(ch.sourceId, {
-          title: ch.title || existing?.title || 'قناة أطفال موثوقة',
-          categories:
-            Array.isArray(ch.category) && ch.category.length > 0
-              ? ch.category
-              : existing?.categories || [],
-          thumbnail: ch.thumbnail || existing?.thumbnail,
           enabled: ch.enabled,
         });
       }
     }
-    for (const remote of remoteChannelsList) {
-      if (remote.sourceId && !map.has(remote.sourceId)) {
-        map.set(remote.sourceId, {
-          title: remote.title || 'قناة أطفال',
-          categories: remote.categories || [],
-          thumbnail: remote.thumbnail,
-          enabled: true,
-        });
-      }
-    }
     return map;
-  }, [dbChannelsList, remoteChannelsList]);
+  }, [registryChannelsList]);
 
   // 2. Load safe videos using indexed, bounded query on enabled channels
   const loadVideos = useCallback(async (silent = false) => {
@@ -418,8 +390,8 @@ export default function KidHomeScreen({
     try {
       await migrateUnhidePortraitVideos().catch(() => {});
 
-      const [storedChannels, settings] = await Promise.all([
-        db.channels.toArray(),
+      const [registryChannels, settings] = await Promise.all([
+        listRegistryChannels(),
         db.settings.get('main'),
       ]);
 
@@ -429,25 +401,14 @@ export default function KidHomeScreen({
         setChildName('');
       }
 
-      setDbChannelsList(storedChannels);
-      const remoteList = settings?.remoteChannelsCache || [];
-      setRemoteChannelsList(remoteList);
+      setRegistryChannelsList(registryChannels);
 
       const cachedBlocks = loadCachedBlocks();
       const blockedChannelSet = new Set(cachedBlocks.channelIds);
 
-      // Map of disabled vs enabled channel IDs
-      const disabledChannelIds = new Set(
-        storedChannels.filter((c) => c.enabled === false).map((c) => c.sourceId)
-      );
-
-      const enabledChannelIds = Array.from(
-        new Set([
-          ...storedChannels.filter((c) => c.enabled !== false).map((c) => c.sourceId),
-          ...(channelsSeed as any[]).map((c) => c.sourceId),
-          ...remoteList.map((c) => c.sourceId),
-        ])
-      ).filter((id) => !disabledChannelIds.has(id) && !blockedChannelSet.has(id));
+      const enabledChannelIds = registryChannels
+        .filter((c) => c.enabled !== false && c.autoDisabled !== true && !blockedChannelSet.has(c.sourceId))
+        .map((c) => c.sourceId);
 
       const hideMusicVideos = settings?.hideMusicVideos === true;
 
@@ -519,13 +480,7 @@ export default function KidHomeScreen({
             const share = resolveEffectiveShare(tasteShift, activeCategory);
 
             const channelCatLookup = new Map<string, string[]>();
-            for (const ch of channelsSeed as any[]) {
-              if (ch.sourceId) {
-                const cats: string[] = ch.categories || ch.category || [];
-                channelCatLookup.set(ch.sourceId, Array.isArray(cats) ? cats : [cats]);
-              }
-            }
-            for (const ch of storedChannels) {
+            for (const ch of registryChannels) {
               if (ch.sourceId) {
                 const cats = ch.category;
                 if (Array.isArray(cats) && cats.length > 0) {

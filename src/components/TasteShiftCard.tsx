@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import db from '../db';
 import { useAllCategories } from '../hooks/useAllCategories';
-import channelsSeed from '../../channels_seed.json';
+import { listRegistryChannels } from '../data/channelRegistry';
 import { TrendingUp, Check, ThumbsUp, ThumbsDown, Sparkles, Sliders } from 'lucide-react';
 
 interface TasteShiftCardProps {
@@ -127,16 +127,10 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
 
         // Pre-build channel categories lookup map
         const channelCatMap = new Map<string, string[]>();
-        for (const seed of channelsSeed as Array<{ sourceId: string; categories?: string[] }>) {
-          if (seed.sourceId && seed.categories) {
-            channelCatMap.set(seed.sourceId, seed.categories);
-          }
-        }
-
-        const dbChannels = await db.channels.toArray();
-        for (const c of dbChannels) {
-          if (c.sourceId && c.category) {
-            channelCatMap.set(c.sourceId, c.category);
+        const registryChannels = await listRegistryChannels();
+        for (const ch of registryChannels) {
+          if (ch.sourceId && ch.category) {
+            channelCatMap.set(ch.sourceId, ch.category);
           }
         }
 

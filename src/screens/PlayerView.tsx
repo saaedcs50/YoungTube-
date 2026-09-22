@@ -23,7 +23,7 @@ import { LandscapeShell } from './LandscapeShell';
 import { PlayerSeekBar } from '../components/PlayerSeekBar';
 import { PlayerSettingsSheet } from '../components/PlayerSettingsSheet';
 import PinLockModal from '../components/PinLockModal';
-import channelsSeed from '../../channels_seed.json';
+import { getChannelBySourceId, listRegistryChannels } from '../data/channelRegistry';
 import { recordChildReaction, logTasteEvent, applyLoggedTasteEvent } from '../tasteShiftStorage';
 import db from '../db';
 import { trackFunnelEvent } from '../services/funnelTelemetry';
@@ -195,33 +195,17 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   const getCategoryForVideo = useCallback(
     async (vidId: string, chId?: string): Promise<string> => {
       if (chId) {
-        const seedMatch = (channelsSeed as any[]).find((c) => c.sourceId === chId);
-        if (seedMatch?.categories && seedMatch.categories.length > 0) {
-          return seedMatch.categories[0];
+        const channel = await getChannelBySourceId(chId);
+        if (channel?.category && channel.category.length > 0) {
+          return channel.category[0];
         }
-        const seedCatMatch = (channelsSeed as any[]).find(
-          (c) => c.title === chId || c.originalName === chId
-        );
-        if (seedCatMatch?.categories && seedCatMatch.categories.length > 0) {
-          return seedCatMatch.categories[0];
-        }
-        try {
-          const dbChan = await db.channels.where('sourceId').equals(chId).first();
-          if (dbChan?.category && dbChan.category.length > 0) {
-            return dbChan.category[0];
-          }
-        } catch {}
       }
       try {
         const feedRow = await db.feedCache.get(vidId);
         if (feedRow?.channelId) {
-          const seedMatch = (channelsSeed as any[]).find((c) => c.sourceId === feedRow.channelId);
-          if (seedMatch?.categories && seedMatch.categories.length > 0) {
-            return seedMatch.categories[0];
-          }
-          const dbChan = await db.channels.where('sourceId').equals(feedRow.channelId).first();
-          if (dbChan?.category && dbChan.category.length > 0) {
-            return dbChan.category[0];
+          const channel = await getChannelBySourceId(feedRow.channelId);
+          if (channel?.category && channel.category.length > 0) {
+            return channel.category[0];
           }
         }
       } catch {}
@@ -499,10 +483,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         if (chTitle) {
           const ch = await db.channels.where('title').equals(chTitle).first();
           if (ch?.sourceId) return ch.sourceId;
-          const seedMatch = (channelsSeed as any[]).find(
-            (c) => c.title === chTitle || c.originalName === chTitle
+          const regCh = (await listRegistryChannels()).find(
+            (c) => c.title === chTitle
           );
-          if (seedMatch?.sourceId) return seedMatch.sourceId;
+          if (regCh?.sourceId) return regCh.sourceId;
         }
       } catch (err) {
         console.warn('resolveChannelId error:', err);
@@ -1028,13 +1012,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       if (existing && existing.id) {
         await db.channels.update(existing.id, { enabled: false });
       } else {
-        const seedMatch = (channelsSeed as any[]).find((c) => c.sourceId === targetChannelId);
+        const regMatch = await getChannelBySourceId(targetChannelId);
         await db.channels.add({
           sourceType: 'channel',
           sourceId: targetChannelId,
-          title: seedMatch?.title || currentVideo.channelTitle || 'قناة محجوبة',
-          thumbnail: seedMatch?.thumbnail,
-          category: seedMatch?.category || seedMatch?.categories || [],
+          title: regMatch?.title || currentVideo.channelTitle || 'قناة محجوبة',
+          thumbnail: regMatch?.thumbnail,
+          category: regMatch?.category || [],
           isPreloaded: true,
           enabled: false,
         });

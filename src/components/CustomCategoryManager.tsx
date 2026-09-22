@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import db from '../db';
-import { KID_CATEGORIES } from '../categories';
+import { KID_CATEGORIES } from '../data/categoryRegistry';
 import { useAllCategories, generateUniqueCategoryId } from '../hooks/useAllCategories';
 import { Plus, Trash2, FolderPlus, Sparkles, Tag } from 'lucide-react';
 

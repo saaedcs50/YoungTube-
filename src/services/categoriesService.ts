@@ -1,5 +1,5 @@
 import { WORKER_URL } from '../config';
-import { KidCategory, DEFAULT_KID_CATEGORIES } from '../categories';
+import { KidCategory, DEFAULT_KID_CATEGORIES } from '../data/categoryRegistry';
 
 const CATEGORIES_CACHE_KEY = 'yt_categories_cache';
 const CATEGORIES_CACHE_TIMESTAMP_KEY = 'yt_categories_cache_ts';

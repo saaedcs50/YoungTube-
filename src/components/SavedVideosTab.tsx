@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import db, { Interaction } from '../db';
-import channelsSeed from '../../channels_seed.json';
+import { listRegistryChannels } from '../data/channelRegistry';
 import { Bookmark, Play, Trash2, Film } from 'lucide-react';
 import { getThumbnailCandidateUrls } from './VideoCard';
 
@@ -103,8 +103,8 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
 
       // 2. Build channel name resolver map
       const videoIds = interactions.map((i) => i.videoId).filter(Boolean);
-      const [customChannels, cachedFeed] = await Promise.all([
-        db.channels.toArray(),
+      const [registryChannels, cachedFeed] = await Promise.all([
+        listRegistryChannels(),
         videoIds.length > 0
           ? db.feedCache.where('videoId').anyOf(videoIds).toArray()
           : Promise.resolve([]),
@@ -113,12 +113,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
       const feedMap = new Map((cachedFeed || []).map((f) => [f.videoId, f]));
       const channelTitleMap = new Map<string, string>();
 
-      for (const ch of channelsSeed as any[]) {
-        if (ch.sourceId) {
-          channelTitleMap.set(ch.sourceId, ch.title || ch.originalName || 'قناة أطفال');
-        }
-      }
-      for (const ch of customChannels) {
+      for (const ch of registryChannels) {
         if (ch.sourceId) {
           channelTitleMap.set(ch.sourceId, ch.title || 'قناة أطفال');
         }

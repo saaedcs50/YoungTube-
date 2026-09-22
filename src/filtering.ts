@@ -1,6 +1,6 @@
 import db, { FeedItem } from './db';
 import { WORKER_URL } from './config';
-import { OPT_IN_CATEGORY_IDS } from './categories';
+import { OPT_IN_CATEGORY_IDS } from './data/categoryRegistry';
 import {
   fetchGlobalBlocks,
   isChannelBlocked,

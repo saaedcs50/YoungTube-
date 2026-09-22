@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import db, { Channel } from '../db';
-import { KidCategory, matchCategory } from '../categories';
+import { KidCategory, matchCategory } from '../data/categoryRegistry';
 import { useAllCategories } from '../hooks/useAllCategories';
 import { syncSingleChannelRss } from '../filtering';
 import { WORKER_URL } from '../config';
 import { YoutubeSearchBar } from './YoutubeSearchBar';
 import { CustomCategoryManager } from './CustomCategoryManager';
-import channelsSeed from '../../channels_seed.json';
+import { listRegistryChannels } from '../data/channelRegistry';
 import {
   FolderKanban,
   ChevronDown,
@@ -86,89 +86,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
 
   const loadChannels = useCallback(async () => {
     try {
-      const dbList = await db.channels.toArray();
-      const dbMap = new Map<string, Channel>();
-      for (const ch of dbList) {
-        if (ch.sourceId) {
-          dbMap.set(ch.sourceId, ch);
-        }
-      }
-
-      const merged: Channel[] = [];
-      const processedSourceIds = new Set<string>();
-
-      // 1. Process all seed channels from channels_seed.json
-      for (const seed of channelsSeed as any[]) {
-        if (!seed.sourceId) continue;
-        processedSourceIds.add(seed.sourceId);
-
-        const dbOverride = dbMap.get(seed.sourceId);
-        const cats: string[] = seed.categories || seed.category || [];
-        const normalizedCats = Array.isArray(cats) ? cats : [cats];
-
-        if (dbOverride) {
-          merged.push({
-            ...dbOverride,
-            title: dbOverride.title || seed.title || seed.originalName || 'قناة أطفال',
-            category:
-              Array.isArray(dbOverride.category) && dbOverride.category.length > 0
-                ? dbOverride.category
-                : normalizedCats,
-            thumbnail: dbOverride.thumbnail || seed.thumbnail,
-            isPreloaded: true,
-          });
-        } else {
-          merged.push({
-            sourceType: (seed.sourceType as 'channel' | 'playlist') || 'channel',
-            sourceId: seed.sourceId,
-            title: seed.title || seed.originalName || 'قناة أطفال',
-            thumbnail: seed.thumbnail,
-            category: normalizedCats,
-            isPreloaded: true,
-            enabled: true,
-          });
-        }
-      }
-
-      // 2. Add custom parent-added channels that are in db.channels but not in channels_seed.json
-      for (const ch of dbList) {
-        if (ch.sourceId && !processedSourceIds.has(ch.sourceId)) {
-          merged.push(ch);
-        }
-      }
-
-      // 3. Add channels present in the Worker's live list (added via the admin dashboard) but not in channels_seed.json or db.channels
-      const settings = await db.settings.get('main');
-      const remoteChannels = settings?.remoteChannelsCache || [];
-      for (const remote of remoteChannels) {
-        if (remote.sourceId && !processedSourceIds.has(remote.sourceId)) {
-          processedSourceIds.add(remote.sourceId);
-          const dbOverride = dbMap.get(remote.sourceId);
-          if (dbOverride) {
-            merged.push({
-              ...dbOverride,
-              title: dbOverride.title || remote.title || 'قناة أطفال',
-              category:
-                Array.isArray(dbOverride.category) && dbOverride.category.length > 0
-                  ? dbOverride.category
-                  : remote.categories,
-              thumbnail: dbOverride.thumbnail || remote.thumbnail,
-              isPreloaded: true,
-            });
-          } else {
-            merged.push({
-              sourceType: (remote.sourceType as 'channel' | 'playlist') || 'channel',
-              sourceId: remote.sourceId,
-              title: remote.title || 'قناة أطفال',
-              thumbnail: remote.thumbnail,
-              category: remote.categories,
-              isPreloaded: true,
-              enabled: true,
-            });
-          }
-        }
-      }
-
+      const merged = await listRegistryChannels();
       setChannels(merged);
     } catch (err) {
       console.error('Failed to load channels in ChannelCurationByCategory:', err);

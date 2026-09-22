@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import db, { Channel, FeedItem } from '../db';
-import { OPT_IN_CATEGORY_IDS, DEFAULT_KID_CATEGORIES } from '../categories';
+import { OPT_IN_CATEGORY_IDS, DEFAULT_KID_CATEGORIES } from '../data/categoryRegistry';
 import {
   ShieldAlert,
   Tv,

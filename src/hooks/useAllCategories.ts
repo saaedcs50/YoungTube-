@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { liveQuery } from 'dexie';
 import db from '../db';
-import { KidCategory, DEFAULT_KID_CATEGORIES, OPT_IN_CATEGORY_IDS } from '../categories';
+import {
+  KidCategory,
+  listCategoriesForKidUi,
+} from '../data/categoryRegistry';
 import { getCachedCategories, fetchCategories } from '../services/categoriesService';
 
 /** Helper to generate a unique categoryId slug from a user label */
@@ -85,21 +88,11 @@ export function useAllCategories() {
     };
   }, []);
 
-  // Ensure "all" is the first category in kidCategories and never filtered out
-  const allCategory = baseCategories.find((c) => c.id === 'all') || DEFAULT_KID_CATEGORIES[0];
-  const otherBase = baseCategories.filter((c) => c.id !== 'all');
-
-  // Filter out any category requiring parent opt-in unless explicitly enabled
-  const isCategoryAllowed = (catId: string) => {
-    if (!OPT_IN_CATEGORY_IDS.includes(catId)) return true;
-    return enabledOptInCats.includes(catId);
-  };
-
-  const filteredOtherBase = otherBase.filter((c) => isCategoryAllowed(c.id));
-  const filteredCustomCats = customCats.filter((c) => isCategoryAllowed(c.id));
-
-  const curationCategories: KidCategory[] = [...filteredOtherBase, ...filteredCustomCats];
-  const kidCategories: KidCategory[] = [allCategory, ...filteredOtherBase, ...filteredCustomCats];
+  const { curationCategories, kidCategories } = listCategoriesForKidUi(
+    baseCategories,
+    customCats,
+    enabledOptInCats
+  );
 
   return {
     curationCategories,
