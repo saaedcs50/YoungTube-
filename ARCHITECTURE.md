@@ -34,4 +34,4 @@
 - [x] 4 channelRegistry
 - [x] 5 categoryRegistry
 - [ ] 6 admin useBatchTool
-- [ ] 7 تفكيك الشاشات الكبيرة
+- [x] 7 تفكيك الشاشات الكبيرة
