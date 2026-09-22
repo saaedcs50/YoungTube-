@@ -52,6 +52,7 @@ export const RATE_LIMITED_ROUTES = new Set([
   '/api/announcements',
   '/api/global-blocks',
   '/api/rss',
+  '/api/resolve-channel',
 ]);
 
 // In-memory fallback map for worker isolates when Durable Objects are unavailable or during tests

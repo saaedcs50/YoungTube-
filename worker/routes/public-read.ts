@@ -775,5 +775,193 @@ export async function handlePublicReadRoutes(
     });
   }
 
+  // 9. GET /api/resolve-channel?handle={handle}&url={url}
+  if (url.pathname === '/api/resolve-channel' && request.method === 'GET') {
+    let rawHandle = (url.searchParams.get('handle') || url.searchParams.get('q') || '').trim();
+    const rawUrl = (url.searchParams.get('url') || '').trim();
+
+    if (!rawHandle && rawUrl) {
+      try {
+        const parsedUrl = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+        const path = parsedUrl.pathname;
+        const channelMatch = path.match(/\/channel\/(UC[\w-]{22})/i);
+        if (channelMatch) {
+          rawHandle = channelMatch[1];
+        } else {
+          const handleMatch = path.match(/\/@([\w.-]+)/i);
+          if (handleMatch) {
+            rawHandle = handleMatch[1];
+          } else {
+            const segments = path.split('/').filter(Boolean);
+            if (segments.length > 0) {
+              rawHandle = segments[segments.length - 1];
+            }
+          }
+        }
+      } catch {
+        rawHandle = rawUrl;
+      }
+    }
+
+    if (!rawHandle) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required parameter "handle" or "url"' }),
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    // Strip leading @ and trim whitespace
+    let handle = rawHandle;
+    while (handle.startsWith('@')) {
+      handle = handle.slice(1).trim();
+    }
+
+    if (!handle) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required parameter "handle"' }),
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    // Check if value already matches UC... channel ID format
+    const isChannelId = /^UC[\w-]{22}$/.test(handle);
+    if (isChannelId) {
+      const apiKey = resolveYouTubeApiKey(request, env);
+      if (apiKey) {
+        try {
+          const ytUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
+          ytUrl.searchParams.set('part', 'snippet');
+          ytUrl.searchParams.set('id', handle);
+          ytUrl.searchParams.set('key', apiKey);
+
+          const ytRes = await fetch(ytUrl.toString());
+          if (ytRes.ok) {
+            const data: any = await ytRes.json();
+            const item = data.items?.[0];
+            if (item && item.id) {
+              const title = item.snippet?.title || handle;
+              const thumbnail =
+                item.snippet?.thumbnails?.medium?.url ||
+                item.snippet?.thumbnails?.high?.url ||
+                item.snippet?.thumbnails?.default?.url ||
+                undefined;
+
+              return new Response(
+                JSON.stringify({
+                  sourceId: item.id,
+                  title,
+                  sourceType: 'channel',
+                  thumbnail,
+                }),
+                {
+                  status: 200,
+                  headers: {
+                    ...corsHeaders,
+                    'Cache-Control': 'public, max-age=3600',
+                  },
+                }
+              );
+            }
+          }
+        } catch {}
+      }
+
+      // If YouTube API not queried or failed to find snippet, return valid UC sourceId
+      return new Response(
+        JSON.stringify({
+          sourceId: handle,
+          title: handle,
+          sourceType: 'channel',
+        }),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Cache-Control': 'public, max-age=3600',
+          },
+        }
+      );
+    }
+
+    // Must resolve @handle via YouTube API
+    const apiKey = resolveYouTubeApiKey(request, env);
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: 'no_api_key' }),
+        { status: 503, headers: corsHeaders }
+      );
+    }
+
+    try {
+      const ytUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
+      ytUrl.searchParams.set('part', 'snippet');
+      ytUrl.searchParams.set('forHandle', handle);
+      ytUrl.searchParams.set('key', apiKey);
+
+      const ytRes = await fetch(ytUrl.toString());
+      if (!ytRes.ok) {
+        if (ytRes.status === 404) {
+          return new Response(
+            JSON.stringify({ error: 'not_found' }),
+            { status: 404, headers: corsHeaders }
+          );
+        }
+        const errText = await ytRes.text();
+        return new Response(
+          JSON.stringify({ error: `YouTube API error (${ytRes.status}): ${errText}` }),
+          { status: ytRes.status >= 500 ? 502 : ytRes.status, headers: corsHeaders }
+        );
+      }
+
+      const data: any = await ytRes.json();
+      const item = data.items?.[0];
+
+      if (!item || !item.id) {
+        return new Response(
+          JSON.stringify({ error: 'not_found' }),
+          { status: 404, headers: corsHeaders }
+        );
+      }
+
+      const sourceId = String(item.id).trim();
+
+      // Ensure NEVER returning sourceId starting with @
+      if (!sourceId || sourceId.startsWith('@')) {
+        return new Response(
+          JSON.stringify({ error: 'not_found' }),
+          { status: 404, headers: corsHeaders }
+        );
+      }
+
+      const title = item.snippet?.title || '';
+      const thumbnail =
+        item.snippet?.thumbnails?.medium?.url ||
+        item.snippet?.thumbnails?.high?.url ||
+        item.snippet?.thumbnails?.default?.url ||
+        undefined;
+
+      return new Response(
+        JSON.stringify({
+          sourceId,
+          title,
+          sourceType: 'channel',
+          thumbnail,
+        }),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Cache-Control': 'public, max-age=3600',
+          },
+        }
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ error: err?.message || 'Failed to resolve channel handle' }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
+  }
+
   return null;
 }
