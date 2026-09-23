@@ -22,8 +22,8 @@ export default function SessionEndScreen({
     >
       {/* Top ambient stars & decor */}
       <div className="w-full max-w-md flex items-center justify-between opacity-90 pt-2">
-        <div className="flex items-center gap-2 text-amber-300 text-xs font-bold bg-yt-brand-soft/20 px-3 py-1.5 rounded-full border border-yt-brand/30">
-          <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+        <div className="flex items-center gap-2 text-yt-brand text-xs font-bold bg-yt-brand-soft/20 px-3 py-1.5 rounded-full border border-yt-brand/30">
+          <Sparkles className="w-4 h-4 text-yt-brand animate-pulse" />
           <span>وقت الراحة والاسترخاء</span>
         </div>
         <div className="flex items-center gap-1.5 text-indigo-200 text-xs font-bold">
@@ -61,7 +61,7 @@ export default function SessionEndScreen({
 
         {/* Time / Clock Card */}
         <div className="p-4 sm:p-5 rounded-3xl bg-white/10 border border-white/15 backdrop-blur-md max-w-sm mx-auto text-xs text-indigo-100 space-y-2 shadow-lg">
-          <div className="flex items-center justify-center gap-2 text-amber-300 font-bold text-sm">
+          <div className="flex items-center justify-center gap-2 text-yt-brand font-bold text-sm">
             <Moon className="w-4 h-4" />
             <span>نوم هادئ وصحة أفضل</span>
           </div>
@@ -95,7 +95,7 @@ export default function SessionEndScreen({
               className="w-full min-h-[48px] px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-indigo-100 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer"
               title="تصفير عداد الاستخدام لاختبار التطبيق مجدداً"
             >
-              <RotateCcw className="w-4 h-4 text-amber-300" />
+              <RotateCcw className="w-4 h-4 text-yt-brand" />
               <span>العودة للشاشة الرئيسية (تصفير العداد)</span>
             </button>
           ) : (

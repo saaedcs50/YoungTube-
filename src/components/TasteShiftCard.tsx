@@ -244,15 +244,15 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
   return (
     <div id="taste-shift-card" className="space-y-5 max-w-4xl mx-auto">
       {/* Section Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-yt-border">
         <div>
-          <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <h3 className="text-base sm:text-lg font-extrabold text-yt-text flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-yt-brand text-yt-brand-text flex items-center justify-center shrink-0 shadow-sm">
               <TrendingUp className="w-4 h-4" />
             </span>
             <span>التحول التدريجي في الاهتمامات (Taste Shift)</span>
           </h3>
-          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+          <p className="text-xs sm:text-sm text-yt-text-muted mt-1">
             إدخال أقسام واهتمامات جديدة تدريجياً لفتح آفاق الطفل بنسب تتصاعد أسبوعياً.
           </p>
         </div>
@@ -260,7 +260,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
         {/* Status indicator */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {saveStatus === 'saving' && (
-            <span className="text-[11px] text-amber-900 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 animate-pulse font-bold">
+            <span className="text-[11px] text-yt-brand bg-yt-brand-soft px-2.5 py-1 rounded-full border border-yt-brand/30 animate-pulse font-bold">
               جاري الحفظ...
             </span>
           )}
@@ -272,21 +272,21 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm space-y-4">
+      <div className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm space-y-4">
         {/* Main Toggle Banner */}
-        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-stone-50 border border-stone-200/70">
+        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-yt-surface-muted/50 border border-yt-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-              <Sparkles className="w-4 h-4 text-amber-600" />
+            <div className="w-8 h-8 rounded-lg bg-yt-brand-soft text-yt-brand flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 text-yt-brand" />
             </div>
             <div>
-              <span className="text-xs font-extrabold text-stone-900 block">تفعيل خاصية التحول الذكي</span>
-              <span className="text-[11px] text-stone-500 block">تعديل توصيات التنوع تلقائياً في خلاصة الطفل</span>
+              <span className="text-xs font-extrabold text-yt-text block">تفعيل خاصية التحول الذكي</span>
+              <span className="text-[11px] text-yt-text-muted block">تعديل توصيات التنوع تلقائياً في خلاصة الطفل</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className={`text-xs font-bold ${enabled ? 'text-amber-700' : 'text-stone-400'}`}>
+            <span className={`text-xs font-bold ${enabled ? 'text-yt-brand' : 'text-yt-text-muted'}`}>
               {enabled ? 'مفعل' : 'معطل'}
             </span>
             <button
@@ -296,7 +296,7 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
               aria-checked={enabled}
               onClick={handleToggle}
               className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                enabled ? 'bg-amber-500' : 'bg-stone-300'
+                enabled ? 'bg-yt-brand' : 'bg-yt-surface-muted'
               }`}
             >
               <span
@@ -318,15 +318,15 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
           {/* 2. Multi-select category chips for targetCategories */}
           <div className="space-y-2.5 pt-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-600" />
+              <label className="text-xs font-bold text-yt-text flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-yt-brand" />
                 <span>الأقسام المستهدفة للتحول (Target Categories)</span>
               </label>
-              <span className="text-[11px] font-bold text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+              <span className="text-[11px] font-bold text-yt-text bg-yt-brand-soft px-2.5 py-0.5 rounded-full border border-yt-brand/30">
                 {targetCategories.length} قسم محدد
               </span>
             </div>
-            <p className="text-xs text-stone-500">
+            <p className="text-xs text-yt-text-muted">
               اختر المجالات الجديدة التي ترغب في إدخالها للطفل تدريجياً ليتعود عليها ويستكشفها.
             </p>
 
@@ -341,8 +341,8 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                     onClick={() => toggleCategory(cat.id)}
                     className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer min-h-[44px] ${
                       isSelected
-                        ? 'bg-amber-500 text-white border border-amber-500 shadow-sm'
-                        : 'bg-stone-50 text-stone-700 border border-stone-200/80 hover:bg-amber-50/60 hover:border-amber-300'
+                        ? 'bg-yt-brand text-yt-brand-text border border-yt-brand shadow-sm'
+                        : 'bg-yt-surface-muted/50 text-yt-text border border-yt-border hover:bg-yt-brand-soft/60 hover:border-yt-brand/50'
                     }`}
                   >
                     <span>{cat.emoji}</span>
@@ -355,16 +355,16 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
           </div>
 
           {/* Controls Grid: Speed & Cap Segmented Controls */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-stone-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-yt-border">
             {/* 3. 3-option segmented control "سرعة التغيير": بطيء (5) / متوسط (10) / سريع (20) */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-amber-600" />
+              <label className="text-xs font-bold text-yt-text flex items-center gap-1.5">
+                <Sliders className="w-4 h-4 text-yt-brand" />
                 <span>سرعة التغيير (الزيادة الأسبوعية)</span>
               </label>
               <div
                 id="segmented-speed"
-                className="grid grid-cols-3 p-1 bg-stone-100/80 rounded-xl border border-stone-200/80 gap-1"
+                className="grid grid-cols-3 p-1 bg-yt-surface-muted rounded-xl border border-yt-border gap-1"
               >
                 {SPEED_OPTIONS.map((opt) => {
                   const isActive = weeklyStepPercent === opt.percent;
@@ -376,8 +376,8 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                       onClick={() => setWeeklyStepPercent(opt.percent)}
                       className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
                         isActive
-                          ? 'bg-white text-amber-900 shadow-sm border border-stone-200/80'
-                          : 'text-stone-600 hover:text-stone-900'
+                          ? 'bg-yt-surface text-yt-brand shadow-sm border border-yt-border'
+                          : 'text-yt-text-muted hover:text-yt-text'
                       }`}
                     >
                       <div>{opt.label}</div>
@@ -390,13 +390,13 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
 
             {/* 4. Second 3-option segmented control "أقصى نسبة": خفيف (20) / متوسط (40) / كبير (60) */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-amber-600" />
+              <label className="text-xs font-bold text-yt-text flex items-center gap-1.5">
+                <Sliders className="w-4 h-4 text-yt-brand" />
                 <span>أقصى نسبة للمحتوى المقترح (Cap)</span>
               </label>
               <div
                 id="segmented-cap"
-                className="grid grid-cols-3 p-1 bg-stone-100/80 rounded-xl border border-stone-200/80 gap-1"
+                className="grid grid-cols-3 p-1 bg-yt-surface-muted rounded-xl border border-yt-border gap-1"
               >
                 {CAP_OPTIONS.map((opt) => {
                   const isActive = capPercent === opt.percent;
@@ -408,8 +408,8 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                       onClick={() => setCapPercent(opt.percent)}
                       className={`py-2 px-2 text-xs font-bold rounded-lg transition-all text-center cursor-pointer min-h-[44px] flex flex-col justify-center ${
                         isActive
-                          ? 'bg-white text-amber-900 shadow-sm border border-stone-200/80'
-                          : 'text-stone-600 hover:text-stone-900'
+                          ? 'bg-yt-surface text-yt-brand shadow-sm border border-yt-border'
+                          : 'text-yt-text-muted hover:text-yt-text'
                       }`}
                     >
                       <div>{opt.label}</div>
@@ -424,15 +424,15 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
           {/* 5. Read-only status line, computed live (not stored) */}
           <div
             id="taste-shift-status-line"
-            className="rounded-xl bg-amber-50/70 border border-amber-200/80 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-amber-950"
+            className="rounded-xl bg-yt-brand-soft border border-yt-brand/30 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-yt-text"
           >
             <div className="space-y-0.5">
-              <div className="text-xs font-bold text-amber-900">حالة خطة التحول:</div>
-              <div className="text-sm font-extrabold text-amber-900">
+              <div className="text-xs font-bold text-yt-text">حالة خطة التحول:</div>
+              <div className="text-sm font-extrabold text-yt-brand">
                 الأسبوع {currentWeek + 1} — النسبة الحالية: {currentTargetShare}%
               </div>
             </div>
-            <div className="text-xs text-amber-800/90 font-bold sm:text-left font-mono">
+            <div className="text-xs text-yt-text-muted font-bold sm:text-left font-mono">
               الحد الأقصى المبرمج: {capPercent}% • معدل النمو: +{weeklyStepPercent}% أسبوعياً
             </div>
           </div>
@@ -441,13 +441,13 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
           {reactionStats && (
             <div
               id="taste-shift-reaction-summary"
-              className="rounded-xl bg-stone-50 border border-stone-200/70 p-3.5 space-y-2 text-xs text-stone-700"
+              className="rounded-xl bg-yt-surface-muted/40 border border-yt-border p-3.5 space-y-2 text-xs text-yt-text"
             >
-              <div className="font-bold text-stone-900 flex items-center gap-1.5">
+              <div className="font-bold text-yt-text flex items-center gap-1.5">
                 <span>تفاعل الطفل مع المحتوى الجديد المقترح</span>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-stone-800">
+                <div className="flex items-center gap-1.5 font-bold text-yt-text">
                   <span>تقييم الطفل هذا الأسبوع:</span>
                   <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
                     <ThumbsUp className="w-3.5 h-3.5 text-emerald-600" /> {reactionStats.likedCount}
@@ -457,8 +457,8 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                     <ThumbsDown className="w-3.5 h-3.5 text-rose-600" /> {reactionStats.dislikedCount}
                   </span>
                 </div>
-                <div className="text-stone-600 bg-white px-2.5 py-1 rounded-lg border border-stone-200/80 font-medium">
-                  عدد الفيديوهات المعروضة: <span className="font-bold text-stone-900 font-mono">{reactionStats.distinctCount}</span>
+                <div className="text-yt-text-muted bg-yt-surface px-2.5 py-1 rounded-lg border border-yt-border font-medium">
+                  عدد الفيديوهات المعروضة: <span className="font-bold text-yt-text font-mono">{reactionStats.distinctCount}</span>
                 </div>
               </div>
             </div>
@@ -468,9 +468,9 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
           {categoryStats.length > 0 && (
             <div
               id="taste-shift-per-category-stats"
-              className="rounded-xl bg-stone-50/50 border border-stone-200/70 p-3.5 space-y-2"
+              className="rounded-xl bg-yt-surface-muted/30 border border-yt-border p-3.5 space-y-2"
             >
-              <div className="text-xs font-bold text-stone-900">إحصائيات الأقسام المستهدفة</div>
+              <div className="text-xs font-bold text-yt-text">إحصائيات الأقسام المستهدفة</div>
               <div className="space-y-2">
                 {categoryStats.map((s) => {
                   const cat = curationCategories.find((c) => c.id === s.id);
@@ -478,20 +478,20 @@ export const TasteShiftCard: React.FC<TasteShiftCardProps> = ({ onSaved }) => {
                   return (
                     <div
                       key={s.id}
-                      className="flex flex-wrap items-center justify-between gap-2 text-xs border border-stone-200/80 rounded-xl px-3.5 py-2.5 bg-white"
+                      className="flex flex-wrap items-center justify-between gap-2 text-xs border border-yt-border rounded-xl px-3.5 py-2.5 bg-yt-surface"
                     >
-                      <span className="font-bold text-stone-800">
+                      <span className="font-bold text-yt-text">
                         {cat ? `${cat.emoji} ${cat.label}` : s.id}
                       </span>
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
-                        <span className="bg-amber-50 text-amber-900 border border-amber-200/70 px-2 py-0.5 rounded-md font-bold font-mono">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-yt-text-muted">
+                        <span className="bg-yt-brand-soft text-yt-brand border border-yt-brand/30 px-2 py-0.5 rounded-md font-bold font-mono">
                           نسبة فعّالة {s.effectiveShare}%
                         </span>
                         <span className="text-emerald-700 font-bold">✓ {s.totalAccepted}</span>
                         <span className="text-rose-700 font-bold">✗ {s.totalRejected}</span>
-                        <span className="text-stone-500 font-mono">عُرض {s.totalShown}</span>
+                        <span className="text-yt-text-muted font-mono">عُرض {s.totalShown}</span>
                         {onCooldown && (
-                          <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-bold">
+                          <span className="bg-yt-brand-soft text-yt-brand px-2 py-0.5 rounded-md font-bold">
                             متوقف مؤقتًا
                           </span>
                         )}

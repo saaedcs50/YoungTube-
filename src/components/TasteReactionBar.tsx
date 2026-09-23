@@ -59,8 +59,8 @@ export const TasteReactionBar: React.FC<TasteReactionBarProps> = ({
           picked === 'liked'
             ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-emerald-500/10'
             : picked
-              ? 'opacity-40 border-stone-200 text-stone-400 bg-stone-50'
-              : 'bg-white text-emerald-700 border-stone-200 hover:bg-emerald-50 hover:border-emerald-200'
+              ? 'opacity-40 border-yt-border text-yt-text-muted bg-yt-surface-muted'
+              : 'bg-yt-surface text-emerald-700 border-yt-border hover:bg-emerald-50 hover:border-emerald-200'
         }`}
         aria-label="أعجبني"
       >
@@ -74,14 +74,14 @@ export const TasteReactionBar: React.FC<TasteReactionBarProps> = ({
         onClick={() => handle('disliked')}
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition duration-150 active:scale-[0.98] cursor-pointer shadow-sm ${
           picked === 'disliked'
-            ? 'bg-stone-100 text-stone-800 border-stone-300'
+            ? 'bg-yt-surface-muted text-yt-text border-yt-border'
             : picked
-              ? 'opacity-40 border-stone-200 text-stone-400 bg-stone-50'
-              : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50 hover:border-stone-300'
+              ? 'opacity-40 border-yt-border text-yt-text-muted bg-yt-surface-muted'
+              : 'bg-yt-surface text-yt-text-muted border-yt-border hover:bg-yt-surface-muted hover:border-yt-border'
         }`}
         aria-label="لم يعجبني"
       >
-        <ThumbsDown className="w-3.5 h-3.5 text-stone-500" />
+        <ThumbsDown className="w-3.5 h-3.5 text-yt-text-muted" />
         <span>مش حابب</span>
       </button>
     </div>

@@ -40,15 +40,15 @@ import type { DashboardSectionId } from './components/dashboard/DashboardNav';
 
 // Unified dashboard section loading skeleton
 const SectionLoadingSkeleton: React.FC = () => (
-  <div className="rounded-2xl border border-stone-200/80 bg-white p-6 shadow-sm animate-pulse space-y-4">
+  <div className="rounded-2xl border border-yt-border bg-yt-surface p-6 shadow-sm animate-pulse space-y-4">
     <div className="flex items-center gap-3">
-      <div className="w-9 h-9 rounded-xl bg-amber-100/70" />
+      <div className="w-9 h-9 rounded-xl bg-yt-brand-soft" />
       <div className="space-y-1.5 flex-1">
-        <div className="h-4 bg-stone-200/70 rounded-full w-1/4" />
-        <div className="h-3 bg-stone-100 rounded-full w-1/2" />
+        <div className="h-4 bg-yt-surface-muted rounded-full w-1/4" />
+        <div className="h-3 bg-yt-surface-muted/60 rounded-full w-1/2" />
       </div>
     </div>
-    <div className="h-28 bg-stone-50 rounded-xl border border-stone-100" />
+    <div className="h-28 bg-yt-surface-muted/40 rounded-xl border border-yt-border" />
   </div>
 );
 import {
@@ -931,7 +931,7 @@ export default function App() {
         <Suspense
           fallback={
             <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
-              <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
+              <div className="w-10 h-10 border-4 border-yt-brand/20 border-t-yt-brand rounded-full animate-spin" />
             </div>
           }
         >
@@ -1005,7 +1005,7 @@ export default function App() {
                 className={`px-3 py-1.5 rounded-full text-xs font-medium shadow-md backdrop-blur-sm transition cursor-pointer ${
                   devForceStop
                     ? 'bg-rose-600 text-white'
-                    : 'bg-stone-900/90 hover:bg-stone-800 text-amber-300'
+                    : 'bg-black/80 hover:bg-black/90 text-yt-brand'
                 }`}
                 title="اختبار إشارة إيقاف المشغل forceStop"
               >
@@ -1017,7 +1017,7 @@ export default function App() {
                   setDashboardSection('tools');
                   setViewMode('dashboard');
                 }}
-                className="px-3 py-1.5 rounded-full bg-stone-900/80 hover:bg-stone-900 text-amber-300 text-xs font-mono shadow-md backdrop-blur-sm transition cursor-pointer"
+                className="px-3 py-1.5 rounded-full bg-black/80 hover:bg-black/90 text-yt-brand text-xs font-mono shadow-md backdrop-blur-sm transition cursor-pointer"
                 title="لوحة المطور وفحص الأنظمة (?dev=1)"
               >
                 ⚙️ لوحة الفحص (?dev=1)
@@ -1028,9 +1028,9 @@ export default function App() {
       ) : (
         <Suspense
           fallback={
-            <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-6 text-center space-y-4">
-              <div className="w-10 h-10 border-4 border-amber-600/20 border-t-amber-600 rounded-full animate-spin" />
-              <p className="text-xs font-semibold text-stone-600">جاري فتح لوحة الوالدين...</p>
+            <div className="min-h-screen bg-yt-bg flex flex-col items-center justify-center p-6 text-center space-y-4">
+              <div className="w-10 h-10 border-4 border-yt-brand/20 border-t-yt-brand rounded-full animate-spin" />
+              <p className="text-xs font-semibold text-yt-text-muted">جاري فتح لوحة الوالدين...</p>
             </div>
           }
         >
@@ -1048,7 +1048,7 @@ export default function App() {
             {!mainSettings?.hasCompletedFirstSetup && (
               <div
                 id="first-run-setup-banner"
-                className="p-5 sm:p-6 rounded-3xl bg-gradient-to-l from-amber-500 to-orange-500 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                className="p-5 sm:p-6 rounded-3xl bg-gradient-to-l from-yt-brand to-orange-500 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
               >
                 <div className="flex items-start sm:items-center gap-3.5">
                   <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
@@ -1068,7 +1068,7 @@ export default function App() {
                   id="first-run-top-start-btn"
                   type="button"
                   onClick={handleFinishFirstSetup}
-                  className="px-5 py-2.5 rounded-2xl bg-white hover:bg-amber-50 text-amber-900 text-xs sm:text-sm font-bold shadow-sm transition shrink-0 flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-2.5 rounded-2xl bg-white hover:bg-yt-brand-soft text-yt-text text-xs sm:text-sm font-bold shadow-sm transition shrink-0 flex items-center gap-2 cursor-pointer"
                 >
                   <span>ابدأ استخدام الطفل</span>
                   <span>→</span>
@@ -1167,12 +1167,12 @@ export default function App() {
 
           {/* Prominent Bottom Button for First-Run Setup */}
           {!mainSettings?.hasCompletedFirstSetup && (
-            <div id="first-run-bottom-action" className="p-6 rounded-3xl bg-amber-50 border-2 border-amber-300 text-center space-y-3 shadow-sm">
+            <div id="first-run-bottom-action" className="p-6 rounded-3xl bg-yt-brand-soft border-2 border-yt-brand/40 text-center space-y-3 shadow-sm">
               <div className="space-y-1">
-                <h4 className="text-base font-bold text-amber-950">
+                <h4 className="text-base font-bold text-yt-text">
                   هل انتهيت من ضبط الإعدادات والقنوات؟
                 </h4>
-                <p className="text-xs text-amber-800">
+                <p className="text-xs text-yt-text-muted">
                   يمكنك العودة إلى هنا في أي وقت لاحقاً بإدخال رمز الـ PIN عبر أيقونة القفل.
                 </p>
               </div>
@@ -1180,7 +1180,7 @@ export default function App() {
                 id="first-run-bottom-start-btn"
                 type="button"
                 onClick={handleFinishFirstSetup}
-                className="px-8 py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-sm sm:text-base font-bold shadow-md hover:shadow-lg transition cursor-pointer inline-flex items-center gap-2"
+                className="px-8 py-3.5 rounded-2xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-sm sm:text-base font-bold shadow-md hover:shadow-lg transition cursor-pointer inline-flex items-center gap-2"
               >
                 <span>ابدأ استخدام الطفل →</span>
               </button>
@@ -1191,15 +1191,15 @@ export default function App() {
           {dashboardSection === 'tools' && (
             <div id="section-tools" className="space-y-6">
               {/* Helper Bar */}
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 text-xs text-stone-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+              <div className="rounded-2xl border border-yt-border bg-yt-surface p-4 text-xs text-yt-text-muted flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-stone-700">سجل الإعدادات الثابت:</span>
-                  <code className="font-mono bg-stone-100 px-2 py-0.5 rounded text-stone-800">settings.get('main')</code>
+                  <span className="font-semibold text-yt-text">سجل الإعدادات الثابت:</span>
+                  <code className="font-mono bg-yt-surface-muted px-2 py-0.5 rounded text-yt-text">settings.get('main')</code>
                 </div>
                 <button
                   id="reset-onboarding-test-btn"
                   onClick={handleResetForOnboardingTest}
-                  className="text-stone-600 hover:text-rose-600 underline font-semibold cursor-pointer"
+                  className="text-yt-text-muted hover:text-rose-600 underline font-semibold cursor-pointer"
                 >
                   إعادة تجربة شاشة التهيئة (Reset Onboarding)
                 </button>
@@ -1210,7 +1210,7 @@ export default function App() {
               {/* Card 1: Database Test Card */}
               <div
                 id="db-test-card"
-                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
+                className="rounded-2xl border border-yt-border bg-yt-surface p-5 sm:p-6 shadow-sm flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -1219,15 +1219,15 @@ export default function App() {
                         <Database className="w-5 h-5" />
                       </div>
                       <div>
-                        <h2 className="text-base font-bold text-stone-900">قاعدة البيانات</h2>
-                        <span className="text-xs text-stone-400 font-mono">Dexie • v1</span>
+                        <h2 className="text-base font-bold text-yt-text">قاعدة البيانات</h2>
+                        <span className="text-xs text-yt-text-muted font-mono">Dexie • v1</span>
                       </div>
                     </div>
                     <button
                       id="retest-db-btn"
                       onClick={runDatabaseTest}
                       disabled={dbResult.loading}
-                      className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition disabled:opacity-50 cursor-pointer"
+                      className="p-1.5 rounded-lg text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted transition disabled:opacity-50 cursor-pointer"
                       title="إعادة الفحص"
                     >
                       <RefreshCw className={`w-4 h-4 ${dbResult.loading ? 'animate-spin' : ''}`} />
@@ -1236,8 +1236,8 @@ export default function App() {
 
                   {/* Status Display */}
                   {dbResult.loading ? (
-                    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 animate-pulse flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-stone-400 shrink-0" />
+                    <div className="p-3.5 rounded-xl bg-yt-surface-muted/50 border border-yt-border text-xs text-yt-text-muted animate-pulse flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin text-yt-text-muted shrink-0" />
                       جاري اختبار عمليات IndexedDB...
                     </div>
                   ) : dbResult.success ? (
@@ -1252,13 +1252,13 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-1.5">
-                      <div className="flex items-center gap-1.5 font-semibold text-amber-800 text-xs">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div className="p-3.5 rounded-xl bg-yt-brand-soft border border-yt-brand/30 text-yt-text space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-semibold text-yt-brand text-xs">
+                        <AlertTriangle className="w-4 h-4 text-yt-brand shrink-0" />
                         <span>فشل في الفحص</span>
                       </div>
-                      <p className="text-[11px] text-amber-800 leading-relaxed">{dbResult.error}</p>
-                      <div className="text-[10px] text-amber-700 font-mono pt-0.5">
+                      <p className="text-[11px] text-yt-brand leading-relaxed">{dbResult.error}</p>
+                      <div className="text-[10px] text-yt-text-muted font-mono pt-0.5">
                         آخر فحص: {dbResult.timestamp}
                       </div>
                     </div>
@@ -1266,18 +1266,18 @@ export default function App() {
                 </div>
 
                 {/* Tables Checklist */}
-                <div className="mt-4 pt-3 border-t border-stone-100">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-stone-600 mb-1.5">
+                <div className="mt-4 pt-3 border-t border-yt-border">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-yt-text-muted mb-1.5">
                     <TableProperties className="w-3.5 h-3.5" />
                     <span>6 جداول سكيما معتمدة</span>
                   </div>
                   <div className="flex flex-wrap gap-1 text-[10px] font-mono">
-                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">settings</span>
-                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">channels</span>
-                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">usage</span>
-                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">feedCache</span>
-                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">interactions</span>
-                    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700">downloads</span>
+                    <span className="px-1.5 py-0.5 rounded bg-yt-surface-muted text-yt-text">settings</span>
+                    <span className="px-1.5 py-0.5 rounded bg-yt-surface-muted text-yt-text">channels</span>
+                    <span className="px-1.5 py-0.5 rounded bg-yt-surface-muted text-yt-text">usage</span>
+                    <span className="px-1.5 py-0.5 rounded bg-yt-surface-muted text-yt-text">feedCache</span>
+                    <span className="px-1.5 py-0.5 rounded bg-yt-surface-muted text-yt-text">interactions</span>
+                    <span className="px-1.5 py-0.5 rounded bg-yt-surface-muted text-yt-text">downloads</span>
                   </div>
                 </div>
               </div>
@@ -1285,7 +1285,7 @@ export default function App() {
               {/* Card 2: Cloudflare Worker Card (with Cache vs Online distinction) */}
               <div
                 id="worker-test-card"
-                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
+                className="rounded-2xl border border-yt-border bg-yt-surface p-5 sm:p-6 shadow-sm flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -1293,22 +1293,22 @@ export default function App() {
                       <div
                         className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
                           workerResult.isFromCache
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            ? 'bg-yt-brand-soft text-yt-brand border-yt-brand/30'
                             : 'bg-sky-50 text-sky-700 border-sky-200'
                         }`}
                       >
                         <Cloud className="w-5 h-5" />
                       </div>
                       <div>
-                        <h2 className="text-base font-bold text-stone-900">الـ Worker</h2>
-                        <span className="text-xs text-stone-400 font-mono">youngtube-worker</span>
+                        <h2 className="text-base font-bold text-yt-text">الـ Worker</h2>
+                        <span className="text-xs text-yt-text-muted font-mono">youngtube-worker</span>
                       </div>
                     </div>
                     <button
                       id="retest-worker-btn"
                       onClick={runWorkerTest}
                       disabled={workerResult.loading}
-                      className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition disabled:opacity-50 cursor-pointer"
+                      className="p-1.5 rounded-lg text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted transition disabled:opacity-50 cursor-pointer"
                       title="إعادة فحص الـ Worker"
                     >
                       <RefreshCw className={`w-4 h-4 ${workerResult.loading ? 'animate-spin' : ''}`} />
@@ -1317,27 +1317,27 @@ export default function App() {
 
                   {/* Worker Status Display with Cache Distinction */}
                   {workerResult.loading ? (
-                    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 animate-pulse flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-stone-400 shrink-0" />
+                    <div className="p-3.5 rounded-xl bg-yt-surface-muted/50 border border-yt-border text-xs text-yt-text-muted animate-pulse flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin text-yt-text-muted shrink-0" />
                       جاري فحص استجابة الـ Worker...
                     </div>
                   ) : workerResult.success ? (
                     <div
                       className={`p-3.5 rounded-xl border space-y-1.5 ${
                         workerResult.isFromCache
-                          ? 'bg-amber-50/80 border-amber-200 text-amber-950'
+                          ? 'bg-yt-brand-soft border-yt-brand/30 text-yt-text'
                           : 'bg-emerald-50 border-emerald-200 text-emerald-950'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div
                           className={`flex items-center gap-1.5 font-semibold text-xs ${
-                            workerResult.isFromCache ? 'text-amber-800' : 'text-emerald-800'
+                            workerResult.isFromCache ? 'text-yt-brand' : 'text-emerald-800'
                           }`}
                         >
                           {workerResult.isFromCache ? (
                             <>
-                              <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
+                              <WifiOff className="w-4 h-4 text-yt-brand shrink-0" />
                               <span>من الكاش (بدون اتصال حالي)</span>
                             </>
                           ) : (
@@ -1350,7 +1350,7 @@ export default function App() {
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             workerResult.isFromCache
-                              ? 'bg-amber-200/80 text-amber-900'
+                              ? 'bg-yt-brand/20 text-yt-brand'
                               : 'bg-emerald-200/80 text-emerald-900'
                           }`}
                         >
@@ -1361,7 +1361,7 @@ export default function App() {
                       <pre
                         className={`text-[10px] font-mono p-2 rounded overflow-x-auto border ${
                           workerResult.isFromCache
-                            ? 'bg-white/80 text-amber-950 border-amber-100'
+                            ? 'bg-yt-surface text-yt-text border-yt-border'
                             : 'bg-white/80 text-emerald-950 border-emerald-100'
                         }`}
                       >
@@ -1369,29 +1369,29 @@ export default function App() {
                       </pre>
                       <div
                         className={`text-[10px] font-mono pt-0.5 ${
-                          workerResult.isFromCache ? 'text-amber-700' : 'text-emerald-700'
+                          workerResult.isFromCache ? 'text-yt-text-muted' : 'text-emerald-700'
                         }`}
                       >
                         آخر استجابة: {workerResult.timestamp}
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-1.5">
-                      <div className="flex items-center gap-1.5 font-semibold text-amber-800 text-xs">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div className="p-3.5 rounded-xl bg-yt-brand-soft border border-yt-brand/30 text-yt-text space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-semibold text-yt-brand text-xs">
+                        <AlertTriangle className="w-4 h-4 text-yt-brand shrink-0" />
                         <span>تعذر الاتصال بالـ Worker</span>
                       </div>
-                      <p className="text-[11px] text-amber-800 leading-relaxed">{workerResult.error}</p>
-                      <div className="text-[10px] text-amber-700 font-mono pt-0.5">
+                      <p className="text-[11px] text-yt-brand leading-relaxed">{workerResult.error}</p>
+                      <div className="text-[10px] text-yt-text-muted font-mono pt-0.5">
                         آخر محاولة: {workerResult.timestamp}
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-stone-100">
-                  <div className="text-[11px] text-stone-500 truncate">
-                    <span className="font-semibold text-stone-600">الرابط: </span>
+                <div className="mt-4 pt-3 border-t border-yt-border">
+                  <div className="text-[11px] text-yt-text-muted truncate">
+                    <span className="font-semibold text-yt-text">الرابط: </span>
                     <span className="font-mono text-[10px]">{WORKER_URL}</span>
                   </div>
                 </div>
@@ -1400,7 +1400,7 @@ export default function App() {
               {/* Card 3: Storage Persistence Card */}
               <div
                 id="storage-persistence-card"
-                className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col justify-between"
+                className="rounded-2xl border border-yt-border bg-yt-surface p-5 sm:p-6 shadow-sm flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -1409,15 +1409,15 @@ export default function App() {
                         <HardDrive className="w-5 h-5" />
                       </div>
                       <div>
-                        <h2 className="text-base font-bold text-stone-900">التخزين الدائم</h2>
-                        <span className="text-xs text-stone-400 font-mono">storage.persist()</span>
+                        <h2 className="text-base font-bold text-yt-text">التخزين الدائم</h2>
+                        <span className="text-xs text-yt-text-muted font-mono">storage.persist()</span>
                       </div>
                     </div>
                     <button
                       id="retest-storage-btn"
                       onClick={runStoragePersistenceTest}
                       disabled={storageResult.loading}
-                      className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition disabled:opacity-50 cursor-pointer"
+                      className="p-1.5 rounded-lg text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted transition disabled:opacity-50 cursor-pointer"
                       title="إعادة طلب التخزين الدائم"
                     >
                       <RefreshCw className={`w-4 h-4 ${storageResult.loading ? 'animate-spin' : ''}`} />
@@ -1426,8 +1426,8 @@ export default function App() {
 
                   {/* Storage Status Display */}
                   {storageResult.loading ? (
-                    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 animate-pulse flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-stone-400 shrink-0" />
+                    <div className="p-3.5 rounded-xl bg-yt-surface-muted/50 border border-yt-border text-xs text-yt-text-muted animate-pulse flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin text-yt-text-muted shrink-0" />
                       جاري فحص صلاحية التخزين الدائم...
                     </div>
                   ) : storageResult.result?.status === 'granted' ? (
@@ -1454,52 +1454,52 @@ export default function App() {
                       </div>
                     </div>
                   ) : storageResult.result?.status === 'denied' ? (
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-2">
+                    <div className="p-3.5 rounded-xl bg-yt-brand-soft border border-yt-brand/30 text-yt-text space-y-2">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 font-semibold text-amber-800 text-xs">
-                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <div className="flex items-center gap-1.5 font-semibold text-yt-brand text-xs">
+                          <AlertTriangle className="w-4 h-4 text-yt-brand shrink-0" />
                           <span>الحالة: مرفوضة (Best-Effort)</span>
                         </div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/80 text-amber-900">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yt-brand/20 text-yt-brand">
                           افتراضي
                         </span>
                       </div>
-                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                      <p className="text-[11px] text-yt-brand leading-relaxed">
                         {storageResult.result.message}
                       </p>
                       {storageResult.result.quota && (
-                        <div className="text-[10px] text-amber-800 bg-white/60 p-2 rounded border border-amber-100">
+                        <div className="text-[10px] text-yt-text bg-yt-surface p-2 rounded border border-yt-border">
                           المساحة: {storageResult.result.quota.quotaMb} MB (المستخدم: {storageResult.result.quota.usageMb} MB)
                         </div>
                       )}
-                      <div className="text-[10px] text-amber-700 font-mono pt-0.5">
+                      <div className="text-[10px] text-yt-text-muted font-mono pt-0.5">
                         آخر فحص: {storageResult.result.timestamp}
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3.5 rounded-xl bg-stone-100 border border-stone-200 text-stone-800 space-y-1.5">
+                    <div className="p-3.5 rounded-xl bg-yt-surface-muted border border-yt-border text-yt-text space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 font-semibold text-stone-700 text-xs">
-                          <AlertCircle className="w-4 h-4 text-stone-500 shrink-0" />
+                        <div className="flex items-center gap-1.5 font-semibold text-yt-text text-xs">
+                          <AlertCircle className="w-4 h-4 text-yt-text-muted shrink-0" />
                           <span>الحالة: غير مدعومة (Unsupported)</span>
                         </div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-200 text-stone-700">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yt-surface text-yt-text-muted">
                           غير متاح
                         </span>
                       </div>
-                      <p className="text-[11px] text-stone-600 leading-relaxed">
+                      <p className="text-[11px] text-yt-text-muted leading-relaxed">
                         {storageResult.result?.message}
                       </p>
-                      <div className="text-[10px] text-stone-500 font-mono pt-0.5">
+                      <div className="text-[10px] text-yt-text-muted font-mono pt-0.5">
                         آخر فحص: {storageResult.result?.timestamp}
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-stone-100">
-                  <div className="text-[11px] text-stone-500">
-                    <span className="font-semibold text-stone-600">سياسة البيانات: </span>
+                <div className="mt-4 pt-3 border-t border-yt-border">
+                  <div className="text-[11px] text-yt-text-muted">
+                    <span className="font-semibold text-yt-text">سياسة البيانات: </span>
                     <span>حماية قاعدة بيانات Dexie والملفات من الحذف التلقائي</span>
                   </div>
                 </div>

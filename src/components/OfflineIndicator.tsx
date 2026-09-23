@@ -10,7 +10,7 @@ export const OfflineIndicator: React.FC = () => {
   return (
     <aside
       aria-label="Offline Mode Notification"
-      className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg"
+      className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-xl bg-yt-brand px-4 py-2.5 text-xs font-semibold text-yt-brand-text shadow-lg"
     >
       <WifiOff className="w-4 h-4 animate-pulse" />
       <span>وضع عدم الاتصال — يتم الاعتماد على الكاش المحلي المخزن</span>

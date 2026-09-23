@@ -69,13 +69,13 @@ export const WeeklyChoiceCard: React.FC<WeeklyChoiceCardProps> = ({
   return (
     <div
       id="weekly-choice-card"
-      className="col-span-full rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 sm:p-6 shadow-sm transition-all duration-150 text-right"
+      className="col-span-full rounded-3xl border border-yt-brand/30 bg-yt-brand-soft p-5 sm:p-6 shadow-sm transition-all duration-150 text-right"
     >
       <div className="space-y-1">
-        <h2 className="text-lg sm:text-xl font-black text-stone-900">
+        <h2 className="text-lg sm:text-xl font-black text-yt-text">
           عايز نجرّب إيه الأسبوع ده؟
         </h2>
-        <p className="text-xs sm:text-sm font-medium text-stone-500">
+        <p className="text-xs sm:text-sm font-medium text-yt-text-muted">
           اختر قسماً تحب تستكشف فيديوهاته هذا الأسبوع!
         </p>
       </div>
@@ -89,12 +89,12 @@ export const WeeklyChoiceCard: React.FC<WeeklyChoiceCardProps> = ({
               id={`choice-btn-${catId}`}
               type="button"
               onClick={() => handleSelectCategory(catId)}
-              className="p-3.5 sm:p-5 rounded-2xl bg-white border border-stone-200 hover:border-amber-300 hover:bg-amber-50/50 active:scale-[0.98] shadow-sm transition-all duration-150 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 text-center cursor-pointer group"
+              className="p-3.5 sm:p-5 rounded-2xl bg-yt-surface border border-yt-border hover:border-yt-brand hover:bg-yt-brand-soft/50 active:scale-[0.98] shadow-sm transition-all duration-150 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 text-center cursor-pointer group"
             >
               <span className="text-2xl sm:text-3xl">
                 {cat.emoji}
               </span>
-              <span className="text-xs sm:text-base font-extrabold text-stone-900 group-hover:text-amber-600 transition-colors">
+              <span className="text-xs sm:text-base font-extrabold text-yt-text group-hover:text-yt-brand transition-colors">
                 {cat.label}
               </span>
             </button>

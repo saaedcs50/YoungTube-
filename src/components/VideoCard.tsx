@@ -92,19 +92,19 @@ export const VideoCard = React.memo(
       <div
         id={isFavorite ? `favorite-card-${video.videoId}` : `video-card-${video.videoId}`}
         onClick={handleClick}
-        className="group bg-white rounded-[28px] overflow-hidden border border-stone-100 shadow-sm hover:shadow-md transition-all duration-150 active:scale-[0.98] flex flex-col text-right cursor-pointer"
+        className="group bg-yt-surface rounded-[28px] overflow-hidden border border-yt-border shadow-sm hover:shadow-md transition-all duration-150 active:scale-[0.98] flex flex-col text-right cursor-pointer"
       >
         {/* Thumbnail: 16:9, object-cover, no padding on the image, rounded top only */}
         <div
-          className="relative aspect-video w-full bg-stone-100 overflow-hidden"
+          className="relative aspect-video w-full bg-yt-surface-muted overflow-hidden"
           data-thumb-failed={thumbFailed ? 'true' : undefined}
         >
           {thumbFailed ? (
-            <div className="w-full h-full bg-stone-200 flex flex-col items-center justify-center text-stone-400 gap-1.5 select-none">
-              <div className="w-12 h-12 rounded-full bg-stone-300/70 flex items-center justify-center text-stone-500 shadow-inner">
-                <Play className="w-6 h-6 fill-stone-500 text-stone-500 translate-x-0.5" />
+            <div className="w-full h-full bg-yt-surface-muted flex flex-col items-center justify-center text-yt-text-muted gap-1.5 select-none">
+              <div className="w-12 h-12 rounded-full bg-black/10 flex items-center justify-center text-yt-text-muted shadow-inner">
+                <Play className="w-6 h-6 fill-current text-yt-text-muted translate-x-0.5" />
               </div>
-              <span className="text-[10px] font-bold text-stone-500">معاينة غير متوفرة</span>
+              <span className="text-[10px] font-bold text-yt-text-muted">معاينة غير متوفرة</span>
             </div>
           ) : (
             <img
@@ -136,7 +136,7 @@ export const VideoCard = React.memo(
           {!isFavorite && isTasteShiftTarget && (
             <div
               id={`taste-shift-badge-${video.videoId}`}
-              className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full bg-amber-500 text-white text-[11px] font-bold shadow-sm pointer-events-none z-10 flex items-center gap-1"
+              className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full bg-yt-brand text-yt-brand-text text-[11px] font-bold shadow-sm pointer-events-none z-10 flex items-center gap-1"
             >
               <span>✨ جديد</span>
             </div>
@@ -144,26 +144,26 @@ export const VideoCard = React.memo(
 
           {/* Optional No Music Muted Badge (not a red alarm) */}
           {video.hasMusic === false && (
-            <div className="absolute bottom-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-stone-800/75 text-stone-200 text-[10px] font-medium flex items-center gap-1 backdrop-blur-xs pointer-events-none z-10">
-              <VolumeX className="w-3 h-3 text-stone-300" />
+            <div className="absolute bottom-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-black/75 text-white text-[10px] font-medium flex items-center gap-1 backdrop-blur-xs pointer-events-none z-10">
+              <VolumeX className="w-3 h-3 text-white/80" />
               <span>بدون موسيقى</span>
             </div>
           )}
         </div>
 
         {/* Video Details */}
-        <div className="p-4 flex flex-col justify-between grow space-y-2.5 bg-white">
+        <div className="p-4 flex flex-col justify-between grow space-y-2.5 bg-yt-surface">
           <h3
-            className="text-sm sm:text-base font-extrabold text-stone-900 line-clamp-2 leading-snug group-hover:text-amber-600 transition-colors duration-150"
+            className="text-sm sm:text-base font-extrabold text-yt-text line-clamp-2 leading-snug group-hover:text-yt-brand transition-colors duration-150"
             title={video.title}
           >
             {video.title}
           </h3>
 
-          <div className="flex items-center justify-between text-xs font-medium text-stone-500 pt-0.5">
+          <div className="flex items-center justify-between text-xs font-medium text-yt-text-muted pt-0.5">
             <span
               className={`truncate max-w-[65%] ${
-                onChannelSelect ? 'hover:underline hover:text-amber-600 cursor-pointer' : ''
+                onChannelSelect ? 'hover:underline hover:text-yt-brand cursor-pointer' : ''
               }`}
               onClick={(e) => {
                 if (onChannelSelect) {
@@ -177,7 +177,7 @@ export const VideoCard = React.memo(
             {formattedViews && (
               <span
                 id={`view-count-${video.videoId}`}
-                className="shrink-0 text-[11px] text-stone-500 font-medium"
+                className="shrink-0 text-[11px] text-yt-text-muted font-medium"
               >
                 {formattedViews}
               </span>

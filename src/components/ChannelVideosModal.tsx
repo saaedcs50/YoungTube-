@@ -253,7 +253,7 @@ export default function ChannelVideosModal({
   return (
     <div
       id="channel-videos-modal-backdrop"
-      className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-sm overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
       dir="rtl"
       role="dialog"
       aria-modal="true"
@@ -265,29 +265,29 @@ export default function ChannelVideosModal({
     >
       <div
         id="channel-videos-modal"
-        className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-stone-200/80 overflow-hidden flex flex-col max-h-[88vh] my-auto"
+        className="w-full max-w-5xl bg-yt-surface rounded-3xl shadow-2xl border border-yt-border overflow-hidden flex flex-col max-h-[88vh] my-auto"
       >
         {/* Modal Header */}
-        <div className="p-4 sm:p-6 bg-amber-500/10 border-b border-amber-200/60 flex flex-col gap-4">
+        <div className="p-4 sm:p-6 bg-yt-brand-soft border-b border-yt-border flex flex-col gap-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <div className="w-10 h-10 rounded-2xl bg-yt-brand text-yt-brand-text flex items-center justify-center shrink-0 shadow-xs">
                 <Tv className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-amber-900">
+                  <span className="text-xs font-bold text-yt-text">
                     أرشيف القناة
                   </span>
                   {!loading && (
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-200/70 text-amber-900">
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-yt-surface border border-yt-border text-yt-text">
                       {videos.length} فيديو
                     </span>
                   )}
                 </div>
                 <h2
                   id="channel-videos-modal-title"
-                  className="text-lg sm:text-xl font-extrabold text-stone-900 leading-snug"
+                  className="text-lg sm:text-xl font-extrabold text-yt-text leading-snug"
                 >
                   {channelTitle}
                 </h2>
@@ -298,7 +298,7 @@ export default function ChannelVideosModal({
               id="close-channel-modal-btn"
               type="button"
               onClick={onClose}
-              className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95"
+              className="w-9 h-9 rounded-full bg-yt-surface hover:bg-yt-surface-muted text-yt-text-muted hover:text-yt-text flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95 border border-yt-border"
               aria-label="إغلاق"
             >
               <X className="w-5 h-5" />
@@ -312,14 +312,14 @@ export default function ChannelVideosModal({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="ابحث في هذه القناة…"
-              className="w-full pr-10 pl-10 py-2.5 bg-white rounded-2xl border border-stone-200/90 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-sm font-medium text-stone-900 placeholder:text-stone-400 outline-none transition shadow-xs"
+              className="w-full pr-10 pl-10 py-2.5 bg-yt-surface rounded-2xl border border-yt-border focus:border-yt-brand focus:ring-2 focus:ring-yt-brand/20 text-sm font-medium text-yt-text placeholder:text-yt-text-muted outline-none transition shadow-xs"
             />
-            <Search className="w-4 h-4 text-stone-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-yt-text-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-1"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-yt-text-muted hover:text-yt-text p-1"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -329,8 +329,8 @@ export default function ChannelVideosModal({
 
         {/* API Key Missing Banner */}
         {apiKeyMissing && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center gap-2 text-xs font-bold text-amber-900">
-            <KeyRound className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="bg-yt-brand-soft border-b border-yt-border px-4 py-2.5 flex items-center gap-2 text-xs font-bold text-yt-text">
+            <KeyRound className="w-4 h-4 text-yt-brand shrink-0" />
             <span>ضع مفتاح YouTube API في الإعدادات لجلب فيديوهات أقدم</span>
           </div>
         )}
@@ -339,22 +339,22 @@ export default function ChannelVideosModal({
         <div className="p-4 sm:p-6 overflow-y-auto grow space-y-6">
           {loading ? (
             <div className="py-16 text-center space-y-3">
-              <Loader2 className="w-8 h-8 text-amber-600 animate-spin mx-auto" />
-              <p className="text-sm font-bold text-stone-600">
+              <Loader2 className="w-8 h-8 text-yt-brand animate-spin mx-auto" />
+              <p className="text-sm font-bold text-yt-text-muted">
                 جاري تحميل أرشيف فيديوهات القناة...
               </p>
             </div>
           ) : videos.length === 0 ? (
             /* Empty State 1: No archive loaded yet */
             <div className="py-12 text-center space-y-4 max-w-sm mx-auto">
-              <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-sm border border-amber-100">
+              <div className="w-14 h-14 rounded-2xl bg-yt-brand-soft text-yt-brand flex items-center justify-center mx-auto shadow-sm border border-yt-border">
                 <Film className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="text-base font-black text-stone-900">
+                <h3 className="text-base font-black text-yt-text">
                   لا يوجد أرشيف بعد — جرّب تحميل المزيد
                 </h3>
-                <p className="text-xs text-stone-500 leading-relaxed font-medium mt-1">
+                <p className="text-xs text-yt-text-muted leading-relaxed font-medium mt-1">
                   انقر على الزر أدناه لجلب أرشيف الفيديوهات مباشرة من يوتيوب.
                 </p>
               </div>
@@ -363,7 +363,7 @@ export default function ChannelVideosModal({
                 type="button"
                 onClick={handleLoadMoreDeepen}
                 disabled={isDeepening}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold rounded-2xl shadow-sm transition disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yt-brand hover:bg-yt-brand-hover active:scale-95 text-yt-brand-text text-xs font-bold rounded-2xl shadow-sm transition disabled:opacity-50 cursor-pointer"
               >
                 {isDeepening ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -380,7 +380,7 @@ export default function ChannelVideosModal({
               {localFilteredVideos.length > 0 && (
                 <div className="space-y-3">
                   {searchQuery.trim().length >= 2 && (
-                    <h3 className="text-xs font-bold text-stone-500 px-1">
+                    <h3 className="text-xs font-bold text-yt-text-muted px-1">
                       الفيديوهات المحملة ({localFilteredVideos.length})
                     </h3>
                   )}
@@ -408,8 +408,8 @@ export default function ChannelVideosModal({
               {/* Searching Indicator */}
               {isSearching && (
                 <div className="py-6 text-center space-y-2">
-                  <Loader2 className="w-5 h-5 text-amber-600 animate-spin mx-auto" />
-                  <p className="text-xs font-bold text-stone-500">
+                  <Loader2 className="w-5 h-5 text-yt-brand animate-spin mx-auto" />
+                  <p className="text-xs font-bold text-yt-text-muted">
                     جاري البحث في القناة عبر يوتيوب…
                   </p>
                 </div>
@@ -417,8 +417,8 @@ export default function ChannelVideosModal({
 
               {/* Extra Server Search Results Section */}
               {trimmedSearch.length >= 2 && !isSearching && extraSearchResults.length > 0 && (
-                <div className="space-y-3 pt-2 border-t border-stone-100">
-                  <h3 className="text-xs font-extrabold text-amber-900 bg-amber-50/80 px-3 py-1.5 rounded-xl border border-amber-200/50 inline-block">
+                <div className="space-y-3 pt-2 border-t border-yt-border">
+                  <h3 className="text-xs font-extrabold text-yt-text bg-yt-brand-soft px-3 py-1.5 rounded-xl border border-yt-border inline-block">
                     نتائج البحث الإضافية من يوتيوب ({extraSearchResults.length})
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
@@ -448,27 +448,27 @@ export default function ChannelVideosModal({
                 localFilteredVideos.length === 0 &&
                 extraSearchResults.length === 0 && (
                   <div className="py-10 text-center space-y-2">
-                    <p className="text-sm font-bold text-stone-600">
+                    <p className="text-sm font-bold text-yt-text">
                       لم يتم العثور على نتائج تطابق «{searchQuery}»
                     </p>
-                    <p className="text-xs text-stone-400">
+                    <p className="text-xs text-yt-text-muted">
                       جرب كلمة بحث أخرى أو انقر على تحميل المزيد.
                     </p>
                   </div>
                 )}
 
               {/* Load More Button at bottom */}
-              <div className="pt-4 border-t border-stone-100 text-center">
+              <div className="pt-4 border-t border-yt-border text-center">
                 <button
                   type="button"
                   onClick={handleLoadMoreDeepen}
                   disabled={isDeepening}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-extrabold rounded-2xl transition active:scale-95 disabled:opacity-50 cursor-pointer shadow-xs"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-yt-brand-soft hover:bg-yt-surface-muted text-yt-text border border-yt-border text-xs font-extrabold rounded-2xl transition active:scale-95 disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {isDeepening ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                    <Loader2 className="w-4 h-4 animate-spin text-yt-brand" />
                   ) : (
-                    <Download className="w-4 h-4 text-amber-600" />
+                    <Download className="w-4 h-4 text-yt-brand" />
                   )}
                   <span>تحميل المزيد من يوتيوب</span>
                 </button>
