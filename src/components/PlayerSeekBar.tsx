@@ -117,14 +117,14 @@ export const PlayerSeekBar: React.FC<PlayerSeekBarProps> = ({
       >
         {/* Track */}
         <div className="w-full h-2 bg-white/15 rounded-full relative overflow-visible">
-          {/* Filled Progress (Amber with warm glow) */}
+          {/* Filled Progress (Brand with warm glow) */}
           <div
-            className="h-full bg-amber-500 rounded-full shadow-[0_0_12px_rgba(255,159,28,0.7)]"
+            className="h-full bg-yt-brand rounded-full shadow-[0_0_12px_rgba(255,159,28,0.7)]"
             style={{ width: `${progressPercent}%` }}
           />
           {/* Interactive Scrubber Pin */}
           <div
-            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-white border-2 border-amber-500 shadow-md pointer-events-none transition-transform duration-75 ${
+            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full bg-white border-2 border-yt-brand shadow-md pointer-events-none transition-transform duration-75 ${
               isDragging ? 'w-4 h-4 scale-125' : 'w-3.5 h-3.5 group-hover:scale-125'
             }`}
             style={{ left: `${progressPercent}%` }}
@@ -133,9 +133,9 @@ export const PlayerSeekBar: React.FC<PlayerSeekBarProps> = ({
       </div>
 
       {/* Timestamps & Remaining Time Badge */}
-      <div className="w-full flex items-center justify-between text-xs font-semibold text-stone-300 px-0.5">
+      <div className="w-full flex items-center justify-between text-xs font-semibold text-yt-text-muted px-0.5">
         <div dir="ltr" className="flex items-center gap-1 font-mono tracking-wider">
-          <span className="text-amber-400 font-bold">{formatTime(displayCurrentTime)}</span>
+          <span className="text-yt-brand font-bold">{formatTime(displayCurrentTime)}</span>
           <span className="text-white/30">/</span>
           <span className="text-white/60">{formatTime(duration)}</span>
         </div>

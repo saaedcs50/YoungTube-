@@ -119,12 +119,12 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
           <div className="flex items-center justify-between w-full pointer-events-auto gap-4">
             <div className="flex flex-col min-w-0 max-w-[65%] text-right">
               {videoTitle && (
-                <h2 className="text-xs sm:text-sm font-bold text-stone-100 truncate drop-shadow-md">
+                <h2 className="text-xs sm:text-sm font-bold text-yt-text truncate drop-shadow-md">
                   {videoTitle}
                 </h2>
               )}
               {channelTitle && (
-                <p className="text-[11px] text-stone-400 truncate drop-shadow-sm">
+                <p className="text-[11px] text-yt-text-muted truncate drop-shadow-sm">
                   {channelTitle}
                 </p>
               )}
@@ -137,11 +137,11 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
                 e.stopPropagation();
                 onExitFullscreen();
               }}
-              className="p-2.5 sm:p-3 min-w-[44px] min-h-[44px] rounded-2xl bg-black/60 hover:bg-black/80 text-stone-200 border border-stone-700/60 shadow-lg transition active:scale-95 cursor-pointer flex items-center gap-2 text-xs font-semibold shrink-0"
+              className="p-2.5 sm:p-3 min-w-[44px] min-h-[44px] rounded-2xl bg-black/60 hover:bg-black/80 text-yt-text-muted hover:text-yt-text border border-yt-border shadow-lg transition active:scale-95 cursor-pointer flex items-center gap-2 text-xs font-semibold shrink-0"
               aria-label="إنهاء ملء الشاشة"
               title="إنهاء ملء الشاشة"
             >
-              <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-stone-200" />
+              <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-yt-text" />
               <span className="hidden sm:inline">إنهاء العرض الكامل</span>
             </button>
           </div>
@@ -176,7 +176,7 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
                     resetHideTimer();
                     onPrev?.();
                   }}
-                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-black/60 hover:bg-black/80 text-stone-200 hover:text-white border border-stone-700/60 flex items-center justify-center transition active:scale-95 cursor-pointer shadow-md"
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-black/60 hover:bg-black/80 text-yt-text-muted hover:text-white border border-yt-border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-md"
                   aria-label="السابق"
                   title="السابق"
                 >
@@ -212,7 +212,7 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
                     resetHideTimer();
                     onNext?.();
                   }}
-                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-black/60 hover:bg-black/80 text-stone-200 hover:text-white border border-stone-700/60 flex items-center justify-center transition active:scale-95 cursor-pointer shadow-md"
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-black/60 hover:bg-black/80 text-yt-text-muted hover:text-white border border-yt-border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-md"
                   aria-label="التالي"
                   title="التالي"
                 >
@@ -234,14 +234,14 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
                   className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer border ${
                     isLoved
                       ? 'bg-rose-500/25 text-rose-400 border-rose-500/50 ring-2 ring-rose-500/30'
-                      : 'bg-black/60 hover:bg-rose-950/40 hover:text-rose-400 text-stone-300 border-stone-700/60'
+                      : 'bg-black/60 hover:bg-rose-950/40 hover:text-rose-400 text-yt-text-muted border-yt-border'
                   }`}
                   aria-label={isLoved ? 'إلغاء الإعجاب' : 'إعجاب / مفضلة'}
                   title={isLoved ? 'إلغاء الإعجاب' : 'إعجاب / مفضلة'}
                 >
                   <Heart
                     className={`w-5 h-5 ${
-                      isLoved ? 'fill-rose-500 text-rose-500' : 'text-stone-300'
+                      isLoved ? 'fill-rose-500 text-rose-500' : 'text-yt-text-muted'
                     }`}
                   />
                 </button>
@@ -257,8 +257,8 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
                   }}
                   className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border transition active:scale-95 cursor-pointer flex items-center justify-center ${
                     isLooping
-                      ? 'bg-amber-500/30 text-amber-300 border-amber-400 shadow-md ring-2 ring-amber-400/30'
-                      : 'bg-black/60 hover:bg-black/80 text-stone-300 border-stone-700/60'
+                      ? 'bg-yt-brand-soft text-yt-brand border-yt-brand shadow-md ring-2 ring-yt-brand/30'
+                      : 'bg-black/60 hover:bg-black/80 text-yt-text-muted border-yt-border'
                   }`}
                   aria-label="تكرار الفيديو"
                   title={isLooping ? 'التكرار مفعل' : 'تفعيل التكرار'}
@@ -274,7 +274,7 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
                     e.stopPropagation();
                     onExitFullscreen();
                   }}
-                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-black/60 hover:bg-black/80 text-stone-300 hover:text-white border border-stone-700/60 flex items-center justify-center transition active:scale-95 cursor-pointer"
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-black/60 hover:bg-black/80 text-yt-text-muted hover:text-white border border-yt-border flex items-center justify-center transition active:scale-95 cursor-pointer"
                   aria-label="إنهاء ملء الشاشة"
                   title="إنهاء ملء الشاشة"
                 >

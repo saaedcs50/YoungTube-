@@ -244,29 +244,30 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
   return (
     <div
       id="player-settings-backdrop"
+      data-surface="player"
       onClick={handleBackdropClick}
-      className="fixed inset-x-0 bottom-0 h-1/2 z-40 flex flex-col justify-end bg-stone-950/70 backdrop-blur-[2px] transition-opacity duration-200 select-none animate-in fade-in"
+      className="fixed inset-x-0 bottom-0 h-1/2 z-40 flex flex-col justify-end bg-yt-bg/70 backdrop-blur-[2px] transition-opacity duration-200 select-none animate-in fade-in"
       aria-label="خلفية إعدادات التشغيل"
     >
       {/* Slide-Up Bottom Sheet Panel (covers lower half of screen) */}
       <div
         id="player-settings-sheet"
         dir="rtl"
-        className="w-full h-full bg-stone-900 border-t border-stone-800 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden text-stone-100 transition-transform duration-250 ease-out animate-in slide-in-from-bottom-full"
+        className="w-full h-full bg-yt-surface border-t border-yt-border rounded-t-2xl shadow-2xl flex flex-col overflow-hidden text-yt-text transition-transform duration-250 ease-out animate-in slide-in-from-bottom-full"
       >
         {/* Top Header & Drag handle */}
-        <div className="pt-2.5 pb-2 px-5 border-b border-stone-800/80 shrink-0 bg-stone-900/90">
-          <div className="w-10 h-1 bg-stone-700 rounded-full mx-auto mb-3" />
+        <div className="pt-2.5 pb-2 px-5 border-b border-yt-border shrink-0 bg-yt-surface/90">
+          <div className="w-10 h-1 bg-yt-border rounded-full mx-auto mb-3" />
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
-                <Sliders className="w-4 h-4 text-amber-400" />
+              <div className="w-8 h-8 rounded-full bg-yt-brand-soft flex items-center justify-center text-yt-brand shrink-0">
+                <Sliders className="w-4 h-4 text-yt-brand" />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-white leading-tight">
+                <h3 className="text-sm sm:text-base font-bold text-yt-text leading-tight">
                   خيارات المشغل والتحكم
                 </h3>
-                <p className="text-[11px] text-stone-400 font-medium">
+                <p className="text-[11px] text-yt-text-muted font-medium">
                   إعدادات العرض الآمن للطفل
                 </p>
               </div>
@@ -289,12 +290,12 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
           {/* Section 1: الجودة (Quality) */}
           <section id="settings-section-quality" className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-stone-300 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-yt-text-muted flex items-center gap-1.5">
                 <span>الجودة (Quality)</span>
               </span>
               {qualityWarning && (
-                <span className="text-[11px] text-amber-300/90 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
-                  <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
+                <span className="text-[11px] text-yt-brand flex items-center gap-1 bg-yt-brand-soft px-2 py-0.5 rounded-md border border-yt-brand/20">
+                  <AlertCircle className="w-3 h-3 text-yt-brand shrink-0" />
                   <span>{qualityWarning}</span>
                 </span>
               )}
@@ -311,12 +312,12 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
                     onClick={() => handleSelectQuality(level)}
                     className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-semibold transition active:scale-95 cursor-pointer ${
                       isSelected
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 ring-1 ring-amber-500/30'
-                        : 'bg-stone-800/80 hover:bg-stone-800 text-stone-300 border-stone-700/60'
+                        ? 'bg-yt-brand-soft text-yt-brand border-yt-brand ring-1 ring-yt-brand/30'
+                        : 'bg-yt-surface-muted/80 hover:bg-yt-surface-muted text-yt-text-muted border-yt-border'
                     }`}
                   >
                     <span className="truncate">{label}</span>
-                    {isSelected && <Check className="w-4 h-4 text-amber-400 shrink-0 mr-1" />}
+                    {isSelected && <Check className="w-4 h-4 text-yt-brand shrink-0 mr-1" />}
                   </button>
                 );
               })}
@@ -325,8 +326,8 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
 
           {/* Section 2: سرعة التشغيل (Playback Speed) */}
           <section id="settings-section-speed" className="space-y-2">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-stone-300">
-              <Gauge className="w-3.5 h-3.5 text-amber-400" />
+            <div className="flex items-center gap-1.5 text-xs font-bold text-yt-text-muted">
+              <Gauge className="w-3.5 h-3.5 text-yt-brand" />
               <span>سرعة التشغيل (Playback speed)</span>
             </div>
 
@@ -340,12 +341,12 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
                     onClick={() => handleSelectSpeed(opt.value)}
                     className={`flex items-center justify-center gap-1 px-2 py-2.5 rounded-xl border text-xs font-semibold transition active:scale-95 cursor-pointer ${
                       isSelected
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 ring-1 ring-amber-500/30'
-                        : 'bg-stone-800/80 hover:bg-stone-800 text-stone-300 border-stone-700/60'
+                        ? 'bg-yt-brand-soft text-yt-brand border-yt-brand ring-1 ring-yt-brand/30'
+                        : 'bg-yt-surface-muted/80 hover:bg-yt-surface-muted text-yt-text-muted border-yt-border'
                     }`}
                   >
                     <span>{opt.label}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                    {isSelected && <Check className="w-3.5 h-3.5 text-yt-brand shrink-0" />}
                   </button>
                 );
               })}
@@ -354,8 +355,8 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
 
           {/* Section 3: الترجمة (Captions) */}
           <section id="settings-section-captions" className="space-y-2">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-stone-300">
-              <Subtitles className="w-3.5 h-3.5 text-amber-400" />
+            <div className="flex items-center gap-1.5 text-xs font-bold text-yt-text-muted">
+              <Subtitles className="w-3.5 h-3.5 text-yt-brand" />
               <span>الترجمة (Captions)</span>
             </div>
 
@@ -367,13 +368,13 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
                   onClick={() => handleSelectCaption('off')}
                   className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition active:scale-95 cursor-pointer ${
                     activeCaptionCode === 'off'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 ring-1 ring-amber-500/30'
-                      : 'bg-stone-800/80 hover:bg-stone-800 text-stone-300 border-stone-700/60'
+                      ? 'bg-yt-brand-soft text-yt-brand border-yt-brand ring-1 ring-yt-brand/30'
+                      : 'bg-yt-surface-muted/80 hover:bg-yt-surface-muted text-yt-text-muted border-yt-border'
                   }`}
                 >
                   <span>إيقاف الترجمة</span>
                   {activeCaptionCode === 'off' && (
-                    <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                    <Check className="w-4 h-4 text-yt-brand shrink-0" />
                   )}
                 </button>
 
@@ -390,18 +391,18 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
                       onClick={() => handleSelectCaption(code)}
                       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition active:scale-95 cursor-pointer ${
                         isSelected
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 ring-1 ring-amber-500/30'
-                          : 'bg-stone-800/80 hover:bg-stone-800 text-stone-300 border-stone-700/60'
+                          ? 'bg-yt-brand-soft text-yt-brand border-yt-brand ring-1 ring-yt-brand/30'
+                          : 'bg-yt-surface-muted/80 hover:bg-yt-surface-muted text-yt-text-muted border-yt-border'
                       }`}
                     >
                       <span className="truncate">{name}</span>
-                      {isSelected && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
+                      {isSelected && <Check className="w-4 h-4 text-yt-brand shrink-0" />}
                     </button>
                   );
                 })}
               </div>
             ) : (
-              <div className="px-3.5 py-3 rounded-xl bg-stone-900/60 border border-stone-800 text-xs text-stone-400 text-right">
+              <div className="px-3.5 py-3 rounded-xl bg-yt-surface/60 border border-yt-border text-xs text-yt-text-muted text-right">
                 لا توجد ترجمة متاحة لهذا الفيديو
               </div>
             )}
@@ -410,8 +411,8 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
           {/* Section 4: مسار الصوت (Audio track) - only render if > 1 track */}
           {audioTracks.length > 1 && (
             <section id="settings-section-audio" className="space-y-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-stone-300">
-                <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+              <div className="flex items-center gap-1.5 text-xs font-bold text-yt-text-muted">
+                <Volume2 className="w-3.5 h-3.5 text-yt-brand" />
                 <span>مسار الصوت (Audio track)</span>
               </div>
 
@@ -425,12 +426,12 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
                       onClick={() => handleSelectAudioTrack(aTrack.id)}
                       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition active:scale-95 cursor-pointer ${
                         isSelected
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 ring-1 ring-amber-500/30'
-                          : 'bg-stone-800/80 hover:bg-stone-800 text-stone-300 border-stone-700/60'
+                          ? 'bg-yt-brand-soft text-yt-brand border-yt-brand ring-1 ring-yt-brand/30'
+                          : 'bg-yt-surface-muted/80 hover:bg-yt-surface-muted text-yt-text-muted border-yt-border'
                       }`}
                     >
                       <span className="truncate">{aTrack.displayName || aTrack.id}</span>
-                      {isSelected && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
+                      {isSelected && <Check className="w-4 h-4 text-yt-brand shrink-0" />}
                     </button>
                   );
                 })}

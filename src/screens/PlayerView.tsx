@@ -1310,11 +1310,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   return (
     <div
       id="youngtube-player-view"
+      data-surface="player"
       dir="rtl"
       className={
         isMinimized
           ? 'fixed inset-0 z-50 pointer-events-none bg-transparent select-none'
-          : 'fixed inset-0 z-50 bg-stone-950 text-white flex flex-col h-screen w-screen overflow-hidden select-none'
+          : 'fixed inset-0 z-50 bg-yt-bg text-white flex flex-col h-screen w-screen overflow-hidden select-none'
       }
     >
       {/* ================= TOP HALF / VIDEO AREA (Portrait: 50% height) ================= */}
@@ -1324,12 +1325,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             ? 'fixed inset-0 z-50 w-full h-full bg-black overflow-hidden'
             : isMinimized
             ? 'fixed bottom-5 right-5 z-50 pointer-events-auto w-[160px] h-[90px] sm:w-[200px] sm:h-[112px] rounded-2xl shadow-2xl shadow-black/90 ring-1 ring-white/20 bg-black flex items-center justify-center transition-all duration-300'
-            : 'w-full h-1/2 flex flex-col bg-stone-900 border-b border-stone-800'
+            : 'w-full h-1/2 flex flex-col bg-yt-surface border-b border-yt-border'
         }
       >
         {/* Top Quarter (25% of top half): Meta & Parent Actions (Portrait only) */}
         {!isFullscreen && !isMinimized && (
-          <div className="h-[25%] px-3.5 pt-3 bg-stone-900 flex items-center justify-between border-b border-stone-800/80 gap-2 shrink-0">
+          <div className="h-[25%] px-3.5 pt-3 bg-yt-surface flex items-center justify-between border-b border-yt-border gap-2 shrink-0">
             {/* Back/Close button (top-left / start in RTL) */}
             <button
               type="button"
@@ -1343,23 +1344,23 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
             {/* Title & Channel Info (1 line) */}
             <div className="flex-1 min-w-0 px-1">
-              <h2 className="font-bold text-xs sm:text-sm text-stone-100 truncate">
+              <h2 className="font-bold text-xs sm:text-sm text-yt-text truncate">
                 {currentVideo.title}
               </h2>
-              <p className="text-[11px] text-stone-400 truncate">
+              <p className="text-[11px] text-yt-text-muted truncate">
                 {currentVideo.channelTitle}
               </p>
             </div>
 
             {/* Parent Action Pill Container */}
             <div className="flex items-center gap-1 shrink-0 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">
-              <span className="text-amber-400 text-xs shrink-0">🔒</span>
+              <span className="text-yt-brand text-xs shrink-0">🔒</span>
               <button
                 type="button"
                 id="player-parent-hide-btn"
                 onClick={handleHideVideo}
                 disabled={hideConfirmed}
-                className="hover:text-amber-300 active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer"
+                className="hover:text-yt-brand active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer"
                 title="إخفاء الفيديو من القائمة"
               >
                 {hideConfirmed ? 'تم الإخفاء ✅' : 'إخفاء'}
@@ -1529,7 +1530,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 e.stopPropagation();
                 handleMiniPlayerClose();
               }}
-              className="absolute -top-2 -right-2 z-30 w-7 h-7 rounded-full bg-stone-900 border border-stone-600 hover:border-rose-400 text-stone-200 hover:text-white hover:bg-rose-600 shadow-lg flex items-center justify-center cursor-pointer transition"
+              className="absolute -top-2 -right-2 z-30 w-7 h-7 rounded-full bg-yt-surface border border-yt-border hover:border-rose-400 text-yt-text-muted hover:text-white hover:bg-rose-600 shadow-lg flex items-center justify-center cursor-pointer transition"
               aria-label="إغلاق المشغل المصغر"
               title="إغلاق الفيديو"
             >
@@ -1546,7 +1547,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <p className="text-sm font-bold text-rose-200 mb-1">
                 تم إيقاف الفيديو فورياً عبر إشارة الأمان (forceStop)
               </p>
-              <p className="text-xs text-stone-400 mb-3 max-w-xs">
+              <p className="text-xs text-yt-text-muted mb-3 max-w-xs">
                 تم استلام إشارة الإيقاف الإجباري وتم استدعاء stopVideo() بنجاح.
               </p>
               {testForceStop && !forceStop && (
@@ -1561,7 +1562,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                       // ignore
                     }
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold border border-stone-600 transition cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-yt-surface-muted hover:bg-yt-surface text-yt-text text-xs font-semibold border border-yt-border transition cursor-pointer"
                 >
                   إلغاء فحص forceStop واستئناف الفيديو ▶
                 </button>
@@ -1571,9 +1572,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         </div>
       </div>
 
-      {/* ================= BOTTOM HALF (Portrait only: 50% height, stone-950) ================= */}
+      {/* ================= BOTTOM HALF (Portrait only: 50% height, bg-yt-bg) ================= */}
       {!isFullscreen && !isMinimized && (
-        <div className="h-1/2 flex flex-col justify-between p-4 sm:p-5 bg-stone-950 min-h-0 overflow-y-auto overscroll-contain gap-3">
+        <div className="h-1/2 flex flex-col justify-between p-4 sm:p-5 bg-yt-bg min-h-0 overflow-y-auto overscroll-contain gap-3">
           {/* 1) Seek bar dir="ltr" + remaining / total time */}
           <div className="w-full">
             <PlayerSeekBar
@@ -1601,18 +1602,18 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 <SkipBack className="w-6 h-6" />
               </button>
 
-              {/* Play/Pause Button: 64px Dominant Amber/Golden Control */}
+              {/* Play/Pause Button: 64px Dominant Control */}
               <button
                 type="button"
                 id="player-control-play-pause"
-                className="w-16 h-16 rounded-full bg-gradient-to-b from-amber-400 to-amber-600 text-stone-950 flex items-center justify-center shadow-[0_8px_24px_rgba(255,159,28,0.45)] border-b-[3px] border-amber-700 active:scale-95 active:translate-y-0.5 transition-transform shrink-0 cursor-pointer"
+                className="w-16 h-16 rounded-full bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text flex items-center justify-center shadow-[0_8px_24px_rgba(255,159,28,0.45)] border-b-[3px] border-yt-brand-hover active:scale-95 active:translate-y-0.5 transition-transform shrink-0 cursor-pointer"
                 aria-label={isPlaying ? 'إيقاف مؤقت' : 'تشغيل'}
                 onClick={handleTogglePlay}
               >
                 {isPlaying ? (
-                  <Pause className="w-8 h-8 fill-stone-950 text-stone-950" />
+                  <Pause className="w-8 h-8 fill-current text-current" />
                 ) : (
-                  <Play className="w-8 h-8 fill-stone-950 text-stone-950 ml-0.5" />
+                  <Play className="w-8 h-8 fill-current text-current ml-0.5" />
                 )}
               </button>
 
@@ -1640,13 +1641,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center ${
                     isLooping
-                      ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                      ? 'bg-yt-brand-soft text-yt-brand border border-yt-brand/40'
                       : 'bg-white/5 hover:bg-white/10 text-white/80'
                   }`}
                 >
                   <Repeat className="w-5 h-5" />
                 </div>
-                <span className="text-[11px] font-semibold text-white/60">تكرار</span>
+                <span className="text-[11px] font-semibold text-yt-text-muted">تكرار</span>
               </button>
 
               {/* Settings */}
@@ -1659,13 +1660,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center ${
                     isSettingsOpen
-                      ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                      ? 'bg-yt-brand-soft text-yt-brand border border-yt-brand/40'
                       : 'bg-white/5 hover:bg-white/10 text-white/80'
                   }`}
                 >
                   <Settings className="w-5 h-5" />
                 </div>
-                <span className="text-[11px] font-semibold text-white/60">الإعدادات</span>
+                <span className="text-[11px] font-semibold text-yt-text-muted">الإعدادات</span>
               </button>
 
               {/* Love / Favorite */}
@@ -1688,7 +1689,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                     }`}
                   />
                 </div>
-                <span className="text-[11px] font-semibold text-white/60">المفضلة</span>
+                <span className="text-[11px] font-semibold text-yt-text-muted">المفضلة</span>
               </button>
             </div>
           </div>
@@ -1697,8 +1698,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                <span className="text-xs font-bold text-white">التالي في قائمة الأمان</span>
+                <span className="w-2 h-2 rounded-full bg-yt-brand"></span>
+                <span className="text-xs font-bold text-yt-text">التالي في قائمة الأمان</span>
               </div>
               <span className="text-[10px] text-white/40">
                 {Math.max(0, playlist.length - 1)} مقاطع معتمدة
@@ -1712,9 +1713,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                     key={item.videoId}
                     type="button"
                     onClick={() => handlePlayQueuedVideo(item)}
-                    className="shrink-0 w-36 sm:w-44 bg-stone-900 hover:bg-stone-800 rounded-xl border border-stone-800 p-2 flex flex-col gap-1.5 text-right cursor-pointer transition active:scale-95 group focus:outline-none focus:ring-1 focus:ring-stone-600"
+                    className="shrink-0 w-36 sm:w-44 bg-yt-surface hover:bg-yt-surface-muted rounded-xl border border-yt-border p-2 flex flex-col gap-1.5 text-right cursor-pointer transition active:scale-95 group focus:outline-none focus:ring-1 focus:ring-yt-border"
                   >
-                    <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-stone-950">
+                    <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-yt-bg">
                       <img
                         src={`https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`}
                         alt={item.title}
@@ -1723,10 +1724,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                         referrerPolicy="no-referrer"
                       />
                     </div>
-                    <span className="text-[11px] font-semibold text-stone-200 line-clamp-1 group-hover:text-white">
+                    <span className="text-[11px] font-semibold text-yt-text line-clamp-1 group-hover:text-yt-text">
                       {item.title}
                     </span>
-                    <span className="text-[10px] text-stone-400 truncate">
+                    <span className="text-[10px] text-yt-text-muted truncate">
                       {item.channelTitle}
                     </span>
                   </button>
