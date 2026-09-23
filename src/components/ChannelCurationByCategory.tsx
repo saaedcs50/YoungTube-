@@ -210,21 +210,21 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
   return (
     <div id="channel-curation-by-category" className="space-y-5 max-w-4xl mx-auto">
       {/* Section Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-yt-border">
         <div>
-          <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <h3 className="text-base sm:text-lg font-extrabold text-yt-text flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-yt-brand text-yt-brand-text flex items-center justify-center shrink-0 shadow-sm">
               <FolderKanban className="w-4 h-4" />
             </span>
             <span>تنظيم وتصنيف القنوات والبحث</span>
           </h3>
-          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+          <p className="text-xs sm:text-sm text-yt-text-muted mt-1">
             البحث عن قنوات جديدة بمفتاح عائلتك، وتخصيص تفعيل أو إيقاف أي قناة في كل قسم تصنيفي للأطفال.
           </p>
         </div>
 
         <div className="flex items-center gap-2 text-xs self-start sm:self-auto">
-          <span className="text-stone-700 bg-white px-3 py-1 rounded-xl font-bold border border-stone-200 shadow-sm">
+          <span className="text-yt-text bg-yt-surface px-3 py-1 rounded-xl font-bold border border-yt-border shadow-sm">
             إجمالي القنوات: {channels.length}
           </span>
           <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl font-bold">
@@ -240,7 +240,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
       <AddByUrlCard target="channel" onAdded={handleChannelAdded} />
 
       {/* 2. YouTube Search Bar Component at Top */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-stone-200/70 shadow-sm">
+      <div className="p-4 sm:p-5 rounded-2xl bg-yt-surface border border-yt-border shadow-sm">
         <YoutubeSearchBar onChannelAdded={handleChannelAdded} />
       </div>
 
@@ -253,23 +253,23 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             placeholder="تصفية القنوات بالاسم..."
-            className="w-full min-h-[44px] pl-3.5 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-white hover:border-amber-400 focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition shadow-sm"
+            className="w-full min-h-[44px] pl-3.5 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-yt-border bg-yt-surface hover:border-yt-brand focus:bg-yt-surface text-yt-text focus:outline-hidden focus:ring-2 focus:ring-yt-brand/30 focus:border-yt-brand transition shadow-sm"
           />
-          <Search className="w-4 h-4 text-stone-400 absolute right-3 top-3.5 pointer-events-none" />
+          <Search className="w-4 h-4 text-yt-text-muted absolute right-3 top-3.5 pointer-events-none" />
         </div>
 
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={expandAll}
-            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-sm"
+            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-yt-text-muted hover:text-yt-text bg-yt-surface hover:bg-yt-surface-muted border border-yt-border transition cursor-pointer shadow-sm"
           >
             فتح الكل
           </button>
           <button
             type="button"
             onClick={collapseAll}
-            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-stone-700 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 transition cursor-pointer shadow-sm"
+            className="min-h-[44px] sm:min-h-[38px] px-4 py-2 text-xs font-bold rounded-xl text-yt-text-muted hover:text-yt-text bg-yt-surface hover:bg-yt-surface-muted border border-yt-border transition cursor-pointer shadow-sm"
           >
             طي الكل
           </button>
@@ -278,7 +278,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
 
       {/* 3. Collapsible Category Sections */}
       {isLoading ? (
-        <div className="py-12 text-center text-xs text-slate-400">
+        <div className="py-12 text-center text-xs text-yt-text-muted">
           جاري تحميل القنوات وتصنيفاتها...
         </div>
       ) : (
@@ -292,59 +292,59 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
               <div
                 key={cat.id}
                 id={`curation-cat-group-${cat.id}`}
-                className="rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-sm transition"
+                className="rounded-2xl border border-yt-border bg-yt-surface overflow-hidden shadow-sm transition"
               >
                 {/* Collapsible Header */}
                 <button
                   type="button"
                   onClick={() => toggleCategoryCollapse(cat.id)}
-                  className="w-full min-h-[52px] flex items-center justify-between p-3.5 sm:p-4 hover:bg-stone-50/70 transition text-right cursor-pointer"
+                  className="w-full min-h-[52px] flex items-center justify-between p-3.5 sm:p-4 hover:bg-yt-surface-muted transition text-right cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-xl shrink-0 p-1.5 rounded-xl bg-stone-100/80">
+                    <span className="text-xl shrink-0 p-1.5 rounded-xl bg-yt-surface-muted">
                       {cat.emoji}
                     </span>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+                        <h4 className="text-xs sm:text-sm font-bold text-yt-text">
                           {cat.label}
                         </h4>
-                        <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-600 font-semibold border border-stone-200/60">
+                        <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-yt-surface-muted text-yt-text-muted font-semibold border border-yt-border">
                           {list.length} {list.length === 1 ? 'قناة' : 'قنوات'}
                         </span>
                         {list.length > 0 && enabledCount < list.length && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-yt-brand-soft text-yt-brand border border-yt-brand/30 font-semibold">
                             {list.length - enabledCount} موقوفة
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-stone-400 hidden sm:block mt-0.5">
+                      <p className="text-[11px] text-yt-text-muted hidden sm:block mt-0.5">
                         {cat.description}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-stone-400">
+                  <div className="flex items-center gap-2 text-yt-text-muted">
                     <span className="text-xs hidden sm:inline font-medium">
                       {isOpen ? 'إخفاء' : 'عرض'}
                     </span>
                     {isOpen ? (
-                      <ChevronUp className="w-4 h-4 text-stone-500" />
+                      <ChevronUp className="w-4 h-4 text-yt-text-muted" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-stone-500" />
+                      <ChevronDown className="w-4 h-4 text-yt-text-muted" />
                     )}
                   </div>
                 </button>
 
                 {/* Collapsible Content */}
                 {isOpen && (
-                  <div className="p-3 sm:p-4 border-t border-stone-100 bg-stone-50/30">
+                  <div className="p-3 sm:p-4 border-t border-yt-border bg-yt-surface-muted/30">
                     {list.length === 0 ? (
-                      <div className="py-6 text-center text-xs text-stone-400">
+                      <div className="py-6 text-center text-xs text-yt-text-muted">
                         لا توجد قنوات في هذا التصنيف حالياً. يمكنك البحث بالأعلى وإضافة قنوات جديدة.
                       </div>
                     ) : (
-                      <div className="divide-y divide-stone-100">
+                      <div className="divide-y divide-yt-border">
                         {list.map((channel) => (
                           <div
                             key={`${cat.id}-${channel.sourceId}`}
@@ -355,7 +355,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                                 <img
                                   src={channel.thumbnail}
                                   alt={channel.title}
-                                  className="w-10 h-10 rounded-xl object-cover shrink-0 bg-stone-200 border border-stone-200"
+                                  className="w-10 h-10 rounded-xl object-cover shrink-0 bg-yt-surface-muted border border-yt-border"
                                   referrerPolicy="no-referrer"
                                   onError={() => {
                                     setFailedThumbnails((prev) => {
@@ -366,7 +366,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                                   }}
                                 />
                               ) : (
-                                <div className="w-10 h-10 rounded-xl bg-stone-100 text-stone-400 flex items-center justify-center shrink-0 border border-stone-200">
+                                <div className="w-10 h-10 rounded-xl bg-yt-surface-muted text-yt-text-muted flex items-center justify-center shrink-0 border border-yt-border">
                                   {channel.sourceType === 'playlist' ? (
                                     <ListVideo className="w-5 h-5" />
                                   ) : (
@@ -378,13 +378,13 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                               <div className="min-w-0">
                                 <span
                                   className={`text-xs sm:text-sm font-semibold block truncate leading-snug ${
-                                    channel.enabled ? 'text-stone-900' : 'text-stone-400 line-through'
+                                    channel.enabled ? 'text-yt-text' : 'text-yt-text-muted line-through'
                                   }`}
                                   title={channel.title}
                                 >
                                   {channel.title}
                                 </span>
-                                <div className="flex items-center gap-1.5 text-[11px] text-stone-400 mt-0.5">
+                                <div className="flex items-center gap-1.5 text-[11px] text-yt-text-muted mt-0.5">
                                   <span>{channel.sourceType === 'playlist' ? 'قائمة تشغيل' : 'قناة'}</span>
                                   <span>•</span>
                                   <span>{channel.isPreloaded ? 'مضمّنة' : 'مخصصة'}</span>
@@ -427,7 +427,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
 
                               <span
                                 className={`text-xs font-semibold hidden sm:inline ${
-                                  channel.enabled ? 'text-emerald-700' : 'text-stone-400'
+                                  channel.enabled ? 'text-emerald-700' : 'text-yt-text-muted'
                                 }`}
                               >
                                 {channel.enabled ? 'مفعلة' : 'معطلة'}
@@ -440,7 +440,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                                 aria-checked={channel.enabled}
                                 onClick={() => handleToggleEnabled(channel)}
                                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                                  channel.enabled ? 'bg-emerald-600' : 'bg-stone-300'
+                                  channel.enabled ? 'bg-emerald-600' : 'bg-yt-border'
                                 }`}
                                 title={channel.enabled ? 'تعطيل القناة' : 'تفعيل القناة'}
                               >
@@ -466,47 +466,47 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
           {categorizedChannels.uncategorized.length > 0 && (
             <div
               id="curation-cat-group-uncategorized"
-              className="rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-sm transition"
+              className="rounded-2xl border border-yt-border bg-yt-surface overflow-hidden shadow-sm transition"
             >
               <button
                 type="button"
                 onClick={() => toggleCategoryCollapse('uncategorized')}
-                className="w-full min-h-[52px] flex items-center justify-between p-3.5 sm:p-4 hover:bg-stone-50/70 transition text-right cursor-pointer"
+                className="w-full min-h-[52px] flex items-center justify-between p-3.5 sm:p-4 hover:bg-yt-surface-muted transition text-right cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-xl shrink-0 p-1.5 rounded-xl bg-amber-100 text-amber-800">
+                  <span className="text-xl shrink-0 p-1.5 rounded-xl bg-yt-brand-soft text-yt-brand">
                     <Layers className="w-5 h-5" />
                   </span>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+                      <h4 className="text-xs sm:text-sm font-bold text-yt-text">
                         قنوات غير مصنفة أو مضافة حديثاً
                       </h4>
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-semibold border border-amber-200">
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-yt-brand-soft text-yt-text font-semibold border border-yt-brand/30">
                         {categorizedChannels.uncategorized.length}
                       </span>
                     </div>
-                    <p className="text-[11px] text-stone-400 hidden sm:block mt-0.5">
+                    <p className="text-[11px] text-yt-text-muted hidden sm:block mt-0.5">
                       قنوات لم يتم تعيين تصنيف لها بعد. يمكنك تفعيلها أو تعطيلها هنا.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-stone-400">
+                <div className="flex items-center gap-2 text-yt-text-muted">
                   <span className="text-xs hidden sm:inline font-medium">
                     {openCategories.has('uncategorized') ? 'إخفاء' : 'عرض'}
                   </span>
                   {openCategories.has('uncategorized') ? (
-                    <ChevronUp className="w-4 h-4 text-stone-500" />
+                    <ChevronUp className="w-4 h-4 text-yt-text-muted" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-stone-500" />
+                    <ChevronDown className="w-4 h-4 text-yt-text-muted" />
                   )}
                 </div>
               </button>
 
               {openCategories.has('uncategorized') && (
-                <div className="p-3 sm:p-4 border-t border-stone-100 bg-stone-50/30">
-                  <div className="divide-y divide-stone-100">
+                <div className="p-3 sm:p-4 border-t border-yt-border bg-yt-surface-muted/30">
+                  <div className="divide-y divide-yt-border">
                     {categorizedChannels.uncategorized.map((channel) => (
                       <div
                         key={`uncat-${channel.sourceId}`}
@@ -517,7 +517,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                             <img
                               src={channel.thumbnail}
                               alt={channel.title}
-                              className="w-10 h-10 rounded-xl object-cover shrink-0 bg-stone-200 border border-stone-200"
+                              className="w-10 h-10 rounded-xl object-cover shrink-0 bg-yt-surface-muted border border-yt-border"
                               referrerPolicy="no-referrer"
                               onError={() => {
                                 setFailedThumbnails((prev) => {
@@ -528,7 +528,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                               }}
                             />
                           ) : (
-                            <div className="w-10 h-10 rounded-xl bg-stone-100 text-stone-400 flex items-center justify-center shrink-0 border border-stone-200">
+                            <div className="w-10 h-10 rounded-xl bg-yt-surface-muted text-yt-text-muted flex items-center justify-center shrink-0 border border-yt-border">
                               <Tv className="w-5 h-5" />
                             </div>
                           )}
@@ -536,13 +536,13 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                           <div className="min-w-0">
                             <span
                               className={`text-xs sm:text-sm font-semibold block truncate leading-snug ${
-                                channel.enabled ? 'text-stone-900' : 'text-stone-400 line-through'
+                                channel.enabled ? 'text-yt-text' : 'text-yt-text-muted line-through'
                               }`}
                               title={channel.title}
                             >
                               {channel.title}
                             </span>
-                            <span className="text-[11px] text-amber-700 block mt-0.5">
+                            <span className="text-[11px] text-yt-brand block mt-0.5">
                               يحتاج لتصنيف في نتائج البحث بالأعلى
                             </span>
                           </div>
@@ -582,7 +582,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
 
                           <span
                             className={`text-xs font-semibold hidden sm:inline ${
-                              channel.enabled ? 'text-emerald-700' : 'text-stone-400'
+                              channel.enabled ? 'text-emerald-700' : 'text-yt-text-muted'
                             }`}
                           >
                             {channel.enabled ? 'مفعلة' : 'معطلة'}
@@ -595,7 +595,7 @@ export const ChannelCurationByCategory: React.FC<ChannelCurationByCategoryProps>
                             aria-checked={channel.enabled}
                             onClick={() => handleToggleEnabled(channel)}
                             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                              channel.enabled ? 'bg-emerald-600' : 'bg-stone-300'
+                              channel.enabled ? 'bg-emerald-600' : 'bg-yt-border'
                             }`}
                           >
                             <span

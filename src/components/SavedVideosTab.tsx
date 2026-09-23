@@ -48,12 +48,12 @@ const SavedVideoRowThumbnail: React.FC<{
 
   return (
     <div
-      className="relative w-16 h-11 sm:w-20 sm:h-13 rounded-xl overflow-hidden shrink-0 bg-stone-200 border border-stone-200/80"
+      className="relative w-16 h-11 sm:w-20 sm:h-13 rounded-xl overflow-hidden shrink-0 bg-yt-surface-muted border border-yt-border"
       data-thumb-failed={thumbFailed ? 'true' : undefined}
     >
       {thumbFailed ? (
-        <div className="w-full h-full bg-stone-200 flex items-center justify-center text-stone-400">
-          <Play className="w-4 h-4 fill-stone-400 text-stone-400 translate-x-0.5" />
+        <div className="w-full h-full bg-yt-surface-muted flex items-center justify-center text-yt-text-muted">
+          <Play className="w-4 h-4 fill-yt-text-muted text-yt-text-muted translate-x-0.5" />
         </div>
       ) : (
         <img
@@ -69,7 +69,7 @@ const SavedVideoRowThumbnail: React.FC<{
       )}
       {/* Small Play Overlay on hover */}
       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 flex items-center justify-center transition">
-        <div className="w-6 h-6 rounded-full bg-white/90 text-amber-600 flex items-center justify-center shadow-sm">
+        <div className="w-6 h-6 rounded-full bg-yt-surface/90 text-yt-brand flex items-center justify-center shadow-sm">
           <Play className="w-3 h-3 fill-current translate-x-0.2" />
         </div>
       </div>
@@ -168,20 +168,20 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
   return (
     <div id="saved-videos-tab" className="space-y-5 max-w-4xl mx-auto text-right" dir="rtl">
       {/* Section Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-yt-border">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h4 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <h4 className="text-base sm:text-lg font-extrabold text-yt-text flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-yt-brand text-yt-brand-text flex items-center justify-center shrink-0 shadow-sm">
                 <Bookmark className="w-4 h-4" />
               </span>
               <span>الفيديوهات المحفوظة للأهل</span>
             </h4>
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-900 text-xs font-bold border border-amber-200">
+            <span className="px-2.5 py-0.5 rounded-full bg-yt-brand-soft text-yt-text text-xs font-bold border border-yt-brand/30">
               {savedVideos.length} فيديو
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-stone-500">
+          <p className="text-xs sm:text-sm text-yt-text-muted">
             فيديوهات تم حفظها من شاشة المشغل للرجوع إليها أو مراجعتها في أي وقت.
           </p>
         </div>
@@ -195,18 +195,18 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
 
       {/* Content */}
       {isLoading ? (
-        <div className="p-12 text-center text-xs text-stone-400">
+        <div className="p-12 text-center text-xs text-yt-text-muted">
           جاري تحميل الفيديوهات المحفوظة...
         </div>
       ) : savedVideos.length > 0 ? (
-        <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm">
-          <div className="divide-y divide-stone-100 rounded-xl border border-stone-200/80 overflow-hidden bg-stone-50/50">
+        <div className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm">
+          <div className="divide-y divide-yt-border rounded-xl border border-yt-border overflow-hidden bg-yt-surface-muted">
             {savedVideos.map((video) => (
               <div
                 key={video.videoId}
                 id={`saved-video-row-${video.videoId}`}
                 onClick={() => onSelectVideo?.(video.videoId, video.title, video.channelTitle, video.channelId)}
-                className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-white transition cursor-pointer group"
+                className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-yt-surface transition cursor-pointer group"
                 title="انقر لتشغيل الفيديو في المشغل"
               >
                 {/* Thumbnail + Video Info */}
@@ -219,15 +219,15 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
 
                   <div className="min-w-0">
                     <h5
-                      className="text-xs sm:text-sm font-bold text-stone-900 truncate group-hover:text-amber-700 transition"
+                      className="text-xs sm:text-sm font-bold text-yt-text truncate group-hover:text-yt-brand transition"
                       title={video.title}
                     >
                       {video.title}
                     </h5>
-                    <div className="flex items-center gap-2 text-[11px] text-stone-500 mt-0.5">
+                    <div className="flex items-center gap-2 text-[11px] text-yt-text-muted mt-0.5">
                       <span className="truncate">{video.channelTitle}</span>
                       <span>•</span>
-                      <span className="text-amber-700 font-bold text-[11px]">انقر للمشاهدة</span>
+                      <span className="text-yt-brand font-bold text-[11px]">انقر للمشاهدة</span>
                     </div>
                   </div>
                 </div>
@@ -237,7 +237,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
                   type="button"
                   id={`remove-saved-${video.videoId}-btn`}
                   onClick={(e) => handleRemoveSaved(e, video.videoId, video.title)}
-                  className="min-h-[44px] sm:min-h-[38px] px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 text-xs font-bold flex items-center gap-1.5 transition shrink-0 border border-rose-200/80 cursor-pointer shadow-2xs"
+                  className="min-h-[44px] sm:min-h-[38px] px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-yt-danger text-xs font-bold flex items-center gap-1.5 transition shrink-0 border border-yt-danger/30 cursor-pointer shadow-2xs"
                   title="إزالة من المحفوظات"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -251,15 +251,15 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
         /* Empty State */
         <div
           id="saved-videos-empty-state"
-          className="p-10 rounded-2xl bg-white border border-stone-200/70 shadow-sm text-center space-y-2"
+          className="p-10 rounded-2xl bg-yt-surface border border-yt-border shadow-sm text-center space-y-2"
         >
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-3 border border-amber-200/60">
+          <div className="w-12 h-12 rounded-2xl bg-yt-brand-soft text-yt-brand flex items-center justify-center mx-auto mb-3 border border-yt-border">
             <Bookmark className="w-6 h-6" />
           </div>
-          <h5 className="text-xs sm:text-sm font-bold text-stone-900">
+          <h5 className="text-xs sm:text-sm font-bold text-yt-text">
             لا توجد فيديوهات محفوظة بعد
           </h5>
-          <p className="text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
+          <p className="text-xs text-yt-text-muted max-w-sm mx-auto leading-relaxed">
             أثناء مشاهدة أي فيديو في المشغل، يمكنك الضغط على زر &quot;حفظ&quot; ليظهر هنا مباشرة لمراجعته في أي وقت.
           </p>
         </div>

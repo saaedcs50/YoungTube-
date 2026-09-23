@@ -345,27 +345,27 @@ export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
   return (
     <div
       id={`add-by-url-card-${target}`}
-      className="bg-white rounded-2xl border border-stone-200/70 p-4 sm:p-5 shadow-xs mb-6 text-right"
+      className="bg-yt-surface rounded-2xl border border-yt-border p-4 sm:p-5 shadow-xs mb-6 text-right"
     >
       <div className="flex items-center gap-2.5 mb-3">
         <div
           className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
             target === 'channel'
               ? 'bg-sky-50 text-sky-600 border-sky-100'
-              : 'bg-amber-50 text-amber-600 border-amber-100'
+              : 'bg-yt-brand-soft text-yt-brand border-yt-brand/30'
           }`}
         >
           {target === 'channel' ? <Tv className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
         </div>
         <div>
-          <h3 className="text-sm font-bold text-stone-900">
+          <h3 className="text-sm font-bold text-yt-text">
             {target === 'channel'
               ? 'إضافة قناة مخصصة عبر الرابط أو المعرف (@handle)'
               : target === 'saved'
               ? 'إضافة فيديو أو قائمة تشغيل مخصصة'
               : 'إضافة فيديو أو قائمة إلى المفضلة'}
           </h3>
-          <p className="text-xs text-stone-500">
+          <p className="text-xs text-yt-text-muted">
             {target === 'channel'
               ? 'ألصق رابط القناة أو معرفها (@handle) للتحقق منها وإضافتها فوراً إلى قائمة القنوات.'
               : 'يمكنك لصق رابط فيديو مباشر أو رابط قائمة تشغيل كاملة من يوتيوب لإضافتها فوراً.'}
@@ -389,14 +389,14 @@ export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
                 : 'الصق رابط فيديو أو قائمة تشغيل من يوتيوب'
             }
             disabled={isLoading}
-            className="w-full px-4 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-xs sm:text-sm text-stone-900 placeholder-stone-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-all text-right"
+            className="w-full px-4 py-2.5 rounded-xl bg-yt-surface-muted border border-yt-border text-xs sm:text-sm text-yt-text placeholder-yt-text-muted focus:outline-hidden focus:ring-2 focus:ring-yt-brand/30 focus:border-yt-brand transition-all text-right"
           />
         </div>
         <button
           id={`add-url-btn-${target}`}
           type="submit"
           disabled={isLoading || !urlInput.trim()}
-          className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:bg-stone-200 disabled:text-stone-400 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition shadow-xs cursor-pointer disabled:cursor-not-allowed shrink-0 active:scale-95"
+          className="px-5 py-2.5 rounded-xl bg-yt-brand hover:bg-yt-brand-hover disabled:bg-yt-surface-muted disabled:text-yt-text-muted text-yt-brand-text text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition shadow-xs cursor-pointer disabled:cursor-not-allowed shrink-0 active:scale-95"
         >
           {isLoading ? (
             <>
@@ -417,13 +417,13 @@ export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
           className={`mt-3 p-3 rounded-xl flex items-center gap-2.5 text-xs font-bold ${
             feedback.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
-              : 'bg-rose-50 text-rose-800 border border-rose-200/60'
+              : 'bg-rose-50 text-yt-danger border border-yt-danger/30'
           }`}
         >
           {feedback.type === 'success' ? (
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
           ) : (
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <AlertCircle className="w-4 h-4 shrink-0 text-yt-danger" />
           )}
           <span>{feedback.message}</span>
         </div>

@@ -95,25 +95,25 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     (selectedQuestion !== 'custom' || customQuestion.trim().length > 0);
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#FAF8F5] overflow-y-auto flex items-center justify-center p-4 sm:p-6" dir="rtl">
+    <div className="fixed inset-0 z-50 bg-yt-bg overflow-y-auto flex items-center justify-center p-4 sm:p-6" dir="rtl">
       <div
         id="onboarding-modal"
-        className="w-full max-w-lg bg-white rounded-3xl shadow-xl border border-stone-200/80 overflow-hidden flex flex-col my-auto"
+        className="w-full max-w-lg bg-yt-surface rounded-3xl shadow-xl border border-yt-border overflow-hidden flex flex-col my-auto"
       >
         {/* Modal Header */}
-        <div className="bg-amber-500/10 border-b border-amber-200/60 p-5 sm:p-6 text-right">
+        <div className="bg-yt-brand-soft border-b border-yt-border p-5 sm:p-6 text-right">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-amber-600 text-white shadow-2xs">
+            <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-yt-brand text-yt-brand-text shadow-2xs">
               خطوة 1 من 1
             </span>
-            <span className="text-xs font-bold text-amber-900">
+            <span className="text-xs font-bold text-yt-brand">
               حماية أمان الوالدين
             </span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-stone-900 mt-2.5">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-yt-text mt-2.5">
             إعداد رمز PIN وسؤال الأمان
           </h2>
-          <p className="text-xs sm:text-sm text-stone-700 mt-1.5 leading-relaxed font-medium">
+          <p className="text-xs sm:text-sm text-yt-text-muted mt-1.5 leading-relaxed font-medium">
             أنشئ رمز مرور سري لحماية لوحة التحكم وأوقات الشاشة، مع سؤال أمان لاستعادة الرمز بسهولة في حال نسيانه.
           </p>
         </div>
@@ -121,7 +121,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         {/* Modal Body */}
         <div className="p-5 sm:p-6">
           {error && (
-            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-bold text-right">
+            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-yt-danger text-xs font-bold text-right">
               {error}
             </div>
           )}
@@ -129,18 +129,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           <form onSubmit={handleSubmit} className="space-y-6 text-right">
             {/* SECTION 1: PIN Setup */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm pb-1.5 border-b border-stone-100">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
+              <div className="flex items-center gap-2 text-yt-text font-extrabold text-sm pb-1.5 border-b border-yt-border">
+                <div className="w-8 h-8 rounded-xl bg-yt-brand-soft text-yt-brand flex items-center justify-center shrink-0 border border-yt-border">
                   <KeyRound className="w-4.5 h-4.5" />
                 </div>
                 <div>
-                  <h3 className="text-xs sm:text-sm font-bold text-stone-900">1. رمز PIN للوالدين (6 أرقام)</h3>
-                  <p className="text-[11px] text-stone-500 font-medium">مشفر بتقنية SHA-256 لمنع تعديل أوقات الشاشة أو الفلاتر</p>
+                  <h3 className="text-xs sm:text-sm font-bold text-yt-text">1. رمز PIN للوالدين (6 أرقام)</h3>
+                  <p className="text-[11px] text-yt-text-muted font-medium">مشفر بتقنية SHA-256 لمنع تعديل أوقات الشاشة أو الفلاتر</p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-stone-700">
+                <label className="block text-xs font-bold text-yt-text">
                   أدخل رمز PIN (6 أرقام):
                 </label>
                 <PinOtpInput
@@ -153,7 +153,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-stone-700">
+                <label className="block text-xs font-bold text-yt-text">
                   تأكيد رمز PIN:
                 </label>
                 <PinOtpInput
@@ -167,18 +167,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
             {/* SECTION 2: Security Question */}
             <div className="space-y-4 pt-2">
-              <div className="flex items-center gap-2 text-stone-900 font-extrabold text-sm pb-1.5 border-b border-stone-100">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
+              <div className="flex items-center gap-2 text-yt-text font-extrabold text-sm pb-1.5 border-b border-yt-border">
+                <div className="w-8 h-8 rounded-xl bg-yt-brand-soft text-yt-brand flex items-center justify-center shrink-0 border border-yt-border">
                   <HelpCircle className="w-4.5 h-4.5" />
                 </div>
                 <div>
-                  <h3 className="text-xs sm:text-sm font-bold text-stone-900">2. سؤال الأمان السري (لاستعادة الرمز)</h3>
-                  <p className="text-[11px] text-stone-500 font-medium">تُحفظ إجابته مشفرة محلياً لاسترجاع الرمز في حال نسيانه</p>
+                  <h3 className="text-xs sm:text-sm font-bold text-yt-text">2. سؤال الأمان السري (لاستعادة الرمز)</h3>
+                  <p className="text-[11px] text-yt-text-muted font-medium">تُحفظ إجابته مشفرة محلياً لاسترجاع الرمز في حال نسيانه</p>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="onboarding-question-select" className="block text-xs font-bold text-stone-700">
+                <label htmlFor="onboarding-question-select" className="block text-xs font-bold text-yt-text">
                   اختر سؤال الأمان أو اكتب سؤالك الخاص:
                 </label>
                 <select
@@ -188,7 +188,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     setSelectedQuestion(e.target.value);
                     if (e.target.value !== 'custom') setCustomQuestion('');
                   }}
-                  className="w-full min-h-[44px] p-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 font-medium text-stone-800"
+                  className="w-full min-h-[44px] p-2.5 text-xs sm:text-sm rounded-xl border border-yt-border bg-yt-surface focus:outline-hidden focus:ring-2 focus:ring-yt-brand/30 focus:border-yt-brand font-medium text-yt-text"
                 >
                   {COMMON_SECURITY_QUESTIONS.map((q, idx) => (
                     <option key={idx} value={q}>
@@ -205,13 +205,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     value={customQuestion}
                     onChange={(e) => setCustomQuestion(e.target.value)}
                     placeholder="اكتب سؤال الأمان الخاص بك هنا..."
-                    className="w-full min-h-[44px] p-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition mt-2"
+                    className="w-full min-h-[44px] p-2.5 text-xs sm:text-sm rounded-xl border border-yt-border bg-yt-surface-muted hover:bg-yt-surface focus:bg-yt-surface text-yt-text focus:outline-hidden focus:ring-2 focus:ring-yt-brand/30 focus:border-yt-brand transition mt-2"
                   />
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="onboarding-answer-input" className="block text-xs font-bold text-stone-700">
+                <label htmlFor="onboarding-answer-input" className="block text-xs font-bold text-yt-text">
                   إجابة السؤال السري:
                 </label>
                 <input
@@ -220,7 +220,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   value={securityAnswer}
                   onChange={(e) => setSecurityAnswer(e.target.value)}
                   placeholder="اكتب إجابتك هنا..."
-                  className="w-full min-h-[44px] p-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
+                  className="w-full min-h-[44px] p-2.5 text-xs sm:text-sm rounded-xl border border-yt-border bg-yt-surface-muted hover:bg-yt-surface focus:bg-yt-surface text-yt-text focus:outline-hidden focus:ring-2 focus:ring-yt-brand/30 focus:border-yt-brand transition"
                 />
               </div>
             </div>
@@ -231,7 +231,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 id="onboarding-submit-btn"
                 type="submit"
                 disabled={!isFormValid || isSubmitting}
-                className="w-full min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm shadow-amber-600/20 cursor-pointer"
+                className="w-full min-h-[48px] rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-40 shadow-sm shadow-yt-brand/20 cursor-pointer"
               >
                 <span>{isSubmitting ? 'جاري حفظ الإعدادات...' : 'حفظ وإكمال الإعداد'}</span>
                 <ArrowLeft className="w-4 h-4" />

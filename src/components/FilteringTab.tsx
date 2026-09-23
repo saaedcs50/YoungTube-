@@ -164,15 +164,15 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
   return (
     <div id="filtering-tab" className="space-y-5 max-w-4xl mx-auto">
       {/* Section Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-yt-border">
         <div>
-          <h3 className="text-base sm:text-lg font-extrabold text-stone-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <h3 className="text-base sm:text-lg font-extrabold text-yt-text flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-yt-brand text-yt-brand-text flex items-center justify-center shrink-0 shadow-sm">
               <ShieldAlert className="w-4 h-4" />
             </span>
             <span>إدارة الفلترة والمحتوى المحجوب</span>
           </h3>
-          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+          <p className="text-xs sm:text-sm text-yt-text-muted mt-1">
             إدارة الكلمات المحظورة لمنع ظهور أي فيديوهات بها، ومراجعة القنوات الموقوفة والفيديوهات المخفية.
           </p>
         </div>
@@ -188,22 +188,22 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
       {/* Opt-in Categories Approval Section */}
       <div
         id="opt-in-categories-card"
-        className="rounded-2xl border border-stone-200/80 bg-white p-4 sm:p-5 shadow-sm space-y-3"
+        className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm space-y-3"
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-4 h-4 text-amber-500" />
-            <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+            <SlidersHorizontal className="w-4 h-4 text-yt-brand" />
+            <h4 className="text-xs sm:text-sm font-bold text-yt-text">
               تصنيفات تحتاج موافقة الوالدين
             </h4>
           </div>
-          <span className="text-[11px] text-stone-400 font-mono">Opt-in Categories</span>
+          <span className="text-[11px] text-yt-text-muted font-mono">Opt-in Categories</span>
         </div>
-        <p className="text-xs text-stone-500 leading-relaxed">
+        <p className="text-xs text-yt-text-muted leading-relaxed">
           هذه التصنيفات معطّلة ومخفية افتراضيًا عن الطفل لحماية وقته واهتمامه، ويمكنك تفعيل ظهورها حسب رغبتك.
         </p>
 
-        <div className="divide-y divide-stone-100 border border-stone-200/70 rounded-xl bg-stone-50/50 overflow-hidden">
+        <div className="divide-y divide-yt-border border border-yt-border rounded-xl bg-yt-surface-muted overflow-hidden">
           {OPT_IN_CATEGORY_IDS.map((catId) => {
             const meta = OPT_IN_CATEGORY_META[catId] || {
               label: DEFAULT_KID_CATEGORIES.find((c) => c.id === catId)?.label || catId,
@@ -215,16 +215,16 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
             return (
               <div
                 key={catId}
-                className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-stone-50/60 transition"
+                className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-yt-surface hover:bg-yt-surface-muted transition"
               >
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-base">{meta.emoji}</span>
-                    <span className="text-xs sm:text-sm font-bold text-stone-900">
+                    <span className="text-xs sm:text-sm font-bold text-yt-text">
                       {meta.label}
                     </span>
                     {!isEnabled ? (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-600 border border-stone-200">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yt-surface-muted text-yt-text-muted border border-yt-border">
                         معطّل افتراضيًا (مخفي)
                       </span>
                     ) : (
@@ -233,7 +233,7 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-stone-500 leading-relaxed">
+                  <p className="text-xs text-yt-text-muted leading-relaxed">
                     {meta.description}
                   </p>
                 </div>
@@ -247,9 +247,9 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                     type="checkbox"
                     checked={isEnabled}
                     onChange={(e) => handleOptInToggle(catId, e.target.checked)}
-                    className="w-5 h-5 rounded border-stone-300 focus:ring-amber-500 cursor-pointer accent-amber-500"
+                    className="w-5 h-5 rounded border-yt-border focus:ring-yt-brand cursor-pointer accent-yt-brand"
                   />
-                  <span className="text-xs font-bold text-stone-700 sm:hidden">
+                  <span className="text-xs font-bold text-yt-text sm:hidden">
                     {isEnabled ? 'مفعّل' : 'معطّل'}
                   </span>
                 </label>
@@ -260,14 +260,14 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
       </div>
 
       {/* Sub-Tabs Selector */}
-      <div className="flex flex-wrap gap-2 p-1.5 rounded-2xl bg-white border border-stone-200/80 shadow-sm">
+      <div className="flex flex-wrap gap-2 p-1.5 rounded-2xl bg-yt-surface border border-yt-border shadow-sm">
         <button
           type="button"
           onClick={() => setActiveSubTab('blacklist')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer min-h-[44px] ${
             activeSubTab === 'blacklist'
-              ? 'bg-amber-500 text-white shadow-sm'
-              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              ? 'bg-yt-brand text-yt-brand-text shadow-sm'
+              : 'text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted'
           }`}
         >
           <ShieldAlert className="w-4 h-4" />
@@ -275,8 +275,8 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
           <span
             className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
               activeSubTab === 'blacklist'
-                ? 'bg-amber-600 text-white'
-                : 'bg-stone-100 text-stone-700'
+                ? 'bg-yt-brand-hover text-yt-brand-text'
+                : 'bg-yt-surface-muted text-yt-text-muted'
             }`}
           >
             {blacklistWords.length}
@@ -288,8 +288,8 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
           onClick={() => setActiveSubTab('channels')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer min-h-[44px] ${
             activeSubTab === 'channels'
-              ? 'bg-amber-500 text-white shadow-sm'
-              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              ? 'bg-yt-brand text-yt-brand-text shadow-sm'
+              : 'text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted'
           }`}
         >
           <Tv className="w-4 h-4" />
@@ -297,8 +297,8 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
           <span
             className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
               activeSubTab === 'channels'
-                ? 'bg-amber-600 text-white'
-                : 'bg-stone-100 text-stone-700'
+                ? 'bg-yt-brand-hover text-yt-brand-text'
+                : 'bg-yt-surface-muted text-yt-text-muted'
             }`}
           >
             {blockedChannels.length}
@@ -310,8 +310,8 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
           onClick={() => setActiveSubTab('videos')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer min-h-[44px] ${
             activeSubTab === 'videos'
-              ? 'bg-amber-500 text-white shadow-sm'
-              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              ? 'bg-yt-brand text-yt-brand-text shadow-sm'
+              : 'text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted'
           }`}
         >
           <Film className="w-4 h-4" />
@@ -319,8 +319,8 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
           <span
             className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
               activeSubTab === 'videos'
-                ? 'bg-amber-600 text-white'
-                : 'bg-stone-100 text-stone-700'
+                ? 'bg-yt-brand-hover text-yt-brand-text'
+                : 'bg-yt-surface-muted text-yt-text-muted'
             }`}
           >
             {hiddenVideos.length}
@@ -329,19 +329,19 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
       </div>
 
       {isLoading ? (
-        <div className="py-12 text-center text-xs text-stone-400">
+        <div className="py-12 text-center text-xs text-yt-text-muted">
           جاري تحميل بيانات الحظر...
         </div>
       ) : (
         <>
           {/* TAB 1: BLACKLIST WORDS */}
           {activeSubTab === 'blacklist' && (
-            <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm space-y-4">
               <div className="space-y-1">
-                <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+                <h4 className="text-xs sm:text-sm font-bold text-yt-text">
                   إدارة الكلمات المحظورة
                 </h4>
-                <p className="text-xs text-stone-500 leading-relaxed">
+                <p className="text-xs text-yt-text-muted leading-relaxed">
                   أي فيديو يحتوي عنوانه على أي من هذه الكلمات سيتم حجبه فوراً وتلقائياً عن طفلك.
                 </p>
               </div>
@@ -354,13 +354,13 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                   value={newWord}
                   onChange={(e) => setNewWord(e.target.value)}
                   placeholder="أدخل كلمة لحظرها (مثال: رعب، مقلب، تحدي)..."
-                  className="grow min-h-[44px] px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
+                  className="grow min-h-[44px] px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-yt-border bg-yt-surface-muted hover:bg-yt-surface focus:bg-yt-surface text-yt-text focus:outline-hidden focus:ring-2 focus:ring-yt-brand/30 focus:border-yt-brand transition"
                 />
                 <button
                   id="tab-add-blacklist-word-btn"
                   type="submit"
                   disabled={!newWord.trim()}
-                  className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-sm shrink-0"
+                  className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-sm shrink-0"
                 >
                   <Plus className="w-4 h-4" />
                   <span>إضافة للكلمات المحظورة</span>
@@ -374,13 +374,13 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                     {blacklistWords.map((word, idx) => (
                       <span
                         key={idx}
-                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-stone-50 text-stone-800 text-xs font-bold border border-stone-200/80 shadow-2xs"
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-yt-surface-muted text-yt-text text-xs font-bold border border-yt-border shadow-2xs"
                       >
                         <span>{word}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveWord(word)}
-                          className="p-1 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          className="p-1 rounded-lg text-yt-text-muted hover:text-yt-danger hover:bg-rose-50 transition cursor-pointer"
                           title="حذف الكلمة"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -389,11 +389,11 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                     ))}
                   </div>
                 ) : (
-                  <div className="p-8 rounded-2xl bg-stone-50 border border-stone-200/60 text-center space-y-1">
-                    <p className="text-xs sm:text-sm font-bold text-stone-700">
+                  <div className="p-8 rounded-2xl bg-yt-surface-muted border border-yt-border text-center space-y-1">
+                    <p className="text-xs sm:text-sm font-bold text-yt-text">
                       لا توجد كلمات محظورة مسجلة حالياً.
                     </p>
-                    <p className="text-xs text-stone-400">
+                    <p className="text-xs text-yt-text-muted">
                       يمكنك حظر كلمات محددة مثل أسماء برامج أو مقالب غير مناسبة للطفل.
                     </p>
                   </div>
@@ -404,43 +404,43 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
 
           {/* TAB 2: BLOCKED CHANNELS */}
           {activeSubTab === 'channels' && (
-            <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm space-y-4">
               <div className="space-y-1">
-                <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+                <h4 className="text-xs sm:text-sm font-bold text-yt-text">
                   القنوات المحظورة والمعطلة
                 </h4>
-                <p className="text-xs text-stone-500 leading-relaxed">
+                <p className="text-xs text-yt-text-muted leading-relaxed">
                   هذه القنوات تم تعطيلها مؤقتاً ولن تظهر فيديوهاتها لطفلك في الواجهة الرئيسية.
                 </p>
               </div>
 
               {blockedChannels.length > 0 ? (
-                <div className="divide-y divide-stone-100 rounded-xl border border-stone-200/80 bg-stone-50/50 overflow-hidden">
+                <div className="divide-y divide-yt-border rounded-xl border border-yt-border bg-yt-surface-muted overflow-hidden">
                   {blockedChannels.map((channel) => (
                     <div
                       key={channel.id}
-                      className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-white transition"
+                      className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-yt-surface transition"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {channel.thumbnail ? (
                           <img
                             src={channel.thumbnail}
                             alt={channel.title}
-                            className="w-11 h-11 rounded-xl object-cover shrink-0 bg-stone-200 border border-stone-200 opacity-60"
+                            className="w-11 h-11 rounded-xl object-cover shrink-0 bg-yt-surface-muted border border-yt-border opacity-60"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <div className="w-11 h-11 rounded-xl bg-stone-100 text-stone-400 flex items-center justify-center shrink-0 border border-stone-200">
+                          <div className="w-11 h-11 rounded-xl bg-yt-surface-muted text-yt-text-muted flex items-center justify-center shrink-0 border border-yt-border">
                             <Tv className="w-5 h-5" />
                           </div>
                         )}
 
                         <div className="min-w-0">
-                          <h5 className="text-xs sm:text-sm font-bold text-stone-900 truncate">
+                          <h5 className="text-xs sm:text-sm font-bold text-yt-text truncate">
                             {channel.title}
                           </h5>
-                          <div className="flex items-center gap-2 text-[11px] text-stone-400 mt-0.5">
-                            <span className="text-rose-600 font-bold">معطلة حالياً</span>
+                          <div className="flex items-center gap-2 text-[11px] text-yt-text-muted mt-0.5">
+                            <span className="text-yt-danger font-bold">معطلة حالياً</span>
                             <span>•</span>
                             <span>{channel.sourceType === 'playlist' ? 'قائمة تشغيل' : 'قناة'}</span>
                           </div>
@@ -459,14 +459,14 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                   ))}
                 </div>
               ) : (
-                <div className="p-8 rounded-2xl bg-stone-50 border border-stone-200/60 text-center space-y-1">
+                <div className="p-8 rounded-2xl bg-yt-surface-muted border border-yt-border text-center space-y-1">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2">
                     <Check className="w-5 h-5" />
                   </div>
-                  <p className="text-xs sm:text-sm font-bold text-stone-800">
+                  <p className="text-xs sm:text-sm font-bold text-yt-text">
                     لا توجد أي قنوات محظورة!
                   </p>
-                  <p className="text-xs text-stone-400">
+                  <p className="text-xs text-yt-text-muted">
                     جميع القنوات في مكتبتك مفعلة ومتاحة لطفلك.
                   </p>
                 </div>
@@ -476,42 +476,42 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
 
           {/* TAB 3: HIDDEN VIDEOS */}
           {activeSubTab === 'videos' && (
-            <div className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm space-y-4">
               <div className="space-y-1">
-                <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+                <h4 className="text-xs sm:text-sm font-bold text-yt-text">
                   الفيديوهات المخفية يدوياً
                 </h4>
-                <p className="text-xs text-stone-500 leading-relaxed">
+                <p className="text-xs text-yt-text-muted leading-relaxed">
                   الفيديوهات التي قمت بإخفائها من شاشة المشغل أو الرئيسية لمنع الطفل من مشاهدتها.
                 </p>
               </div>
 
               {hiddenVideos.length > 0 ? (
-                <div className="divide-y divide-stone-100 rounded-xl border border-stone-200/80 bg-stone-50/50 overflow-hidden">
+                <div className="divide-y divide-yt-border rounded-xl border border-yt-border bg-yt-surface-muted overflow-hidden">
                   {hiddenVideos.map((video) => (
                     <div
                       key={video.videoId}
-                      className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-white transition"
+                      className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-yt-surface transition"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {video.thumbnail ? (
                           <img
                             src={video.thumbnail}
                             alt={video.title}
-                            className="w-14 h-10 rounded-xl object-cover shrink-0 bg-stone-200 border border-stone-200 opacity-60"
+                            className="w-14 h-10 rounded-xl object-cover shrink-0 bg-yt-surface-muted border border-yt-border opacity-60"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <div className="w-14 h-10 rounded-xl bg-stone-100 text-stone-400 flex items-center justify-center shrink-0 border border-stone-200">
+                          <div className="w-14 h-10 rounded-xl bg-yt-surface-muted text-yt-text-muted flex items-center justify-center shrink-0 border border-yt-border">
                             <Film className="w-5 h-5" />
                           </div>
                         )}
 
                         <div className="min-w-0">
-                          <h5 className="text-xs sm:text-sm font-bold text-stone-900 truncate" title={video.title}>
+                          <h5 className="text-xs sm:text-sm font-bold text-yt-text truncate" title={video.title}>
                             {video.title}
                           </h5>
-                          <span className="text-[11px] text-rose-600 font-bold block mt-0.5">
+                          <span className="text-[11px] text-yt-danger font-bold block mt-0.5">
                             مخفي عن شاشة الطفل
                           </span>
                         </div>
@@ -520,23 +520,23 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
                       <button
                         type="button"
                         onClick={() => handleUnhideVideo(video)}
-                        className="min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer border border-amber-200 shadow-2xs"
+                        className="min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl bg-yt-brand-soft hover:bg-yt-brand-soft/80 text-yt-text text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer border border-yt-brand/30 shadow-2xs"
                       >
-                        <Eye className="w-3.5 h-3.5 text-amber-600" />
+                        <Eye className="w-3.5 h-3.5 text-yt-brand" />
                         <span>إظهار مرة أخرى</span>
                       </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="p-8 rounded-2xl bg-stone-50 border border-stone-200/60 text-center space-y-1">
+                <div className="p-8 rounded-2xl bg-yt-surface-muted border border-yt-border text-center space-y-1">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2">
                     <Check className="w-5 h-5" />
                   </div>
-                  <p className="text-xs sm:text-sm font-bold text-stone-800">
+                  <p className="text-xs sm:text-sm font-bold text-yt-text">
                     لا توجد فيديوهات مخفية حالياً
                   </p>
-                  <p className="text-xs text-stone-400">
+                  <p className="text-xs text-yt-text-muted">
                     يمكنك إخفاء أي فيديو في أي وقت مباشرة من زر الحظر أثناء المشاهدة.
                   </p>
                 </div>

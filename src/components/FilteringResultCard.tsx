@@ -154,18 +154,18 @@ export default function FilteringResultCard({
   return (
     <div
       id="filtering-result-card"
-      className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-4"
+      className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-4"
     >
       <div>
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-yt-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-yt-brand text-yt-brand-text flex items-center justify-center shrink-0 shadow-sm">
               <Filter className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-stone-900">ملخص الفلترة والحماية</h2>
-              <span className="text-[11px] text-stone-400 font-mono">Client-Side Summary (Dexie)</span>
+              <h2 className="text-base font-extrabold text-yt-text">ملخص الفلترة والحماية</h2>
+              <span className="text-[11px] text-yt-text-muted font-mono">Client-Side Summary (Dexie)</span>
             </div>
           </div>
 
@@ -174,7 +174,7 @@ export default function FilteringResultCard({
             type="button"
             onClick={handleExplicitRecalculate}
             disabled={filtering}
-            className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition duration-150 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-xs font-bold transition duration-150 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
             title="إعادة فحص وتطبيق معايير الفلترة على الفيديوهات"
           >
             <RefreshCw className={`w-4 h-4 ${filtering ? 'animate-spin' : ''}`} />
@@ -184,25 +184,25 @@ export default function FilteringResultCard({
 
         {/* State Display */}
         {filtering ? (
-          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 animate-pulse flex items-center gap-2.5 font-bold">
-            <RefreshCw className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+          <div className="p-4 rounded-xl bg-yt-brand-soft border border-yt-brand/30 text-xs text-yt-text animate-pulse flex items-center gap-2.5 font-bold">
+            <RefreshCw className="w-4 h-4 animate-spin text-yt-brand shrink-0" />
             <span>جاري فحص وتطبيق معايير الأمان (Shorts، الكلمات المحظورة، الموسيقى)...</span>
           </div>
         ) : loadingSummary ? (
-          <div className="p-4 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500 animate-pulse flex items-center gap-2">
-            <Layers className="w-4 h-4 text-stone-400 shrink-0 animate-spin" />
+          <div className="p-4 rounded-xl bg-yt-surface-muted border border-yt-border text-xs text-yt-text-muted animate-pulse flex items-center gap-2">
+            <Layers className="w-4 h-4 text-yt-text-muted shrink-0 animate-spin" />
             <span>جاري قراءة إحصائيات الذاكرة المحلية...</span>
           </div>
         ) : summary ? (
           <div className="space-y-4">
             {/* Primary Counts 2x2 Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <div className="p-3 rounded-xl bg-stone-50 border border-stone-200/60 text-center space-y-0.5">
-                <span className="text-[10px] text-stone-500 font-bold block">إجمالي بالذاكرة</span>
-                <span className="text-base sm:text-lg font-extrabold text-stone-900 font-mono">
+              <div className="p-3 rounded-xl bg-yt-surface-muted border border-yt-border text-center space-y-0.5">
+                <span className="text-[10px] text-yt-text-muted font-bold block">إجمالي بالذاكرة</span>
+                <span className="text-base sm:text-lg font-extrabold text-yt-text font-mono">
                   {summary.totalCached}
                 </span>
-                <span className="text-[10px] text-stone-400 block">فيديو مفحوص</span>
+                <span className="text-[10px] text-yt-text-muted block">فيديو مفحوص</span>
               </div>
 
               <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/70 text-center space-y-0.5">
@@ -221,17 +221,17 @@ export default function FilteringResultCard({
                 <span className="text-[10px] text-rose-600 block">شورتس / محظور</span>
               </div>
 
-              <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70 text-center space-y-0.5">
-                <span className="text-[10px] text-amber-700 font-bold block">كلمات حظر نشطة</span>
-                <span className="text-base sm:text-lg font-extrabold text-amber-800 font-mono">
+              <div className="p-3 rounded-xl bg-yt-brand-soft border border-yt-brand/30 text-center space-y-0.5">
+                <span className="text-[10px] text-yt-brand font-bold block">كلمات حظر نشطة</span>
+                <span className="text-base sm:text-lg font-extrabold text-yt-text font-mono">
                   {summary.blacklistWordsCount}
                 </span>
-                <span className="text-[10px] text-amber-600 block">كلمة محددة</span>
+                <span className="text-[10px] text-yt-brand block">كلمة محددة</span>
               </div>
             </div>
 
             {/* Heuristic Breakdown Stats */}
-            <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs text-stone-600 space-y-2">
+            <div className="p-3.5 rounded-xl bg-yt-surface-muted border border-yt-border text-xs text-yt-text-muted space-y-2">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
                   <VolumeX className="w-3.5 h-3.5 text-emerald-600" />
@@ -243,31 +243,31 @@ export default function FilteringResultCard({
               </div>
 
               <div className="flex items-center justify-between text-[11px]">
-                <span className="flex items-center gap-1.5 text-amber-700 font-medium">
-                  <Music className="w-3.5 h-3.5 text-amber-600" />
+                <span className="flex items-center gap-1.5 text-yt-brand font-medium">
+                  <Music className="w-3.5 h-3.5 text-yt-brand" />
                   فيديوهات تحتوي على موسيقى:
                 </span>
-                <span className="font-bold text-amber-800 font-mono">
+                <span className="font-bold text-yt-brand font-mono">
                   {summary.hasMusicCount} فيديو
                 </span>
               </div>
 
               {summary.portraitCount > 0 && (
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="flex items-center gap-1.5 text-stone-500">
-                    <Smartphone className="w-3.5 h-3.5 text-stone-400" />
+                  <span className="flex items-center gap-1.5 text-yt-text-muted">
+                    <Smartphone className="w-3.5 h-3.5 text-yt-text-muted" />
                     مستبعد (فيديوهات طولية / Portrait):
                   </span>
-                  <span className="font-bold text-stone-800 font-mono">
+                  <span className="font-bold text-yt-text font-mono">
                     {summary.portraitCount}
                   </span>
                 </div>
               )}
 
               {lastResult && (
-                <div className="pt-2 border-t border-stone-200/70 flex items-center justify-between text-[10px] text-stone-400">
-                  <span className="flex items-center gap-1 text-stone-500 font-medium">
-                    <Sparkles className="w-3 h-3 text-amber-500" />
+                <div className="pt-2 border-t border-yt-border flex items-center justify-between text-[10px] text-yt-text-muted">
+                  <span className="flex items-center gap-1 text-yt-text-muted font-medium">
+                    <Sparkles className="w-3 h-3 text-yt-brand" />
                     آخر حساب كامل:
                   </span>
                   <span className="font-mono">
@@ -278,7 +278,7 @@ export default function FilteringResultCard({
             </div>
 
             {/* Music Filtering Checkbox */}
-            <div className="mt-3 pt-3 border-t border-stone-100 space-y-2">
+            <div className="mt-3 pt-3 border-t border-yt-border space-y-2">
               <label
                 htmlFor="hide-music-checkbox"
                 className="flex items-center gap-2.5 cursor-pointer select-none group min-h-[44px]"
@@ -288,10 +288,10 @@ export default function FilteringResultCard({
                   type="checkbox"
                   checked={hideMusic}
                   onChange={handleMusicToggle}
-                  className="w-5 h-5 rounded border-stone-300 focus:ring-amber-500 cursor-pointer accent-amber-500"
+                  className="w-5 h-5 rounded border-yt-border focus:ring-yt-brand cursor-pointer accent-yt-brand"
                 />
-                <div className="flex items-center gap-1.5 text-xs font-bold text-stone-800 group-hover:text-stone-900 transition">
-                  <Music className="w-4 h-4 text-stone-500" />
+                <div className="flex items-center gap-1.5 text-xs font-bold text-yt-text group-hover:text-yt-text transition">
+                  <Music className="w-4 h-4 text-yt-text-muted" />
                   <span>إخفاء الفيديوهات ذات الموسيقى (Hide videos with music)</span>
                 </div>
               </label>
@@ -299,15 +299,15 @@ export default function FilteringResultCard({
               {hideMusic && (
                 <div
                   id="music-filter-stat-box"
-                  className="p-3 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-900 text-xs flex items-center justify-between transition-all"
+                  className="p-3 rounded-xl bg-yt-brand-soft border border-yt-brand/30 text-yt-text text-xs flex items-center justify-between transition-all"
                 >
                   <div className="flex items-center gap-1.5">
-                    <Music className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <Music className="w-3.5 h-3.5 text-yt-brand shrink-0" />
                     <span className="text-[11px] font-medium">
                       الفيديوهات ذات الموسيقى المحجوبة من خلاصة الطفل:
                     </span>
                   </div>
-                  <span className="font-bold text-xs font-mono bg-amber-200/60 px-2.5 py-0.5 rounded text-amber-950">
+                  <span className="font-bold text-xs font-mono bg-yt-brand/20 px-2.5 py-0.5 rounded text-yt-text">
                     {summary.hasMusicCount} فيديو
                   </span>
                 </div>
@@ -318,12 +318,12 @@ export default function FilteringResultCard({
       </div>
 
       {/* Footer */}
-      <div className="pt-3 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
+      <div className="pt-3 border-t border-yt-border flex items-center justify-between text-[11px] text-yt-text-muted">
         <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
           <span>معالجة محلية بالكامل دون إرسال بيانات الطفل خارجياً</span>
         </span>
-        <span className="font-mono text-[10px] text-stone-400">db.feedCache</span>
+        <span className="font-mono text-[10px] text-yt-text-muted">db.feedCache</span>
       </div>
     </div>
   );

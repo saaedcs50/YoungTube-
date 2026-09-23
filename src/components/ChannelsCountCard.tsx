@@ -84,24 +84,24 @@ export default function ChannelsCountCard({
   return (
     <div
       id="channels-count-card"
-      className="rounded-2xl border border-stone-200/70 bg-white p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-4"
+      className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-4"
     >
       <div>
-        <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-100">
+        <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-yt-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-yt-brand text-yt-brand-text flex items-center justify-center shrink-0 shadow-sm">
               <Tv className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-stone-900">أرشيف القنوات الحي</h2>
-              <span className="text-[11px] text-stone-600 font-mono">/api/channels-latest</span>
+              <h2 className="text-sm sm:text-base font-bold text-yt-text">أرشيف القنوات الحي</h2>
+              <span className="text-[11px] text-yt-text-muted font-mono">/api/channels-latest</span>
             </div>
           </div>
           <button
             id="retest-channels-btn"
             onClick={fetchChannelsLatest}
             disabled={loading}
-            className="min-h-[44px] sm:min-h-[40px] px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition duration-150 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm shrink-0"
+            className="min-h-[44px] sm:min-h-[40px] px-4 py-2 rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-xs font-bold transition duration-150 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm shrink-0"
             title="تحديث عدد القنوات"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -111,18 +111,18 @@ export default function ChannelsCountCard({
 
         {/* Status / Count Display */}
         {loading ? (
-          <div className="p-4 rounded-xl bg-stone-50 border border-stone-200/70 text-xs text-stone-600 animate-pulse flex items-center gap-2.5">
-            <RefreshCw className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+          <div className="p-4 rounded-xl bg-yt-surface-muted border border-yt-border text-xs text-yt-text-muted animate-pulse flex items-center gap-2.5">
+            <RefreshCw className="w-4 h-4 animate-spin text-yt-brand shrink-0" />
             <span>جاري جلب القنوات والبيانات المدمجة من السحابة...</span>
           </div>
         ) : error ? (
-          <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-950 space-y-1.5">
-            <div className="flex items-center gap-1.5 font-bold text-amber-900 text-xs">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="p-4 rounded-xl bg-yt-brand-soft border border-yt-brand/30 text-yt-text space-y-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-yt-text text-xs">
+              <AlertTriangle className="w-4 h-4 text-yt-brand shrink-0" />
               <span>فشل فحص القنوات</span>
             </div>
-            <p className="text-[11px] text-amber-800 leading-relaxed">{error}</p>
-            <div className="text-[10px] text-amber-700 font-mono pt-0.5">
+            <p className="text-[11px] text-yt-text-muted leading-relaxed">{error}</p>
+            <div className="text-[10px] text-yt-text-muted font-mono pt-0.5">
               آخر محاولة: {lastChecked}
             </div>
           </div>
@@ -130,17 +130,17 @@ export default function ChannelsCountCard({
           <div className="space-y-3">
             {/* 2x2 Stats Grid */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/60 space-y-0.5">
-                <span className="text-[11px] text-stone-600 font-bold block">إجمالي القنوات</span>
-                <span className="text-lg font-extrabold text-stone-900 font-mono">{totalChannels} قناة</span>
+              <div className="p-3.5 rounded-xl bg-yt-surface-muted border border-yt-border space-y-0.5">
+                <span className="text-[11px] text-yt-text-muted font-bold block">إجمالي القنوات</span>
+                <span className="text-lg font-extrabold text-yt-text font-mono">{totalChannels} قناة</span>
               </div>
-              <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/60 space-y-0.5">
-                <span className="text-[11px] text-stone-600 font-bold block">قنوات بأرشيف نشط</span>
-                <span className="text-lg font-extrabold text-amber-700 font-mono">{channelsWithVideos} قناة</span>
+              <div className="p-3.5 rounded-xl bg-yt-surface-muted border border-yt-border space-y-0.5">
+                <span className="text-[11px] text-yt-text-muted font-bold block">قنوات بأرشيف نشط</span>
+                <span className="text-lg font-extrabold text-yt-brand font-mono">{channelsWithVideos} قناة</span>
               </div>
-              <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/60 space-y-0.5">
-                <span className="text-[11px] text-stone-600 font-bold block">إجمالي الفيديوهات</span>
-                <span className="text-lg font-extrabold text-stone-900 font-mono">{totalVideos} فيديو</span>
+              <div className="p-3.5 rounded-xl bg-yt-surface-muted border border-yt-border space-y-0.5">
+                <span className="text-[11px] text-yt-text-muted font-bold block">إجمالي الفيديوهات</span>
+                <span className="text-lg font-extrabold text-yt-text font-mono">{totalVideos} فيديو</span>
               </div>
               <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/70 space-y-0.5">
                 <span className="text-[11px] text-emerald-700 font-bold block">حالة البيانات</span>
@@ -151,20 +151,20 @@ export default function ChannelsCountCard({
               </div>
             </div>
 
-            <div className="text-[10px] text-stone-600 font-mono pt-0.5 text-left">
+            <div className="text-[10px] text-yt-text-muted font-mono pt-0.5 text-left">
               آخر تحديث ناجح: {lastChecked}
             </div>
           </div>
         )}
       </div>
 
-      <div className="pt-3 border-t border-stone-100">
-        <div className="flex items-center justify-between text-[11px] text-stone-600">
-          <span className="flex items-center gap-1 text-stone-700 font-medium">
-            <Film className="w-3.5 h-3.5 text-amber-600" />
+      <div className="pt-3 border-t border-yt-border">
+        <div className="flex items-center justify-between text-[11px] text-yt-text-muted">
+          <span className="flex items-center gap-1 text-yt-text font-medium">
+            <Film className="w-3.5 h-3.5 text-yt-brand" />
             <span>بحد أقصى 200 فيديو لكل قناة</span>
           </span>
-          <span className="font-mono text-[10px] text-stone-600">Cloudflare KV + Seed</span>
+          <span className="font-mono text-[10px] text-yt-text-muted">Cloudflare KV + Seed</span>
         </div>
       </div>
     </div>

@@ -34,7 +34,7 @@ export default function AnnouncementModal({
   return (
     <div
       id="announcement-modal-backdrop"
-      className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-sm overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
       dir="rtl"
       role="dialog"
       aria-modal="true"
@@ -42,13 +42,13 @@ export default function AnnouncementModal({
     >
       <div
         id="announcement-modal"
-        className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-stone-200/80 overflow-hidden flex flex-col my-auto"
+        className="w-full max-w-lg bg-yt-surface rounded-3xl shadow-2xl border border-yt-border overflow-hidden flex flex-col my-auto"
       >
         {/* Modal Header */}
         <div
           className={`p-6 text-right border-b ${
             isWarning
-              ? 'bg-amber-500/10 border-amber-200/60'
+              ? 'bg-yt-brand-soft border-yt-brand/30'
               : 'bg-sky-500/10 border-sky-200/60'
           }`}
         >
@@ -56,7 +56,7 @@ export default function AnnouncementModal({
             {isMultiple ? (
               <span
                 className={`text-xs font-mono font-bold px-3 py-1 rounded-full text-white shadow-2xs ${
-                  isWarning ? 'bg-amber-500' : 'bg-sky-500'
+                  isWarning ? 'bg-yt-brand' : 'bg-sky-500'
                 }`}
               >
                 1 من {totalRemaining}
@@ -65,7 +65,7 @@ export default function AnnouncementModal({
               <div
                 className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
                   isWarning
-                    ? 'bg-amber-100 text-amber-700 border-amber-200'
+                    ? 'bg-yt-brand-soft text-yt-brand border-yt-brand/30'
                     : 'bg-sky-100 text-sky-700 border-sky-200'
                 }`}
               >
@@ -79,7 +79,7 @@ export default function AnnouncementModal({
 
             <span
               className={`text-xs font-bold ${
-                isWarning ? 'text-amber-900' : 'text-sky-900'
+                isWarning ? 'text-yt-text' : 'text-sky-900'
               }`}
             >
               {contextLabel || (isWarning ? 'تنبيه إداري هام' : 'رسالة من يونج تيوب')}
@@ -88,7 +88,7 @@ export default function AnnouncementModal({
 
           <h2
             id="announcement-modal-title"
-            className="text-xl sm:text-2xl font-extrabold text-stone-900 mt-3 leading-snug"
+            className="text-xl sm:text-2xl font-extrabold text-yt-text mt-3 leading-snug"
           >
             {current.title}
           </h2>
@@ -97,7 +97,7 @@ export default function AnnouncementModal({
         {/* Modal Body */}
         <div className="p-6 space-y-6 text-right">
           {current.body && (
-            <div className="text-sm sm:text-base text-stone-700 leading-relaxed font-medium whitespace-pre-line bg-stone-50/50 p-4 rounded-2xl border border-stone-100">
+            <div className="text-sm sm:text-base text-yt-text leading-relaxed font-medium whitespace-pre-line bg-yt-surface-muted p-4 rounded-2xl border border-yt-border">
               {current.body}
             </div>
           )}
@@ -110,7 +110,7 @@ export default function AnnouncementModal({
               onClick={() => onDismiss(current.id)}
               className={`w-full min-h-[48px] rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 transition shadow-sm cursor-pointer active:scale-[0.99] ${
                 isWarning
-                  ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                  ? 'bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text shadow-yt-brand/20'
                   : 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/20'
               }`}
             >

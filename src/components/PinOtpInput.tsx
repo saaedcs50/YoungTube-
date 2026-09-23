@@ -128,13 +128,13 @@ export default function PinOtpInput({
 
   const activeRing =
     theme === 'sky'
-      ? 'focus:ring-2 focus:ring-sky-500/30 focus:border-sky-600'
-      : 'focus:ring-2 focus:ring-amber-500/30 focus:border-amber-600';
+      ? 'focus:ring-2 focus:ring-yt-info/30 focus:border-yt-info'
+      : 'focus:ring-2 focus:ring-yt-brand/30 focus:border-yt-brand';
 
   const filledBg =
     theme === 'sky'
-      ? 'border-sky-500 bg-sky-50/70 text-sky-950 shadow-2xs'
-      : 'border-amber-500 bg-amber-50/70 text-amber-950 shadow-2xs';
+      ? 'border-yt-info bg-yt-info/10 text-yt-text shadow-2xs'
+      : 'border-yt-brand bg-yt-brand-soft text-yt-text shadow-2xs';
 
   return (
     <div className="flex items-center justify-center gap-2 sm:gap-2.5 dir-ltr" dir="ltr">
@@ -162,10 +162,10 @@ export default function PinOtpInput({
             aria-label={`رقم ${index + 1} من 6`}
             className={`w-10 h-12 sm:w-12 sm:h-13 text-center text-xl font-bold font-mono rounded-xl border transition-all outline-hidden cursor-text disabled:opacity-50 ${
               hasError
-                ? 'border-rose-300 bg-rose-50/60 text-rose-900 focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500'
+                ? 'border-yt-danger bg-rose-50/60 text-yt-danger focus:ring-2 focus:ring-yt-danger/30 focus:border-yt-danger'
                 : isFilled
                 ? filledBg
-                : `border-stone-200 bg-stone-50/60 hover:bg-white focus:bg-white text-stone-900 ${activeRing}`
+                : `border-yt-border bg-yt-surface-muted/60 hover:bg-yt-surface focus:bg-yt-surface text-yt-text ${activeRing}`
             }`}
           />
         );

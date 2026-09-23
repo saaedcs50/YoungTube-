@@ -62,7 +62,7 @@ export const DashboardNav: React.FC<DashboardNavProps> = ({
     <nav
       id="dashboard-navigation"
       aria-label="أقسام لوحة الأهل"
-      className="bg-white rounded-2xl border border-stone-200/70 p-1.5 shadow-sm overflow-hidden min-w-0"
+      className="bg-yt-surface rounded-2xl border border-yt-border p-1.5 shadow-sm overflow-hidden min-w-0"
     >
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5 px-0.5">
         {visibleItems.map((item) => {
@@ -85,13 +85,13 @@ export const DashboardNav: React.FC<DashboardNavProps> = ({
               onClick={() => onSelectSection(item.id)}
               className={`group shrink-0 min-h-[42px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer active:scale-[0.98] ${
                 isActive
-                  ? 'bg-amber-500 text-white shadow-sm'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                  ? 'bg-yt-brand text-yt-brand-text shadow-sm'
+                  : 'text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted'
               }`}
             >
               <Icon
                 className={`w-4 h-4 transition-colors duration-150 ${
-                  isActive ? 'text-white' : 'text-stone-400 group-hover:text-stone-600'
+                  isActive ? 'text-yt-brand-text' : 'text-yt-text-muted group-hover:text-yt-text'
                 }`}
               />
               <span className="whitespace-nowrap">{item.label}</span>
@@ -99,7 +99,7 @@ export const DashboardNav: React.FC<DashboardNavProps> = ({
               {showSetupAlert && (
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    isActive ? 'bg-white ring-2 ring-amber-400' : 'bg-amber-500'
+                    isActive ? 'bg-yt-brand-text ring-2 ring-yt-brand' : 'bg-yt-brand'
                   }`}
                   title="بحاجة للمراجعة"
                 />

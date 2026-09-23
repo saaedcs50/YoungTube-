@@ -33,14 +33,14 @@ export const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ items, o
       <div
         className={`p-3.5 sm:p-4 rounded-2xl shadow-lg border backdrop-blur-md flex items-start gap-3 transition-all ${
           isWarning
-            ? 'bg-amber-50/95 border-amber-300 text-amber-950 shadow-amber-900/10'
+            ? 'bg-yt-brand-soft/95 border-yt-brand/40 text-yt-text shadow-yt-brand/10'
             : 'bg-sky-50/95 border-sky-300 text-sky-950 shadow-sky-900/10'
         }`}
       >
         {/* Icon */}
         <div
           className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-            isWarning ? 'bg-amber-200/70 text-amber-700' : 'bg-sky-200/70 text-sky-700'
+            isWarning ? 'bg-yt-brand/20 text-yt-brand' : 'bg-sky-200/70 text-sky-700'
           }`}
         >
           {isWarning ? (
@@ -62,7 +62,7 @@ export const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ items, o
               onClick={() => onDismiss(current.id)}
               className={`p-1 -mt-1 -mr-1 rounded-lg transition-colors cursor-pointer shrink-0 ${
                 isWarning
-                  ? 'text-amber-700 hover:bg-amber-200/60'
+                  ? 'text-yt-brand hover:bg-yt-brand/20'
                   : 'text-sky-700 hover:bg-sky-200/60'
               }`}
               title="إغلاق الإشعار"
@@ -75,7 +75,7 @@ export const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ items, o
           {current.body && (
             <p
               className={`text-xs sm:text-sm mt-1 leading-relaxed ${
-                isWarning ? 'text-amber-900/90' : 'text-sky-900/90'
+                isWarning ? 'text-yt-text' : 'text-sky-900/90'
               }`}
             >
               {current.body}
@@ -89,7 +89,7 @@ export const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ items, o
               onClick={() => onDismiss(current.id)}
               className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 isWarning
-                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  ? 'bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text'
                   : 'bg-sky-600 hover:bg-sky-700 text-white'
               }`}
             >

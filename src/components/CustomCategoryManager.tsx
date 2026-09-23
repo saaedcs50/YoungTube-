@@ -74,16 +74,16 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
   };
 
   return (
-    <div id="custom-category-manager" className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-4">
+    <div id="custom-category-manager" className="p-4 rounded-2xl bg-yt-brand-soft border border-yt-brand/30 space-y-4">
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+        <div className="w-8 h-8 rounded-xl bg-yt-brand/20 text-yt-brand flex items-center justify-center shrink-0">
           <FolderPlus className="w-4 h-4" />
         </div>
         <div>
-          <h4 className="text-xs sm:text-sm font-bold text-amber-950">
+          <h4 className="text-xs sm:text-sm font-bold text-yt-text">
             إنشاء تصنيف جديد (Custom Category)
           </h4>
-          <p className="text-[11px] text-amber-800">
+          <p className="text-[11px] text-yt-text-muted">
             أضف تصنيفات خاصة بعائلتك وتظهر كفلتر مستمر في واجهة الطفل وعند تصنيف القنوات.
           </p>
         </div>
@@ -92,7 +92,7 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
       <form onSubmit={handleCreateCategory} className="space-y-3">
         {/* Label Input */}
         <div className="space-y-1">
-          <label htmlFor="custom-cat-label-input" className="text-xs font-semibold text-stone-700 block">
+          <label htmlFor="custom-cat-label-input" className="text-xs font-semibold text-yt-text block">
             اسم التصنيف الجديد:
           </label>
           <input
@@ -101,16 +101,16 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
             value={labelInput}
             onChange={(e) => setLabelInput(e.target.value)}
             placeholder="مثال: تجارب علمية، رحلات استكشاف، لغة إنجليزية..."
-            className="w-full p-2.5 text-xs sm:text-sm rounded-xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
+            className="w-full p-2.5 text-xs sm:text-sm rounded-xl border border-yt-border bg-yt-surface text-yt-text focus:outline-none focus:ring-2 focus:ring-yt-brand/30 focus:border-yt-brand transition"
           />
         </div>
 
         {/* Emoji Selector */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-stone-700 block">
+          <label className="text-xs font-semibold text-yt-text block">
             اختر أيقونة (Emoji):
           </label>
-          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-white/80 rounded-xl border border-stone-200/80">
+          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-yt-surface rounded-xl border border-yt-border">
             {COMMON_EMOJIS.map((emoji) => {
               const isSelected = selectedEmoji === emoji;
               return (
@@ -120,8 +120,8 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
                   onClick={() => setSelectedEmoji(emoji)}
                   className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition cursor-pointer active:scale-95 ${
                     isSelected
-                      ? 'bg-amber-500 text-white shadow-sm scale-105'
-                      : 'hover:bg-amber-100/60 text-stone-700'
+                      ? 'bg-yt-brand text-yt-brand-text shadow-sm scale-105'
+                      : 'hover:bg-yt-brand-soft text-yt-text'
                   }`}
                 >
                   {emoji}
@@ -132,14 +132,14 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
         </div>
 
         {errorMessage && (
-          <p className="text-xs text-rose-600 font-semibold">{errorMessage}</p>
+          <p className="text-xs text-yt-danger font-semibold">{errorMessage}</p>
         )}
 
         <button
           id="create-custom-cat-btn"
           type="submit"
           disabled={!labelInput.trim()}
-          className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-sm"
+          className="px-4 py-2 rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-xs font-bold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-sm"
         >
           <Plus className="w-4 h-4" />
           <span>إنشاء التصنيف</span>
@@ -148,9 +148,9 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
 
       {/* List of existing Custom Categories */}
       {customCategories.length > 0 && (
-        <div className="pt-3 border-t border-amber-200/60 space-y-2">
-          <h5 className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-            <Tag className="w-3.5 h-3.5 text-amber-700" />
+        <div className="pt-3 border-t border-yt-border space-y-2">
+          <h5 className="text-xs font-bold text-yt-text flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5 text-yt-brand" />
             <span>التصنيفات المخصصة الحالية ({customCategories.length}):</span>
           </h5>
 
@@ -158,15 +158,15 @@ export const CustomCategoryManager: React.FC<CustomCategoryManagerProps> = ({ on
             {customCategories.map((cat) => (
               <div
                 key={cat.id}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-amber-200 text-xs text-stone-800 shadow-sm"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-yt-surface border border-yt-brand/30 text-xs text-yt-text shadow-sm"
               >
                 <span>{cat.emoji}</span>
                 <span className="font-bold">{cat.label}</span>
-                <span className="text-[10px] font-mono text-stone-400">({cat.id})</span>
+                <span className="text-[10px] font-mono text-yt-text-muted">({cat.id})</span>
                 <button
                   type="button"
                   onClick={() => handleDeleteCategory(cat.id)}
-                  className="p-1 rounded-full text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                  className="p-1 rounded-full text-yt-text-muted hover:text-yt-danger hover:bg-rose-50 transition cursor-pointer"
                   title="حذف التصنيف"
                   aria-label={`حذف تصنيف ${cat.label}`}
                 >

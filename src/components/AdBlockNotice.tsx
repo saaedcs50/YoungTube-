@@ -54,7 +54,7 @@ export default function AdBlockNotice({
     <div className="space-y-4 text-right">
       {/* Title & Badge */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-slate-800 font-bold text-sm sm:text-base">
+        <div className="flex items-center gap-2 text-yt-text font-bold text-sm sm:text-base">
           <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <ShieldCheck className="w-5 h-5" />
           </div>
@@ -64,7 +64,7 @@ export default function AdBlockNotice({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+            className="text-yt-text-muted hover:text-yt-text p-1.5 rounded-lg hover:bg-yt-surface-muted transition cursor-pointer"
             title="إغلاق"
             aria-label="إغلاق"
           >
@@ -74,26 +74,26 @@ export default function AdBlockNotice({
       </div>
 
       {/* Warm Explanation (2-3 sentences) */}
-      <div className="p-3.5 sm:p-4 rounded-2xl bg-sky-50/80 border border-sky-100 text-slate-700 text-xs sm:text-sm leading-relaxed space-y-1.5">
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-sky-50/80 border border-sky-100 text-yt-text text-xs sm:text-sm leading-relaxed space-y-1.5">
         <p>
           نود تذكيركم أن التطبيق نفسه لا يمكنه منع إعلانات يوتيوب المدمجة بالفيديو برمجياً، ولكن يمكنك كولي أمر حجب معظم الإعلانات على مستوى الجهاز بالكامل مجاناً باستخدام خاصية <strong className="text-sky-900 font-semibold">Private DNS</strong>.
         </p>
-        <p className="text-slate-600 text-xs">
+        <p className="text-yt-text-muted text-xs">
           هذا الإجراء عبارة عن إعداد بسيط يُضبط مرة واحدة فقط في إعدادات جهازك (أندرويد أو آيفون)، وليس شيئاً داخل هذا التطبيق.
         </p>
       </div>
 
       {/* QR Code Section */}
-      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col items-center text-center space-y-3">
-        <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+      <div className="p-4 rounded-2xl bg-yt-surface-muted border border-yt-border flex flex-col items-center text-center space-y-3">
+        <div className="flex items-center gap-1.5 text-xs text-yt-text-muted font-medium">
           <Smartphone className="w-4 h-4 text-sky-600" />
           <span>امسح الرمز بكاميرا الهاتف لفتح دليل الإعداد المباشر:</span>
         </div>
 
         {/* QR Code Container */}
-        <div className="relative p-2.5 bg-white rounded-xl shadow-sm border border-slate-200 inline-flex items-center justify-center min-w-[190px] min-h-[190px]">
+        <div className="relative p-2.5 bg-yt-surface rounded-xl shadow-sm border border-yt-border inline-flex items-center justify-center min-w-[190px] min-h-[190px]">
           {qrLoading ? (
-            <div className="w-44 h-44 flex flex-col items-center justify-center text-slate-400 gap-2">
+            <div className="w-44 h-44 flex flex-col items-center justify-center text-yt-text-muted gap-2">
               <QrIcon className="w-8 h-8 animate-pulse text-sky-500" />
               <span className="text-[11px]">جاري إنشاء رمز QR...</span>
             </div>
@@ -104,7 +104,7 @@ export default function AdBlockNotice({
               className="w-44 h-44 rounded-lg block"
             />
           ) : (
-            <div className="w-44 h-44 flex items-center justify-center text-xs text-slate-400">
+            <div className="w-44 h-44 flex items-center justify-center text-xs text-yt-text-muted">
               تعذر إنشاء الرمز، يرجى استخدام الرابط أدناه
             </div>
           )}
@@ -112,7 +112,7 @@ export default function AdBlockNotice({
 
         {/* Plain clickable text fallback */}
         <div className="space-y-1 pt-1">
-          <span className="text-[11px] text-slate-500 block">أو افتح الرابط مباشرة:</span>
+          <span className="text-[11px] text-yt-text-muted block">أو افتح الرابط مباشرة:</span>
           <a
             id="adguard-dns-direct-link"
             href={ADGUARD_DNS_URL}
@@ -123,7 +123,7 @@ export default function AdBlockNotice({
             <span>{ADGUARD_DNS_URL}</span>
             <ExternalLink className="w-3.5 h-3.5 shrink-0" />
           </a>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-yt-text-muted">
             (دليل الإعداد الرسمي من AdGuard يغطي خطوات أندرويد و iOS خطوة بخطوة)
           </p>
         </div>
@@ -136,7 +136,7 @@ export default function AdBlockNotice({
             <button
               type="button"
               onClick={onBack}
-              className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold flex items-center gap-1.5 transition"
+              className="px-4 py-2 rounded-xl text-yt-text-muted hover:bg-yt-surface-muted text-xs font-semibold flex items-center gap-1.5 transition"
             >
               <ArrowRight className="w-3.5 h-3.5" />
               <span>رجوع</span>
@@ -150,7 +150,7 @@ export default function AdBlockNotice({
               id="onboarding-dns-skip-btn"
               type="button"
               onClick={onSkip}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800 text-xs font-semibold transition"
+              className="px-4 py-2.5 rounded-xl border border-yt-border text-yt-text-muted hover:bg-yt-surface-muted hover:text-yt-text text-xs font-semibold transition"
             >
               تخطي هذه الخطوة
             </button>
@@ -172,7 +172,7 @@ export default function AdBlockNotice({
             id="adblock-modal-close-btn"
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition"
+            className="px-5 py-2 rounded-xl bg-yt-text hover:bg-yt-text-muted text-yt-surface text-xs font-semibold transition cursor-pointer"
           >
             إغلاق
           </button>
@@ -186,7 +186,7 @@ export default function AdBlockNotice({
       <div className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" dir="rtl">
         <div
           id="adblock-notice-modal"
-          className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 my-auto"
+          className="w-full max-w-lg bg-yt-surface rounded-3xl shadow-2xl border border-yt-border p-6 my-auto"
         >
           {content}
         </div>

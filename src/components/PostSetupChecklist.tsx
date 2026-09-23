@@ -20,16 +20,16 @@ export default function PostSetupChecklist({
       className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs overflow-y-auto flex items-center justify-center p-4 sm:p-6"
       dir="rtl"
     >
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-stone-200/80 overflow-hidden flex flex-col my-auto text-right animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-lg bg-yt-surface rounded-3xl shadow-2xl border border-yt-border overflow-hidden flex flex-col my-auto text-right animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="bg-emerald-500/10 border-b border-emerald-200/60 p-6 text-center">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md mb-3">
             <CheckCircle2 className="w-8 h-8" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-black text-yt-text tracking-tight">
             تم إعداد الحماية — نصائح سريعة للبدء
           </h2>
-          <p className="text-xs sm:text-sm text-stone-600 mt-1.5 font-medium leading-relaxed max-w-md mx-auto">
+          <p className="text-xs sm:text-sm text-yt-text-muted mt-1.5 font-medium leading-relaxed max-w-md mx-auto">
             مرحباً بك في يونج تيوب! إليك نصائح وخطوات سريعة لضمان أفضل تجربة لطفلك:
           </p>
         </div>
@@ -37,47 +37,47 @@ export default function PostSetupChecklist({
         {/* Checklist / Guidance Rows */}
         <div className="p-5 sm:p-6 space-y-3.5">
           {/* Row 1: Session Time */}
-          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-stone-50 border border-stone-200/70">
-            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300 mt-0.5">
+          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-yt-surface-muted border border-yt-border">
+            <div className="w-9 h-9 rounded-xl bg-yt-brand-soft text-yt-brand flex items-center justify-center shrink-0 border border-yt-border mt-0.5">
               <Clock className="w-4.5 h-4.5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm font-bold text-stone-900">
+              <h3 className="text-xs sm:text-sm font-bold text-yt-text">
                 1. حدّد وقت المشاهدة اليومي من لوحة الأهل
               </h3>
-              <p className="text-[11px] sm:text-xs text-stone-600 mt-0.5 leading-relaxed font-medium">
+              <p className="text-[11px] sm:text-xs text-yt-text-muted mt-0.5 leading-relaxed font-medium">
                 اضبط حداً زمنياً يومياً وجدول ساعات المشاهدة لتفادي الاستخدام الزائد.
               </p>
             </div>
           </div>
 
           {/* Row 2: Categories, Channels & Interests */}
-          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-stone-50 border border-stone-200/70">
+          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-yt-surface-muted border border-yt-border">
             <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center shrink-0 border border-sky-300 mt-0.5">
               <Sliders className="w-4.5 h-4.5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm font-bold text-stone-900">
+              <h3 className="text-xs sm:text-sm font-bold text-yt-text">
                 2. راجع التصنيفات واهتمامات طفلك في لوحة الأهل
               </h3>
-              <p className="text-[11px] sm:text-xs text-stone-600 mt-0.5 leading-relaxed font-medium">
+              <p className="text-[11px] sm:text-xs text-yt-text-muted mt-0.5 leading-relaxed font-medium">
                 وجّه ذوق واهتمامات طفلك، وفَعّل أو عطّل مجالات المحتوى والقنوات المسموحة بما يناسب عمره وقيم عائلتكم.
               </p>
             </div>
           </div>
 
           {/* Row 3: PWA Install */}
-          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-stone-50 border border-stone-200/70">
+          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-yt-surface-muted border border-yt-border">
             <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 border border-emerald-300 mt-0.5">
               <Smartphone className="w-4.5 h-4.5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-xs sm:text-sm font-bold text-stone-900">
+                <h3 className="text-xs sm:text-sm font-bold text-yt-text">
                   3. ثبّت يونج تيوب على الشاشة الرئيسية (PWA)
                 </h3>
               </div>
-              <p className="text-[11px] sm:text-xs text-stone-600 mt-0.5 leading-relaxed font-medium mb-2">
+              <p className="text-[11px] sm:text-xs text-yt-text-muted mt-0.5 leading-relaxed font-medium mb-2">
                 لتشغيل التطبيق بملء الشاشة وبدون شريط المتصفح وتجربة أكثر أماناً وسرعة.
               </p>
               <div className="pt-0.5">
@@ -87,17 +87,17 @@ export default function PostSetupChecklist({
           </div>
 
           {/* Row 4: Optional Ad-blocking tip */}
-          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-stone-50 border border-stone-200/70">
+          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-yt-surface-muted border border-yt-border">
             <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center shrink-0 border border-purple-300 mt-0.5">
               <ShieldCheck className="w-4.5 h-4.5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-xs sm:text-sm font-bold text-stone-900">
+                <h3 className="text-xs sm:text-sm font-bold text-yt-text">
                   4. حماية إضافية من الإعلانات (اختياري)
                 </h3>
               </div>
-              <p className="text-[11px] sm:text-xs text-stone-600 mt-0.5 leading-relaxed font-medium">
+              <p className="text-[11px] sm:text-xs text-yt-text-muted mt-0.5 leading-relaxed font-medium">
                 لحجب معظم إعلانات يوتيوب على مستوى الجهاز مجاناً، يمكنك الاستفادة من ميزة Private DNS.
               </p>
               <button
@@ -118,7 +118,7 @@ export default function PostSetupChecklist({
               id="enter-kids-ui-btn"
               type="button"
               onClick={onFinish}
-              className="w-full py-3.5 px-6 rounded-2xl bg-amber-600 hover:bg-amber-700 active:scale-[0.99] text-white font-bold text-sm sm:text-base transition shadow-md shadow-amber-600/25 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3.5 px-6 rounded-2xl bg-yt-brand hover:bg-yt-brand-hover active:scale-[0.99] text-yt-brand-text font-bold text-sm sm:text-base transition shadow-md shadow-yt-brand/25 flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>الدخول لواجهة الطفل</span>
               <ArrowLeft className="w-5 h-5" />
@@ -129,9 +129,9 @@ export default function PostSetupChecklist({
                 id="go-dashboard-btn"
                 type="button"
                 onClick={onGoDashboard}
-                className="w-full py-2.5 px-4 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-stone-100 text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2.5 px-4 rounded-xl text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <LayoutDashboard className="w-4 h-4 text-stone-500" />
+                <LayoutDashboard className="w-4 h-4 text-yt-text-muted" />
                 <span>الانتقال للوحة الأهل أولاً</span>
               </button>
             )}

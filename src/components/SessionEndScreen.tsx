@@ -22,7 +22,7 @@ export default function SessionEndScreen({
     >
       {/* Top ambient stars & decor */}
       <div className="w-full max-w-md flex items-center justify-between opacity-90 pt-2">
-        <div className="flex items-center gap-2 text-amber-300 text-xs font-bold bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20">
+        <div className="flex items-center gap-2 text-amber-300 text-xs font-bold bg-yt-brand-soft/20 px-3 py-1.5 rounded-full border border-yt-brand/30">
           <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
           <span>وقت الراحة والاسترخاء</span>
         </div>
@@ -36,7 +36,7 @@ export default function SessionEndScreen({
       <div className="w-full max-w-lg mx-auto text-center space-y-6 my-auto py-8">
         {/* Friendly Illustration / Night Sky Theme */}
         <div className="relative inline-flex items-center justify-center">
-          <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-gradient-to-tr from-indigo-800/60 to-amber-400/20 border-2 border-amber-400/30 flex items-center justify-center shadow-2xl shadow-indigo-950">
+          <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-gradient-to-tr from-indigo-800/60 to-yt-brand/20 border-2 border-yt-brand/30 flex items-center justify-center shadow-2xl shadow-indigo-950">
             <div className="text-5xl sm:text-6xl animate-bounce" style={{ animationDuration: '3s' }}>
               🌙
             </div>

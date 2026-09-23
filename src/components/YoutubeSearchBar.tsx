@@ -401,21 +401,21 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
     <div id="youtube-search-bar" className="space-y-4">
       {/* 1. API Key Setup or Config Bar */}
       {!apiKey || isEditingKey ? (
-        <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
+        <div className="p-4 rounded-2xl bg-yt-brand-soft border border-yt-brand/30 space-y-3">
           <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+            <div className="w-8 h-8 rounded-lg bg-yt-brand/20 text-yt-brand flex items-center justify-center shrink-0 mt-0.5">
               <KeyRound className="w-4 h-4" />
             </div>
             <div className="space-y-1 grow">
               <div className="flex items-center gap-2">
-                <h4 className="text-xs font-bold text-amber-900">
+                <h4 className="text-xs font-bold text-yt-text">
                   مفتاح YouTube Data API v3 الخاص بالعائلة
                 </h4>
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900">
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-yt-brand/30 text-yt-text">
                   اختياري
                 </span>
               </div>
-              <ul className="text-xs text-amber-800/95 space-y-1 pt-1 font-medium leading-relaxed list-disc list-inside">
+              <ul className="text-xs text-yt-text-muted space-y-1 pt-1 font-medium leading-relaxed list-disc list-inside">
                 <li>المفتاح اختياري</li>
                 <li>يستخدم لجلب فيديوهات أقدم والبحث داخل القناة</li>
                 <li>لا يُرسل إلا إلى خادم يونج تيوب عبر HTTPS</li>
@@ -431,14 +431,14 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
               value={tempKeyInput}
               onChange={(e) => setTempKeyInput(e.target.value)}
               placeholder="ألصق مفتاح AIzaSy... هنا"
-              className="grow p-2.5 text-xs rounded-xl border border-amber-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500 font-mono"
+              className="grow p-2.5 text-xs rounded-xl border border-yt-border bg-yt-surface text-yt-text focus:outline-hidden focus:ring-2 focus:ring-yt-brand font-mono"
             />
             <div className="flex gap-2">
               <button
                 id="save-api-key-btn"
                 type="submit"
                 disabled={!tempKeyInput.trim()}
-                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shrink-0 transition disabled:opacity-50 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-xs font-semibold shrink-0 transition disabled:opacity-50 cursor-pointer"
               >
                 حفظ المفتاح
               </button>
@@ -449,7 +449,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                     setIsEditingKey(false);
                     setTempKeyInput(apiKey);
                   }}
-                  className="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
+                  className="px-3 py-2.5 rounded-xl bg-yt-surface-muted hover:bg-yt-surface text-yt-text-muted text-xs font-semibold transition cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -457,7 +457,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
             </div>
           </form>
 
-          <div className="text-[10px] text-slate-500 flex items-center gap-1 pt-1">
+          <div className="text-[10px] text-yt-text-muted flex items-center gap-1 pt-1">
             <span>ملاحظة: يمكنك الحصول على مفتاح مجاني من</span>
             <a
               href="https://console.cloud.google.com/apis/credentials"
@@ -471,11 +471,11 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100/80 border border-slate-200 text-xs">
-          <div className="flex items-center gap-2 text-slate-700">
+        <div className="flex items-center justify-between p-3 rounded-xl bg-yt-surface-muted border border-yt-border text-xs">
+          <div className="flex items-center gap-2 text-yt-text">
             <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
             <span>مفتاح YouTube API نشط ومحفوظ محلياً</span>
-            <span className="text-[10px] font-mono text-slate-400">
+            <span className="text-[10px] font-mono text-yt-text-muted">
               (••••{apiKey.slice(-4)})
             </span>
           </div>
@@ -483,7 +483,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
             <button
               type="button"
               onClick={() => setIsEditingKey(true)}
-              className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-yt-surface border border-yt-border hover:bg-yt-surface-muted text-yt-text text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
               title="تعديل المفتاح"
             >
               <Settings2 className="w-3 h-3" />
@@ -492,7 +492,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
             <button
               type="button"
               onClick={handleRemoveApiKey}
-              className="p-1 rounded-lg text-slate-400 hover:text-red-600 transition cursor-pointer"
+              className="p-1 rounded-lg text-yt-text-muted hover:text-yt-danger transition cursor-pointer"
               title="إزالة المفتاح"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -505,14 +505,14 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
       <form onSubmit={handleSearch} className="space-y-3">
         <div className="flex flex-col sm:flex-row gap-2">
           {/* Search Type Toggle */}
-          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 shrink-0">
+          <div className="inline-flex rounded-xl bg-yt-surface-muted p-1 border border-yt-border shrink-0">
             <button
               type="button"
               onClick={() => setSearchType('channel')}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 searchType === 'channel'
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-yt-surface text-yt-text shadow-sm'
+                  : 'text-yt-text-muted hover:text-yt-text'
               }`}
             >
               <Tv className="w-3.5 h-3.5" />
@@ -523,8 +523,8 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
               onClick={() => setSearchType('playlist')}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 searchType === 'playlist'
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-yt-surface text-yt-text shadow-sm'
+                  : 'text-yt-text-muted hover:text-yt-text'
               }`}
             >
               <ListVideo className="w-3.5 h-3.5" />
@@ -544,16 +544,16 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                   ? 'ابحث باسم القناة أو الصق رابطها أو معرفها (@handle)...'
                   : 'ابحث باسم قائمة التشغيل (مثال: قصص الأنبياء للصغار)...'
               }
-              className="w-full pl-3 pr-9 py-2 text-xs rounded-xl border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+              className="w-full pl-3 pr-9 py-2 text-xs rounded-xl border border-yt-border bg-yt-surface text-yt-text focus:outline-hidden focus:ring-2 focus:ring-yt-brand"
             />
-            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+            <Search className="w-4 h-4 text-yt-text-muted absolute right-3 top-2.5 pointer-events-none" />
           </div>
 
           <button
             id="execute-youtube-search-btn"
             type="submit"
             disabled={isLoading || !query.trim()}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shrink-0 shadow-sm"
+            className="px-4 py-2 rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-xs font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer shrink-0 shadow-sm"
           >
             {isLoading ? (
               <>
@@ -572,8 +572,8 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
 
       {/* 3. Error message box */}
       {errorMessage && (
-        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+        <div className="p-3 rounded-xl bg-rose-50 border border-yt-danger/30 text-yt-danger text-xs flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-yt-danger shrink-0 mt-0.5" />
           <div className="space-y-0.5">
             <span className="font-bold block">تنبيه البحث:</span>
             <span>{errorMessage}</span>
@@ -584,7 +584,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
       {/* 4. Results List */}
       {results.length > 0 && (
         <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+          <div className="flex items-center justify-between text-xs text-yt-text-muted">
             <span>نتائج البحث ({results.length}):</span>
             <span>اضغط "إضافة" ثم اختر التصنيفات المناسبة للقناة</span>
           </div>
@@ -600,8 +600,8 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                   key={item.sourceId}
                   className={`p-3 rounded-2xl border transition ${
                     isAdded
-                      ? 'bg-amber-50/40 border-amber-300'
-                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
+                      ? 'bg-yt-brand-soft/40 border-yt-brand/40'
+                      : 'bg-yt-surface border-yt-border hover:border-yt-brand/40 shadow-sm'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -609,27 +609,27 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                       <img
                         src={item.thumbnail}
                         alt={item.title}
-                        className="w-14 h-14 rounded-xl object-cover shrink-0 bg-slate-100 border border-slate-200"
+                        className="w-14 h-14 rounded-xl object-cover shrink-0 bg-yt-surface-muted border border-yt-border"
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <div className="w-14 h-14 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0 border border-slate-200">
+                      <div className="w-14 h-14 rounded-xl bg-yt-surface-muted text-yt-text-muted flex items-center justify-center shrink-0 border border-yt-border">
                         {item.sourceType === 'channel' ? <Tv className="w-6 h-6" /> : <ListVideo className="w-6 h-6" />}
                       </div>
                     )}
 
                     <div className="grow min-w-0 space-y-1">
                       <div className="flex items-start justify-between gap-2">
-                        <h5 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">
+                        <h5 className="text-xs font-bold text-yt-text leading-snug line-clamp-2">
                           {item.title}
                         </h5>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono shrink-0">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-yt-surface-muted text-yt-text-muted font-mono shrink-0">
                           {item.sourceType === 'channel' ? 'قناة' : 'قائمة'}
                         </span>
                       </div>
 
                       {item.description && (
-                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                        <p className="text-[11px] text-yt-text-muted line-clamp-2 leading-relaxed">
                           {item.description}
                         </p>
                       )}
@@ -656,7 +656,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                       {isAdded && syncStatus && (
                         <div className="pt-1.5 text-xs">
                           {syncStatus.loading && (
-                            <div className="flex items-center gap-1.5 text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 animate-pulse">
+                            <div className="flex items-center gap-1.5 text-yt-brand bg-yt-brand-soft px-2.5 py-1 rounded-lg border border-yt-brand/30 animate-pulse">
                               <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                               <span>جاري جلب الفيديوهات...</span>
                             </div>
@@ -668,8 +668,8 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                             </div>
                           )}
                           {syncStatus.error && !syncStatus.loading && (
-                            <div className="flex items-center gap-1.5 text-rose-800 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
-                              <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <div className="flex items-center gap-1.5 text-yt-danger bg-rose-50 px-2.5 py-1 rounded-lg border border-yt-danger/30">
+                              <AlertCircle className="w-3.5 h-3.5 text-yt-danger shrink-0" />
                               <span>{syncStatus.error}</span>
                             </div>
                           )}
@@ -680,8 +680,8 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
 
                   {/* Inline Category Picker once added */}
                   {isAdded && (
-                    <div className="mt-3 pt-3 border-t border-amber-200/60 space-y-2">
-                      <span className="text-[11px] font-bold text-slate-700 block">
+                    <div className="mt-3 pt-3 border-t border-yt-border space-y-2">
+                      <span className="text-[11px] font-bold text-yt-text block">
                         اختر التصنيفات المناسبة لهذا المحتوى:
                       </span>
                       <div className="flex flex-wrap gap-1.5">
@@ -694,8 +694,8 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                               onClick={() => handleToggleCategory(item.sourceId, cat.id)}
                               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition active:scale-95 cursor-pointer ${
                                 isCatSelected
-                                  ? 'bg-amber-500 text-white shadow-sm'
-                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-amber-50 hover:border-amber-300'
+                                  ? 'bg-yt-brand text-yt-brand-text shadow-sm'
+                                  : 'bg-yt-surface text-yt-text-muted border border-yt-border hover:bg-yt-brand-soft hover:border-yt-brand/40'
                               }`}
                             >
                               <span>{cat.emoji}</span>
@@ -706,7 +706,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                         })}
                       </div>
                       {channelInfo.category.length === 0 && (
-                        <p className="text-[10px] text-amber-700 font-medium">
+                        <p className="text-[10px] text-yt-brand font-medium">
                           ⚠️ يرجى تحديد تصنيف واحد على الأقل لتظهر الفيديوهات في القسم المخصص للطفل.
                         </p>
                       )}
