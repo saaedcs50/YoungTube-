@@ -60,20 +60,22 @@ export function FeedVideoGrid({
   }, [filteredVideos, columnCount]);
 
   if (loading) {
-    /* Shimmer Skeleton matching rounded-[28px], border-yt-border */
+    /* Shimmer Skeleton matching mobile YouTube feed layout */
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+      <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-2 sm:py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
           {Array.from({ length: 8 }).map((_, idx) => (
             <div
               key={`skeleton-card-${idx}`}
-              className="bg-yt-surface rounded-[28px] overflow-hidden border border-yt-border shadow-sm flex flex-col animate-pulse"
+              className="w-full flex flex-col animate-pulse mb-3 sm:mb-4"
             >
               <div className="aspect-video w-full bg-yt-surface-muted" />
-              <div className="p-4 space-y-2.5 bg-yt-surface">
-                <div className="h-4 bg-yt-border rounded-full w-4/5" />
-                <div className="h-4 bg-yt-surface-muted rounded-full w-3/5" />
-                <div className="h-3 bg-yt-surface-muted rounded-full w-1/3 pt-1" />
+              <div className="px-3 sm:px-4 pt-2.5 pb-1 space-y-2">
+                <div className="h-4 bg-yt-border/70 rounded-md w-4/5" />
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="w-8 h-8 rounded-full bg-yt-surface-muted shrink-0" />
+                  <div className="h-3 bg-yt-surface-muted rounded-md w-1/3" />
+                </div>
               </div>
             </div>
           ))}
@@ -86,8 +88,8 @@ export function FeedVideoGrid({
     if (debouncedSearch) {
       if (deepSearchResults.length > 0) {
         return (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-            <div className="bg-yt-brand-soft border border-yt-brand/30 rounded-2xl p-4 text-center sm:text-right flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+            <div className="mx-4 sm:mx-0 bg-yt-brand-soft border border-yt-brand/30 rounded-2xl p-4 text-center sm:text-right flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-3 text-yt-brand-hover">
                 <div className="w-9 h-9 rounded-xl bg-yt-brand/20 flex items-center justify-center shrink-0">
                   <Search className="w-5 h-5 text-yt-brand" />
@@ -106,7 +108,7 @@ export function FeedVideoGrid({
             </div>
 
             <div id="deep-search-archive-section">
-              <div className="flex items-center gap-3 mb-6">
+              <div className="px-4 sm:px-0 flex items-center gap-3 mb-4 sm:mb-6">
                 <div className="w-10 h-10 rounded-2xl bg-yt-brand text-yt-brand-text flex items-center justify-center shadow-xs">
                   <Sparkles className="w-5 h-5" />
                 </div>
@@ -120,7 +122,7 @@ export function FeedVideoGrid({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
                 {deepSearchResults.map((item) => {
                   const channelInfo = channelMap.get(item.sourceId);
                   const videoFeedItem: FeedItem = {
@@ -137,6 +139,7 @@ export function FeedVideoGrid({
                       key={`archive-${item.videoId}`}
                       video={videoFeedItem}
                       channelTitle={channelInfo?.title || 'قناة أطفال'}
+                      channelThumbnail={channelInfo?.thumbnail}
                       onSelectVideo={onSelectVideo}
                       onOpenDemoPlayer={onOpenDemoPlayer}
                       onChannelSelect={onChannelSelect}
@@ -230,11 +233,12 @@ export function FeedVideoGrid({
 
       {filteredVideos.length <= 12 ? (
         /* Non-virtualized small list */
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+        <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
             {filteredVideos.map((video) => {
               const channelInfo = channelMap.get(video.channelId);
               const channelTitle = channelInfo?.title || 'قناة أطفال';
+              const channelThumbnail = channelInfo?.thumbnail;
               const videoCats =
                 channelInfo?.categories ||
                 (video as any).categories ||
@@ -252,6 +256,7 @@ export function FeedVideoGrid({
                   key={video.videoId}
                   video={video}
                   channelTitle={channelTitle}
+                  channelThumbnail={channelThumbnail}
                   isTasteShiftTarget={isTasteShiftTarget}
                   activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
                   onSelectVideo={onSelectVideo}
@@ -265,16 +270,17 @@ export function FeedVideoGrid({
         </div>
       ) : (
         /* Virtualized unbounded feed using virtua WindowVirtualizer */
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8">
           <WindowVirtualizer bufferSize={600} itemSize={320} shift={false}>
             {videoRows.map((row, rowIndex) => (
               <div
                 key={`row-${row[0]?.videoId || rowIndex}`}
-                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 pb-4 sm:pb-5 lg:pb-6"
+                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6 pb-3 sm:pb-4"
               >
                 {row.map((video) => {
                   const channelInfo = channelMap.get(video.channelId);
                   const channelTitle = channelInfo?.title || 'قناة أطفال';
+                  const channelThumbnail = channelInfo?.thumbnail;
                   const videoCats =
                     channelInfo?.categories ||
                     (video as any).categories ||
@@ -292,6 +298,7 @@ export function FeedVideoGrid({
                       key={video.videoId}
                       video={video}
                       channelTitle={channelTitle}
+                      channelThumbnail={channelThumbnail}
                       isTasteShiftTarget={isTasteShiftTarget}
                       activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
                       onSelectVideo={onSelectVideo}
@@ -319,9 +326,9 @@ export function FeedVideoGrid({
       {deepSearchResults.length > 0 && (
         <div
           id="deep-search-archive-section"
-          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 pt-8 border-t border-yt-border"
+          className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 mt-8 sm:mt-10 pt-6 sm:pt-8 border-t border-yt-border"
         >
-          <div className="flex items-center gap-3 mb-6">
+          <div className="px-4 sm:px-0 flex items-center gap-3 mb-4 sm:mb-6">
             <div className="w-10 h-10 rounded-2xl bg-yt-brand text-yt-brand-text flex items-center justify-center shadow-xs">
               <Sparkles className="w-5 h-5" />
             </div>
@@ -335,7 +342,7 @@ export function FeedVideoGrid({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
             {deepSearchResults.map((item) => {
               const channelInfo = channelMap.get(item.sourceId);
               const videoFeedItem: FeedItem = {
@@ -352,6 +359,7 @@ export function FeedVideoGrid({
                   key={`archive-${item.videoId}`}
                   video={videoFeedItem}
                   channelTitle={channelInfo?.title || 'قناة أطفال'}
+                  channelThumbnail={channelInfo?.thumbnail}
                   onSelectVideo={onSelectVideo}
                   onOpenDemoPlayer={onOpenDemoPlayer}
                   onChannelSelect={onChannelSelect}

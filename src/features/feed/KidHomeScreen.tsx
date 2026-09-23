@@ -102,7 +102,7 @@ export function KidHomeScreen({
       />
 
       {/* 3. Main Content: Favorites View OR Main Feed Video Grid */}
-      <main className="grow w-full py-4 sm:py-6">
+      <main className="grow w-full py-2 sm:py-6">
         {showFavorites ? (
           <FavoritesView
             filteredFavorites={filteredFavorites}
