@@ -81,7 +81,7 @@ export function KidHomeScreen({
   return (
     <div
       id="kid-home-screen"
-      className="min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col select-none font-sans"
+      className="min-h-screen bg-yt-bg text-yt-text flex flex-col select-none font-sans"
     >
       {/* 1. Header with child badge, favorites toggle, lock button, and search */}
       <KidHeader
@@ -139,7 +139,7 @@ export function KidHomeScreen({
       </main>
 
       {/* 4. Friendly Bottom Footer */}
-      <footer className="py-5 border-t border-amber-100/60 text-center text-xs font-medium text-stone-400">
+      <footer className="py-5 border-t border-yt-border text-center text-xs font-medium text-yt-text-muted">
         مساحة ترفيهية وتعليمية آمنة للصغار 🌟
       </footer>
 

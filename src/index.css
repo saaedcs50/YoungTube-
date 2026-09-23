@@ -1,4 +1,25 @@
 @import "tailwindcss";
+@import "./theme.css";
+
+@theme inline {
+  --color-yt-bg: var(--yt-bg);
+  --color-yt-surface: var(--yt-surface);
+  --color-yt-surface-muted: var(--yt-surface-muted);
+  --color-yt-border: var(--yt-border);
+  --color-yt-text: var(--yt-text);
+  --color-yt-text-muted: var(--yt-text-muted);
+  --color-yt-text-inverse: var(--yt-text-inverse);
+  --color-yt-brand: var(--yt-brand);
+  --color-yt-brand-hover: var(--yt-brand-hover);
+  --color-yt-brand-soft: var(--yt-brand-soft);
+  --color-yt-brand-text: var(--yt-brand-text);
+  --color-yt-danger: var(--yt-danger);
+  --color-yt-success: var(--yt-success);
+  --color-yt-info: var(--yt-info);
+  --radius-yt: var(--yt-radius);
+  --radius-yt-sm: var(--yt-radius-sm);
+  --shadow-yt: var(--yt-shadow);
+}
 
 @font-face {
   font-family: 'Cairo';

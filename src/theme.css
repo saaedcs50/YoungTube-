@@ -1,0 +1,36 @@
+:root {
+  --yt-bg: #faf8f5;
+  --yt-surface: #ffffff;
+  --yt-surface-muted: #f5f5f4;
+  --yt-border: #e7e5e4;
+
+  --yt-text: #1c1917;
+  --yt-text-muted: #57534e;
+  --yt-text-inverse: #fafaf9;
+
+  --yt-brand: #d97706;
+  --yt-brand-hover: #b45309;
+  --yt-brand-soft: #fffbeb;
+  --yt-brand-text: #ffffff;
+
+  --yt-danger: #e11d48;
+  --yt-success: #059669;
+  --yt-info: #0284c7;
+
+  --yt-radius: 1rem;
+  --yt-radius-sm: 0.75rem;
+  --yt-shadow: 0 8px 24px rgba(217, 119, 6, 0.25);
+}
+
+[data-surface="player"] {
+  --yt-bg: #0c0a09;
+  --yt-surface: #1c1917;
+  --yt-surface-muted: #292524;
+  --yt-border: #44403c;
+  --yt-text: #f5f5f4;
+  --yt-text-muted: #a8a29e;
+  --yt-brand: #f59e0b;
+  --yt-brand-hover: #d97706;
+  --yt-brand-soft: rgba(245, 158, 11, 0.2);
+  --yt-brand-text: #0c0a09;
+}

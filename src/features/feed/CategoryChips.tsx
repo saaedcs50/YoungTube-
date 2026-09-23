@@ -60,8 +60,8 @@ export function CategoryChips({
                 onClick={() => onSelectCategory(cat.id)}
                 className={`shrink-0 flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm whitespace-nowrap transition duration-150 active:scale-[0.98] cursor-pointer ${
                   isActive
-                    ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md shadow-amber-600/25 ring-2 ring-amber-600/20'
-                    : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50 hover:border-stone-300'
+                    ? 'bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text font-bold shadow-md shadow-yt-brand/25 ring-2 ring-yt-brand/20'
+                    : 'bg-yt-surface text-yt-text-muted border border-yt-border hover:bg-yt-surface-muted hover:border-yt-border'
                 }`}
               >
                 <span className="text-base leading-none select-none">{cat.emoji || '✨'}</span>

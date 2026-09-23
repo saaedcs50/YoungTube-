@@ -1,6 +1,5 @@
 import { corsHeaders, checkPublicRateLimit, RATE_LIMITED_ROUTES } from './lib/cors';
-import { runScheduledMaintenance, refreshChannelsBatch } from './lib/helpers';
-import { LAST_CRON_TASK } from './lib/kv-keys';
+import { refreshChannelsBatch } from './lib/helpers';
 import { Env } from './lib/types';
 import { handleAdminBatchRoutes } from './routes/admin-batch';
 import { handleAdminChannelsRoutes } from './routes/admin-channels';
@@ -65,42 +64,14 @@ export default {
   /**
    * Cron Trigger handler:
    * - Respects Cloudflare Workers free plan limit (at most 50 subrequests per invocation).
-   * - Executes at most ONE batch per run: either live RSS refresh (40 channels) OR
-   *   server-scheduled archive maintenance batch (2 channels, max 40 subrequests) under maintenance_lock.
-   * - Branches based on cron pattern (e.g. minute :30 for maintenance vs minute :00 for refresh)
-   *   or alternates via KV (_last_cron_task) when triggered on a single schedule.
+   * - Refreshes live RSS feeds for channels batch.
    * - Sweeps pending DO telemetry aggregates.
    */
   async scheduled(controller: any, env: Env): Promise<void> {
-    const cronTrigger = controller && typeof controller.cron === 'string' ? controller.cron : '';
-    let taskToRun: 'refresh' | 'maintenance' = 'refresh';
-
-    if (cronTrigger.includes('30')) {
-      taskToRun = 'maintenance';
-    } else if (cronTrigger.includes('0')) {
-      taskToRun = 'refresh';
-    } else if (env.CHANNELS_ARCHIVE) {
-      try {
-        const lastTask = await env.CHANNELS_ARCHIVE.get(LAST_CRON_TASK);
-        taskToRun = lastTask === 'refresh' ? 'maintenance' : 'refresh';
-        await env.CHANNELS_ARCHIVE.put(LAST_CRON_TASK, taskToRun);
-      } catch {
-        taskToRun = 'maintenance';
-      }
-    }
-
-    if (taskToRun === 'maintenance') {
-      try {
-        await runScheduledMaintenance(env);
-      } catch (err) {
-        console.error('Scheduled cron maintenance error:', err);
-      }
-    } else {
-      try {
-        await refreshChannelsBatch(env);
-      } catch (err) {
-        console.error('Scheduled cron refresh error:', err);
-      }
+    try {
+      await refreshChannelsBatch(env);
+    } catch (err) {
+      console.error('Scheduled cron refresh error:', err);
     }
 
     if (env.TELEMETRY_DO) {

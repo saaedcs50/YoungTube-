@@ -21,17 +21,17 @@ export function KidHeader({
   onClearSearch,
 }: KidHeaderProps) {
   return (
-    <header className="sticky top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-amber-100 px-4 sm:px-8 py-3.5 shadow-sm">
+    <header className="sticky top-0 z-40 bg-yt-bg/90 backdrop-blur-md border-b border-yt-border px-4 sm:px-8 py-3.5 shadow-sm">
       <div className="max-w-7xl mx-auto space-y-3">
         <div className="flex items-center justify-between">
           {/* Right side in RTL: 44x44 badge with star icon + small line "مرحباً يا بطل" and extra-bold child name */}
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-600 to-amber-500 text-white flex items-center justify-center shadow-sm shrink-0">
-              <Star className="w-6 h-6 fill-white" />
+            <div className="w-11 h-11 rounded-2xl bg-yt-brand text-yt-brand-text flex items-center justify-center shadow-sm shrink-0">
+              <Star className="w-6 h-6 fill-yt-brand-text" />
             </div>
             <div className="flex flex-col text-right">
-              <span className="text-xs font-semibold text-stone-600">مرحباً يا بطل</span>
-              <span className="text-xl font-extrabold text-stone-900 tracking-tight leading-tight">
+              <span className="text-xs font-semibold text-yt-text-muted">مرحباً يا بطل</span>
+              <span className="text-xl font-extrabold text-yt-text tracking-tight leading-tight">
                 {childName || 'عالم ياسين'}
               </span>
             </div>
@@ -43,17 +43,17 @@ export function KidHeader({
               id="kid-favorites-toggle-btn"
               type="button"
               onClick={onToggleFavorites}
-              className={`w-11 h-11 rounded-full bg-white border border-stone-100 shadow-sm flex items-center justify-center transition active:scale-[0.98] cursor-pointer ${
+              className={`w-11 h-11 rounded-full bg-yt-surface border border-yt-border shadow-sm flex items-center justify-center transition active:scale-[0.98] cursor-pointer ${
                 showFavorites
                   ? 'text-rose-500 ring-2 ring-rose-300'
-                  : 'text-stone-700 hover:text-rose-500 hover:bg-stone-50'
+                  : 'text-yt-text-muted hover:text-rose-500 hover:bg-yt-surface-muted'
               }`}
               title="المفضلة"
               aria-label="المفضلة"
             >
               <Heart
                 className={`w-5 h-5 ${
-                  showFavorites ? 'fill-rose-500 text-rose-500' : 'text-stone-700'
+                  showFavorites ? 'fill-rose-500 text-rose-500' : 'text-yt-text-muted'
                 }`}
               />
             </button>
@@ -62,7 +62,7 @@ export function KidHeader({
               id="parent-dashboard-lock-btn"
               type="button"
               onClick={onOpenParentDashboard}
-              className="w-11 h-11 rounded-full bg-white border border-stone-100 shadow-sm flex items-center justify-center text-stone-700 hover:text-stone-900 hover:bg-stone-50 transition active:scale-[0.98] cursor-pointer"
+              className="w-11 h-11 rounded-full bg-yt-surface border border-yt-border shadow-sm flex items-center justify-center text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted transition active:scale-[0.98] cursor-pointer"
               title="منطقة الوالدين"
               aria-label="منطقة الوالدين"
             >
@@ -80,16 +80,16 @@ export function KidHeader({
               value={searchInput}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="ابحث في الفيديوهات المسموحة..."
-              className="w-full pl-10 pr-11 py-2.5 rounded-2xl bg-white border border-stone-200 text-xs sm:text-sm text-stone-900 placeholder-stone-500 focus:outline-hidden focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 shadow-sm transition-all font-medium"
+              className="w-full pl-10 pr-11 py-2.5 rounded-2xl bg-yt-surface border border-yt-border text-xs sm:text-sm text-yt-text placeholder-yt-text-muted focus:outline-hidden focus:ring-2 focus:ring-yt-brand/30 focus:border-yt-brand shadow-sm transition-all font-medium"
             />
-            <div className="absolute right-3.5 text-amber-600 pointer-events-none flex items-center justify-center">
+            <div className="absolute right-3.5 text-yt-brand pointer-events-none flex items-center justify-center">
               <Search className="w-4 h-4" />
             </div>
             {searchInput && (
               <button
                 type="button"
                 onClick={onClearSearch}
-                className="absolute left-3 text-stone-500 hover:text-stone-800 p-1 rounded-full hover:bg-stone-100 transition cursor-pointer"
+                className="absolute left-3 text-yt-text-muted hover:text-yt-text p-1 rounded-full hover:bg-yt-surface-muted transition cursor-pointer"
                 title="مسح البحث"
                 aria-label="مسح البحث"
               >
