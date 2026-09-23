@@ -52,10 +52,12 @@ export async function handleAdminChannelsRoutes(
     try {
       const reset = body && body.reset === true;
       let pageToken: string | undefined = undefined;
+      let pageTokenCleared = false;
 
       if (reset && env.CHANNELS_ARCHIVE) {
         try {
           await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+          pageTokenCleared = true;
         } catch {}
       } else if (env.CHANNELS_ARCHIVE) {
         try {
@@ -66,53 +68,89 @@ export async function handleAdminChannelsRoutes(
         } catch {}
       }
 
+      const hadResumeToken = Boolean(pageToken);
       const uploadsPlaylistId = sourceId.startsWith('UC') ? 'UU' + sourceId.slice(2) : sourceId;
-      const allFetchedVideos: VideoItem[] = [];
-      let pageCount = 0;
+      let allFetchedVideos: VideoItem[] = [];
       let nextPageToken: string | undefined = undefined;
+      let hasRecovered = false;
 
-      while (pageCount < MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION) {
-        const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
-        apiUrl.searchParams.set('part', 'snippet');
-        apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
-        apiUrl.searchParams.set('maxResults', YOUTUBE_PAGE_SIZE.toString());
-        if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
-        apiUrl.searchParams.set('key', apiKey);
+      while (true) {
+        allFetchedVideos = [];
+        let pageCount = 0;
+        nextPageToken = undefined;
+        let currentToken = pageToken;
+        let encounteredInvalidToken = false;
 
-        const res = await fetch(apiUrl.toString());
-        if (!res.ok) {
-          const errText = await res.text();
-          if (res.status === 403 || res.status === 429) {
+        while (pageCount < MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION) {
+          const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+          apiUrl.searchParams.set('part', 'snippet');
+          apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
+          apiUrl.searchParams.set('maxResults', YOUTUBE_PAGE_SIZE.toString());
+          if (currentToken) apiUrl.searchParams.set('pageToken', currentToken);
+          apiUrl.searchParams.set('key', apiKey);
+
+          const res = await fetch(apiUrl.toString());
+          if (!res.ok) {
+            const errText = await res.text();
+            const isInvalidToken =
+              res.status === 400 &&
+              (errText.includes('invalidPageToken') ||
+                errText.toLowerCase().includes('invalid page token'));
+
+            if (isInvalidToken) {
+              if (env.CHANNELS_ARCHIVE) {
+                try {
+                  await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+                } catch {}
+              }
+              pageTokenCleared = true;
+
+              if (hadResumeToken && !hasRecovered) {
+                hasRecovered = true;
+                pageToken = undefined;
+                encounteredInvalidToken = true;
+                break;
+              }
+            }
+
+            if (res.status === 403 || res.status === 429) {
+              return new Response(
+                JSON.stringify({ error: 'YouTube API quota or access error', details: errText }),
+                { status: res.status === 429 ? 429 : 502, headers: corsHeaders }
+              );
+            }
             return new Response(
-              JSON.stringify({ error: 'YouTube API quota or access error', details: errText }),
-              { status: res.status === 429 ? 429 : 502, headers: corsHeaders }
+              JSON.stringify({ error: `YouTube API error (${res.status}): ${errText}` }),
+              { status: res.status >= 500 ? 502 : res.status, headers: corsHeaders }
             );
           }
-          return new Response(
-            JSON.stringify({ error: `YouTube API error (${res.status}): ${errText}` }),
-            { status: res.status >= 500 ? 502 : res.status, headers: corsHeaders }
-          );
-        }
 
-        const data: any = await res.json();
-        const items = data.items || [];
-        for (const item of items) {
-          const vId = item.snippet?.resourceId?.videoId;
-          const vTitle = item.snippet?.title;
-          const pubAt = item.snippet?.publishedAt;
-          if (vId && vTitle && vTitle !== 'Private video' && vTitle !== 'Deleted video') {
-            allFetchedVideos.push({
-              videoId: vId,
-              title: vTitle,
-              publishedAt: pubAt || new Date().toISOString(),
-            });
+          const data: any = await res.json();
+          const items = data.items || [];
+          for (const item of items) {
+            const vId = item.snippet?.resourceId?.videoId;
+            const vTitle = item.snippet?.title;
+            const pubAt = item.snippet?.publishedAt;
+            if (vId && vTitle && vTitle !== 'Private video' && vTitle !== 'Deleted video') {
+              allFetchedVideos.push({
+                videoId: vId,
+                title: vTitle,
+                publishedAt: pubAt || new Date().toISOString(),
+              });
+            }
           }
+
+          nextPageToken = data.nextPageToken;
+          pageCount++;
+          currentToken = nextPageToken;
+          if (!nextPageToken || items.length === 0) break;
         }
 
-        nextPageToken = data.nextPageToken;
-        pageCount++;
-        pageToken = nextPageToken;
-        if (!nextPageToken || items.length === 0) break;
+        if (encounteredInvalidToken) {
+          continue;
+        }
+
+        break;
       }
 
       if (nextPageToken && env.CHANNELS_ARCHIVE) {
@@ -120,6 +158,20 @@ export async function handleAdminChannelsRoutes(
       } else if (env.CHANNELS_ARCHIVE) {
         try {
           await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+        } catch {}
+      }
+
+      // Read existing archive length from KV before merge
+      let previousLength = 0;
+      if (env.CHANNELS_ARCHIVE) {
+        try {
+          const rawExisting = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
+          if (rawExisting) {
+            const parsed = JSON.parse(rawExisting);
+            if (Array.isArray(parsed)) {
+              previousLength = parsed.length;
+            }
+          }
         } catch {}
       }
 
@@ -131,13 +183,24 @@ export async function handleAdminChannelsRoutes(
         );
       }
 
+      const totalVideosInArchive = storeRes.newCount;
+      const newlyAddedCount = Math.max(0, totalVideosInArchive - previousLength);
+      const fetchedFromYoutubeCount = allFetchedVideos.length;
+
+      const responsePayload: Record<string, any> = {
+        sourceId,
+        addedVideosCount: newlyAddedCount,
+        fetchedFromYoutubeCount,
+        totalVideosInArchive,
+        hasMore: !!nextPageToken,
+      };
+
+      if (pageTokenCleared) {
+        responsePayload.pageTokenCleared = true;
+      }
+
       return new Response(
-        JSON.stringify({
-          sourceId,
-          addedVideosCount: allFetchedVideos.length,
-          totalVideosInArchive: storeRes.newCount,
-          hasMore: !!nextPageToken,
-        }),
+        JSON.stringify(responsePayload),
         { status: 200, headers: corsHeaders }
       );
     } catch (err) {

@@ -41,9 +41,9 @@ import { Env, VideoItem } from '../lib/types';
  *
  * 3. POST /api/admin/scan-cleanup-batch:
  *    - Cursor Key: SCAN_CLEANUP_CURSOR (_scan_cleanup_cursor)
- *    - Default Batch Size: 1 channel (processes up to 35 portrait thumbnail HEAD/GET fetches per call)
- *    - Worst-case touched per call: 1 channel, duration API chunked by 50 + max 35 thumbnail image fetches
- *    - Subrequest Budget Awareness: Capped at 35 thumbnail checks so total subrequests remain < 50.
+ *    - Default Batch Size: 1 channel (processes up to 40 videos per invocation window)
+ *    - Worst-case touched per call: 1 channel, 1 duration API call (<=40 IDs) + max 40 thumbnail image fetches
+ *    - Subrequest Budget Awareness: Capped at 40 checks per window so total subrequests remain < 50.
  */
 
 export async function handleAdminBatchRoutes(
@@ -506,16 +506,73 @@ export async function handleAdminBatchRoutes(
             };
           }
 
-          const allVideoIds = channelVideos.map((v) => v.videoId).filter(Boolean);
+          let offset = 0;
+          const offsetKey = scanCleanupOffsetKey(sourceId);
+          if (!reset && env.CHANNELS_ARCHIVE) {
+            try {
+              const rawOffset = await env.CHANNELS_ARCHIVE.get(offsetKey);
+              if (rawOffset) {
+                const parsed = parseInt(rawOffset, 10);
+                if (!isNaN(parsed) && parsed >= 0) {
+                  offset = parsed;
+                }
+              }
+            } catch {
+              offset = 0;
+            }
+          }
+
+          const SCAN_CLEANUP_WINDOW = 40;
+          const slice = channelVideos.slice(offset, offset + SCAN_CLEANUP_WINDOW);
+
+          if (slice.length === 0) {
+            return {
+              processed: [
+                {
+                  sourceId,
+                  title,
+                  videosChecked: 0,
+                  removedShortDuration: 0,
+                  removedPortrait: 0,
+                  channelComplete: true,
+                },
+              ],
+              failed: [],
+              advanceCountOverride: 1,
+              deleteOffsetKey: offsetKey,
+              extraFields: {
+                sourceId,
+                title,
+                videosCheckedThisCall: 0,
+                removedShortDuration: 0,
+                removedPortrait: 0,
+                channelComplete: true,
+                failedChannels: [],
+                totalVideosChecked: 0,
+                totalRemovedShortDuration: 0,
+                totalRemovedPortrait: 0,
+                channelsProcessed: [
+                  {
+                    sourceId,
+                    title,
+                    videosChecked: 0,
+                    removedShortDuration: 0,
+                    removedPortrait: 0,
+                    channelComplete: true,
+                  },
+                ],
+              },
+            };
+          }
+
+          const sliceVideoIds = slice.map((v) => v.videoId).filter(Boolean);
           const shortDurationVideoIds = new Set<string>();
-          const CHUNK_SIZE = 50;
 
           try {
-            for (let i = 0; i < allVideoIds.length; i += CHUNK_SIZE) {
-              const chunk = allVideoIds.slice(i, i + CHUNK_SIZE);
+            if (sliceVideoIds.length > 0) {
               const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
               apiUrl.searchParams.set('part', 'contentDetails');
-              apiUrl.searchParams.set('id', chunk.join(','));
+              apiUrl.searchParams.set('id', sliceVideoIds.join(','));
               apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
 
               const res = await fetch(apiUrl.toString());
@@ -533,6 +590,7 @@ export async function handleAdminBatchRoutes(
                 const durationStr = item?.contentDetails?.duration;
                 if (vId && durationStr) {
                   const seconds = parseIsoDuration(durationStr);
+                  // Shorts threshold: duration < 120s
                   if (seconds < 120) {
                     shortDurationVideoIds.add(vId);
                   }
@@ -558,6 +616,7 @@ export async function handleAdminBatchRoutes(
               });
             }
 
+            // On YouTube 403/429/error: leave offset unchanged, advanceCountOverride = 0
             return {
               processed: [],
               failed: failedChannels,
@@ -578,45 +637,11 @@ export async function handleAdminBatchRoutes(
             };
           }
 
-          let remainingAfterDuration = channelVideos;
-          let removedShortDuration = 0;
-
-          if (shortDurationVideoIds.size > 0) {
-            remainingAfterDuration = channelVideos.filter((v) => !shortDurationVideoIds.has(v.videoId));
-            removedShortDuration = channelVideos.length - remainingAfterDuration.length;
-
-            if (env.CHANNELS_ARCHIVE && !context.dryRun) {
-              try {
-                await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(remainingAfterDuration));
-                await updateMergedListForChannel(env, sourceId, remainingAfterDuration);
-              } catch (e) {
-                console.error(`Failed to update archive/merged list after short-duration cleanup for ${sourceId}:`, e);
-              }
-            }
-          }
-
-          let offset = 0;
-          const offsetKey = scanCleanupOffsetKey(sourceId);
-          if (!reset && env.CHANNELS_ARCHIVE) {
-            try {
-              const rawOffset = await env.CHANNELS_ARCHIVE.get(offsetKey);
-              if (rawOffset) {
-                const parsed = parseInt(rawOffset, 10);
-                if (!isNaN(parsed) && parsed >= 0) {
-                  offset = parsed;
-                }
-              }
-            } catch {
-              offset = 0;
-            }
-          }
-
-          const MAX_PORTRAIT_CHECK_BATCH = 35;
-          const sliceToProcess = remainingAfterDuration.slice(offset, offset + MAX_PORTRAIT_CHECK_BATCH);
+          // Portrait check only on non-short videos in the current window
+          const nonShortSliceItems = slice.filter((v) => v && v.videoId && !shortDurationVideoIds.has(v.videoId));
           const portraitVideoIds = new Set<string>();
 
-          for (const v of sliceToProcess) {
-            if (!v || !v.videoId) continue;
+          for (const v of nonShortSliceItems) {
             try {
               const thumbUrl = `https://i.ytimg.com/vi/${encodeURIComponent(v.videoId)}/frame0.jpg`;
               const dims = await getJpegDimensions(thumbUrl);
@@ -626,24 +651,29 @@ export async function handleAdminBatchRoutes(
             } catch {}
           }
 
-          let removedPortrait = 0;
-          if (portraitVideoIds.size > 0) {
-            removedPortrait = portraitVideoIds.size;
-            remainingAfterDuration = remainingAfterDuration.filter((v) => !portraitVideoIds.has(v.videoId));
+          const removedShortDuration = shortDurationVideoIds.size;
+          const removedPortrait = portraitVideoIds.size;
+          const totalRemovedInThisWindow = removedShortDuration + removedPortrait;
+
+          let updatedArchive = channelVideos;
+          if (totalRemovedInThisWindow > 0) {
+            const idsToRemove = new Set<string>([...shortDurationVideoIds, ...portraitVideoIds]);
+            updatedArchive = channelVideos.filter((v) => !idsToRemove.has(v.videoId));
 
             if (env.CHANNELS_ARCHIVE && !context.dryRun) {
               try {
-                await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(remainingAfterDuration));
-                await updateMergedListForChannel(env, sourceId, remainingAfterDuration);
+                await env.CHANNELS_ARCHIVE.put(channelArchiveKey(sourceId), JSON.stringify(updatedArchive));
+                await updateMergedListForChannel(env, sourceId, updatedArchive);
               } catch (e) {
-                console.error(`Failed to update archive/merged list after portrait cleanup for ${sourceId}:`, e);
+                console.error(`Failed to update archive/merged list after scan-cleanup for ${sourceId}:`, e);
               }
             }
           }
 
-          const newOffset = offset + sliceToProcess.length;
-          const isChannelComplete = newOffset >= remainingAfterDuration.length;
-          const videosCheckedThisCall = allVideoIds.length + sliceToProcess.length;
+          const nonRemovedInSlice = slice.length - totalRemovedInThisWindow;
+          const newOffset = offset + Math.max(0, nonRemovedInSlice);
+          const isChannelComplete = newOffset >= updatedArchive.length;
+          const videosCheckedThisCall = slice.length;
 
           return {
             processed: [
