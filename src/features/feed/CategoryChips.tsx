@@ -33,14 +33,47 @@ export interface CategoryChipsProps {
   selectedCategory: string;
   showFavorites: boolean;
   onSelectCategory: (categoryId: string) => void;
+  compact?: boolean;
 }
 
 export function CategoryChips({
   selectedCategory,
   showFavorites,
   onSelectCategory,
+  compact = false,
 }: CategoryChipsProps) {
   const { kidCategories } = useAllCategories();
+
+  if (compact) {
+    return (
+      <div className="w-full overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+          {kidCategories.map((cat) => {
+            const isActive = !showFavorites && selectedCategory === cat.id;
+            const shortLabel = getCategoryShortLabel(cat);
+            return (
+              <button
+                key={cat.id}
+                id={`cat-chip-${cat.id}`}
+                type="button"
+                title={cat.label}
+                aria-label={cat.label}
+                aria-pressed={isActive}
+                onClick={() => onSelectCategory(cat.id)}
+                className={`shrink-0 h-7.5 sm:h-8 px-3 flex items-center justify-center rounded-full text-xs whitespace-nowrap transition-colors duration-150 active:scale-95 cursor-pointer select-none ${
+                  isActive
+                    ? 'bg-yt-text text-yt-text-inverse font-semibold'
+                    : 'bg-yt-surface-muted hover:bg-yt-border/50 text-yt-text font-medium border border-yt-border/50'
+                }`}
+              >
+                <span className="truncate">{shortLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section className="px-4 sm:px-8 py-2 sm:py-2.5">

@@ -1,6 +1,6 @@
 node_modules/
-build/
 dist/
+build/
 coverage/
 .DS_Store
 *.log
@@ -8,3 +8,6 @@ coverage/
 !.env.example
 bun.lock
 bun.lockb
+
+# Ensure android folder is not ignored
+!android/

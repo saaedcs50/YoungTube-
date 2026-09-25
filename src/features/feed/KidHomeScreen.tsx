@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import ChannelVideosModal from '../../components/ChannelVideosModal';
 import { useKidFeed } from './useKidFeed';
 import { useColumnCount } from './useColumnCount';
+import { useFeedHeaderCollapse } from './useFeedHeaderCollapse';
 import { KidHeader } from './KidHeader';
 import { CategoryChips } from './CategoryChips';
 import { FavoritesView } from './FavoritesView';
@@ -28,6 +29,7 @@ export function KidHomeScreen({
   suppressedVideoIds = [],
 }: KidHomeScreenProps) {
   const columnCount = useColumnCount();
+  const collapsed = useFeedHeaderCollapse();
   const [viewingChannelId, setViewingChannelId] = useState<{ id: string; title: string } | null>(null);
 
   const handleChannelSelect = useCallback((id: string, title: string) => {
@@ -83,25 +85,42 @@ export function KidHomeScreen({
       id="kid-home-screen"
       className="min-h-screen bg-yt-bg text-yt-text flex flex-col select-none font-sans"
     >
-      {/* 1. Header with child badge, favorites toggle, lock button, and search */}
-      <KidHeader
-        childName={childName}
-        showFavorites={showFavorites}
-        onToggleFavorites={() => setShowFavorites((prev) => !prev)}
-        onOpenParentDashboard={onOpenParentDashboard}
-        searchInput={searchInput}
-        onSearchChange={setSearchInput}
-        onClearSearch={handleClearSearch}
-      />
+      {/* 1. Sticky Header Shell: Switches between full header + chips and collapsed single bar */}
+      <div className="sticky top-0 z-40 bg-yt-bg/95 backdrop-blur-md border-b border-yt-border shadow-xs">
+        {collapsed ? (
+          <KidHeader
+            collapsed={true}
+            selectedCategory={selectedCategory}
+            showFavorites={showFavorites}
+            onSelectCategory={handleSelectCategory}
+            searchInput={searchInput}
+            onSearchChange={setSearchInput}
+            onClearSearch={handleClearSearch}
+            onToggleFavorites={() => setShowFavorites((prev) => !prev)}
+            onOpenParentDashboard={onOpenParentDashboard}
+          />
+        ) : (
+          <>
+            <KidHeader
+              collapsed={false}
+              childName={childName}
+              showFavorites={showFavorites}
+              onToggleFavorites={() => setShowFavorites((prev) => !prev)}
+              onOpenParentDashboard={onOpenParentDashboard}
+              searchInput={searchInput}
+              onSearchChange={setSearchInput}
+              onClearSearch={handleClearSearch}
+            />
+            <CategoryChips
+              selectedCategory={selectedCategory}
+              showFavorites={showFavorites}
+              onSelectCategory={handleSelectCategory}
+            />
+          </>
+        )}
+      </div>
 
-      {/* 2. Category Filter Chips */}
-      <CategoryChips
-        selectedCategory={selectedCategory}
-        showFavorites={showFavorites}
-        onSelectCategory={handleSelectCategory}
-      />
-
-      {/* 3. Main Content: Favorites View OR Main Feed Video Grid */}
+      {/* 2. Main Content: Favorites View OR Main Feed Video Grid */}
       <main className="grow w-full py-2 sm:py-6">
         {showFavorites ? (
           <FavoritesView
@@ -138,12 +157,12 @@ export function KidHomeScreen({
         )}
       </main>
 
-      {/* 4. Friendly Bottom Footer */}
+      {/* 3. Friendly Bottom Footer */}
       <footer className="py-5 border-t border-yt-border text-center text-xs font-medium text-yt-text-muted">
         مساحة ترفيهية وتعليمية آمنة للصغار 🌟
       </footer>
 
-      {/* 5. Channel Videos Modal */}
+      {/* 4. Channel Videos Modal */}
       {viewingChannelId && (
         <ChannelVideosModal
           sourceId={viewingChannelId.id}

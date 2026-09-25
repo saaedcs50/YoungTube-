@@ -6,3 +6,4 @@ export { FavoritesView } from './FavoritesView';
 export { FeedVideoGrid } from './FeedVideoGrid';
 export { useKidFeed } from './useKidFeed';
 export { useColumnCount } from './useColumnCount';
+export { useFeedHeaderCollapse } from './useFeedHeaderCollapse';
