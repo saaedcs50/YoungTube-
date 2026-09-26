@@ -1,8 +1,12 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
+import { initTheme } from './services/theme.ts';
 import App from './App.tsx';
 import './index.css';
+
+// Initialize theme immediately before first render to prevent theme flashing
+initTheme();
 
 // Register service worker immediately on startup and request update
 registerSW({

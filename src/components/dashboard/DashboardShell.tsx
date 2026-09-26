@@ -1,6 +1,7 @@
-import React, { useRef, useEffect } from 'react';
-import { ShieldCheck, Lock, ArrowRight } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { ShieldCheck, Lock, ArrowRight, Sun, Moon } from 'lucide-react';
 import { DashboardNav, DashboardSectionId } from './DashboardNav';
+import { getInitialTheme, setTheme, type ThemeMode } from '../../services/theme';
 
 export interface DashboardShellProps {
   title?: string;
@@ -53,6 +54,19 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
     }
   }, [showTools, activeSection, onSelectSection]);
 
+  const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => {
+    if (typeof document !== 'undefined' && document.documentElement.dataset.theme) {
+      return (document.documentElement.dataset.theme as ThemeMode) || 'light';
+    }
+    return getInitialTheme();
+  });
+
+  const handleToggleTheme = () => {
+    const nextTheme: ThemeMode = currentTheme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    setCurrentTheme(nextTheme);
+  };
+
   return (
     <div
       id="dashboard-shell"
@@ -77,9 +91,29 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
             </div>
           </div>
 
-          {/* Top Actions: قفل · شاشة الأطفال */}
+          {/* Top Actions: الوضع الليلي · قفل · شاشة الأطفال */}
           <div className="flex items-center gap-2">
             {headerSlot}
+
+            <button
+              id="dashboard-header-theme-toggle-btn"
+              type="button"
+              onClick={handleToggleTheme}
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-yt-surface hover:bg-yt-surface-muted text-yt-text border border-yt-border text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
+              title={currentTheme === 'dark' ? 'التحويل إلى الوضع الفاتح' : 'التحويل إلى الوضع الليلي'}
+            >
+              {currentTheme === 'dark' ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">الوضع الفاتح</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-yt-text-muted" />
+                  <span className="hidden sm:inline">الوضع الليلي</span>
+                </>
+              )}
+            </button>
 
             <button
               id="dashboard-header-lock-btn"

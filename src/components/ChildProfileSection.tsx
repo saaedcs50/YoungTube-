@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import db from '../db';
 import { useAllCategories } from '../hooks/useAllCategories';
-import { User, Heart, ShieldX, Check, Sparkles } from 'lucide-react';
+import { User, Heart, ShieldX, Check, Sparkles, Moon, Sun } from 'lucide-react';
+import { getInitialTheme, setTheme, type ThemeMode } from '../services/theme';
 
 interface ChildProfileSectionProps {
   onSaved?: () => void;
@@ -15,6 +16,17 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
   const [negativeInterests, setNegativeInterests] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle');
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof document !== 'undefined' && document.documentElement.dataset.theme) {
+      return (document.documentElement.dataset.theme as ThemeMode) || 'light';
+    }
+    return getInitialTheme();
+  });
+
+  const handleSelectTheme = (mode: ThemeMode) => {
+    setTheme(mode);
+    setThemeMode(mode);
+  };
 
   // Track if this is the first load to prevent saving defaults on mount
   const isFirstLoad = useRef(true);
@@ -276,6 +288,59 @@ export const ChildProfileSection: React.FC<ChildProfileSectionProps> = ({ onSave
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Card 4: Appearance & Theme (الوضع الليلي / الفاتح) */}
+      <div className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="space-y-1">
+            <h4 className="text-xs sm:text-sm font-bold text-yt-text flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-yt-brand-soft text-yt-brand flex items-center justify-center shrink-0">
+                {themeMode === 'dark' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+              </span>
+              <span>مظهر التطبيق (الوضع الليلي)</span>
+            </h4>
+            <p className="text-xs text-yt-text-muted">
+              اختر المظهر المفضل لك ولطفلك، يتم الحفظ في الجهاز تلقائياً.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <button
+            type="button"
+            id="theme-select-light"
+            onClick={() => handleSelectTheme('light')}
+            className={`min-h-[48px] flex items-center justify-between px-4 py-3 rounded-xl border text-xs sm:text-sm font-bold transition cursor-pointer select-none ${
+              themeMode === 'light'
+                ? 'bg-yt-brand-soft border-yt-brand text-yt-brand'
+                : 'bg-yt-surface-muted border-yt-border text-yt-text hover:bg-yt-surface'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Sun className={`w-4 h-4 ${themeMode === 'light' ? 'text-yt-brand' : 'text-yt-text-muted'}`} />
+              <span>الوضع الفاتح (نهاري)</span>
+            </div>
+            {themeMode === 'light' && <Check className="w-4 h-4 text-yt-brand shrink-0" />}
+          </button>
+
+          <button
+            type="button"
+            id="theme-select-dark"
+            onClick={() => handleSelectTheme('dark')}
+            className={`min-h-[48px] flex items-center justify-between px-4 py-3 rounded-xl border text-xs sm:text-sm font-bold transition cursor-pointer select-none ${
+              themeMode === 'dark'
+                ? 'bg-yt-brand-soft border-yt-brand text-yt-brand'
+                : 'bg-yt-surface-muted border-yt-border text-yt-text hover:bg-yt-surface'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Moon className={`w-4 h-4 ${themeMode === 'dark' ? 'text-yt-brand' : 'text-yt-text-muted'}`} />
+              <span>الوضع الليلي (داكن)</span>
+            </div>
+            {themeMode === 'dark' && <Check className="w-4 h-4 text-yt-brand shrink-0" />}
+          </button>
         </div>
       </div>
     </div>

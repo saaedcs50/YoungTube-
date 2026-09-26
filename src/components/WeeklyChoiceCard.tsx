@@ -69,7 +69,7 @@ export const WeeklyChoiceCard: React.FC<WeeklyChoiceCardProps> = ({
   return (
     <div
       id="weekly-choice-card"
-      className="col-span-full rounded-3xl border border-yt-brand/30 bg-yt-brand-soft p-5 sm:p-6 shadow-sm transition-all duration-150 text-right"
+      className="col-span-full rounded-3xl border border-yt-border bg-yt-surface p-5 sm:p-6 shadow-xs transition-all duration-150 text-right"
     >
       <div className="space-y-1">
         <h2 className="text-lg sm:text-xl font-black text-yt-text">
