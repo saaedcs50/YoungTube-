@@ -6,8 +6,15 @@ import {
   ANNOUNCEMENTS,
   CUSTOM_CATEGORIES,
   channelArchiveKey,
+  channelPageTokenKey,
 } from '../lib/kv-keys';
-import { Env } from '../lib/types';
+import {
+  mergeAndStoreKVArchive,
+  MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION,
+  YOUTUBE_PAGE_SIZE,
+  parseYouTubeRss,
+} from '../lib/helpers';
+import { Env, VideoItem } from '../lib/types';
 
 export async function handlePublicReadRoutes(
   request: Request,
@@ -40,7 +47,12 @@ export async function handlePublicReadRoutes(
     }
 
     try {
-      const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${sourceId}`;
+      const type = url.searchParams.get('type');
+      const isPlaylist = type === 'playlist';
+      const rssUrl = isPlaylist
+        ? `https://www.youtube.com/feeds/videos.xml?playlist_id=${sourceId}`
+        : `https://www.youtube.com/feeds/videos.xml?channel_id=${sourceId}`;
+
       const response = await fetch(rssUrl, {
         headers: {
           'User-Agent':
@@ -57,10 +69,12 @@ export async function handlePublicReadRoutes(
       }
 
       const xmlText = await response.text();
-      return new Response(xmlText, {
+      const parsedVideos = parseYouTubeRss(xmlText);
+
+      return new Response(JSON.stringify(parsedVideos), {
         status: 200,
         headers: {
-          'Content-Type': 'application/xml; charset=utf-8',
+          'Content-Type': 'application/json; charset=utf-8',
           'Access-Control-Allow-Origin': '*',
           'Cache-Control': 'public, max-age=300, s-maxage=600',
         },
@@ -117,40 +131,253 @@ export async function handlePublicReadRoutes(
       );
     }
 
+    const deepen = url.searchParams.get('deepen') === '1';
+    const max = Math.min(parseInt(url.searchParams.get('max') || '500', 10) || 500, 2000);
+
+    // Fast path: non-deepen read behaves EXACTLY as today (fast KV read, unchanged response)
+    if (!deepen) {
+      try {
+        if (env.CHANNELS_ARCHIVE) {
+          const rawArchive = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
+          if (rawArchive) {
+            const videos = JSON.parse(rawArchive);
+            return new Response(
+              JSON.stringify({
+                sourceId,
+                videos,
+                count: videos.length,
+              }),
+              {
+                status: 200,
+                headers: {
+                  ...corsHeaders,
+                  'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
+                },
+              }
+            );
+          }
+        }
+
+        return new Response(
+          JSON.stringify({
+            sourceId,
+            videos: [],
+            count: 0,
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Failed to load channel archive' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+    }
+
+    // Deepen path: caller requested deepening with optional custom API key
     try {
+      const apiKey = resolveYouTubeApiKey(request, env);
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: 'no_api_key' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      // Check existing KV archive first
+      let existingVideos: VideoItem[] = [];
       if (env.CHANNELS_ARCHIVE) {
-        const rawArchive = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
-        if (rawArchive) {
-          const videos = JSON.parse(rawArchive);
-          return new Response(
-            JSON.stringify({
-              sourceId,
-              videos,
-              count: videos.length,
-            }),
-            {
-              status: 200,
-              headers: {
-                ...corsHeaders,
-                'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
-              },
+        try {
+          const rawArchive = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
+          if (rawArchive) {
+            const parsed = JSON.parse(rawArchive);
+            if (Array.isArray(parsed)) {
+              existingVideos = parsed;
             }
-          );
+          }
+        } catch {}
+      }
+
+      // Check resumable cursor token from KV
+      let pageToken: string | undefined = undefined;
+      if (env.CHANNELS_ARCHIVE) {
+        try {
+          const savedToken = await env.CHANNELS_ARCHIVE.get(channelPageTokenKey(sourceId));
+          if (savedToken && savedToken.trim()) {
+            const trimmed = savedToken.trim();
+            if (trimmed === 'DONE') {
+              // Channel is already completely deepened
+              return new Response(
+                JSON.stringify({
+                  sourceId,
+                  videos: existingVideos,
+                  count: existingVideos.length,
+                  nextPageToken: null,
+                }),
+                { status: 200, headers: corsHeaders }
+              );
+            }
+            pageToken = trimmed;
+          }
+        } catch {}
+      }
+
+      // If we already reached or exceeded requested max and have no saved cursor
+      if (existingVideos.length >= max && !pageToken) {
+        return new Response(
+          JSON.stringify({
+            sourceId,
+            videos: existingVideos,
+            count: existingVideos.length,
+            nextPageToken: null,
+          }),
+          { status: 200, headers: corsHeaders }
+        );
+      }
+
+      const hadResumeToken = Boolean(pageToken);
+      const uploadsPlaylistId = sourceId.startsWith('UC') ? 'UU' + sourceId.slice(2) : sourceId;
+      let allFetchedVideos: VideoItem[] = [];
+      let nextPageToken: string | undefined = undefined;
+      let hasRecovered = false;
+
+      while (true) {
+        allFetchedVideos = [];
+        let pageCount = 0;
+        nextPageToken = undefined;
+        let currentToken = pageToken;
+        let encounteredInvalidToken = false;
+
+        while (pageCount < MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION) {
+          const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+          apiUrl.searchParams.set('part', 'snippet');
+          apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
+          apiUrl.searchParams.set('maxResults', YOUTUBE_PAGE_SIZE.toString());
+          if (currentToken) apiUrl.searchParams.set('pageToken', currentToken);
+          apiUrl.searchParams.set('key', apiKey);
+
+          const res = await fetch(apiUrl.toString());
+          if (!res.ok) {
+            const errText = await res.text();
+            const isInvalidToken =
+              res.status === 400 &&
+              (errText.includes('invalidPageToken') ||
+                errText.toLowerCase().includes('invalid page token'));
+
+            if (isInvalidToken) {
+              if (env.CHANNELS_ARCHIVE) {
+                try {
+                  await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+                } catch {}
+              }
+
+              if (hadResumeToken && !hasRecovered) {
+                hasRecovered = true;
+                pageToken = undefined;
+                encounteredInvalidToken = true;
+                break;
+              }
+            }
+
+            // On rate limit or YouTube error, fail open to returning existing KV archive
+            console.error(`YouTube API error in channel-archive deepen (${res.status}): ${errText}`);
+            return new Response(
+              JSON.stringify({
+                sourceId,
+                videos: existingVideos,
+                count: existingVideos.length,
+                nextPageToken: currentToken || null,
+              }),
+              { status: 200, headers: corsHeaders }
+            );
+          }
+
+          const data: any = await res.json();
+          const items = data.items || [];
+          for (const item of items) {
+            const vId = item.snippet?.resourceId?.videoId;
+            const vTitle = item.snippet?.title;
+            const pubAt = item.snippet?.publishedAt;
+            if (vId && vTitle && vTitle !== 'Private video' && vTitle !== 'Deleted video') {
+              allFetchedVideos.push({
+                videoId: vId,
+                title: vTitle,
+                publishedAt: pubAt || new Date().toISOString(),
+              });
+            }
+          }
+
+          nextPageToken = data.nextPageToken;
+          pageCount++;
+          currentToken = nextPageToken;
+
+          // Stop if channel has no more items or if total estimated videos reached max
+          if (!nextPageToken || items.length === 0) break;
+          if (existingVideos.length + allFetchedVideos.length >= max) break;
+        }
+
+        if (encounteredInvalidToken) {
+          continue;
+        }
+
+        break;
+      }
+
+      // Persist resume cursor or DONE sentinel
+      if (nextPageToken && env.CHANNELS_ARCHIVE) {
+        await env.CHANNELS_ARCHIVE.put(channelPageTokenKey(sourceId), nextPageToken);
+      } else if (env.CHANNELS_ARCHIVE) {
+        // No further pages from YouTube: mark DONE sentinel so repeat clicks do not re-fetch
+        try {
+          await env.CHANNELS_ARCHIVE.put(channelPageTokenKey(sourceId), 'DONE');
+        } catch {}
+      }
+
+      // Merge newly fetched videos into KV archive & update merged list via existing helpers
+      let finalVideos = existingVideos;
+      if (allFetchedVideos.length > 0) {
+        const storeRes = await mergeAndStoreKVArchive(env, sourceId, allFetchedVideos);
+        if (storeRes.success && env.CHANNELS_ARCHIVE) {
+          try {
+            const updatedRaw = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
+            if (updatedRaw) {
+              const parsed = JSON.parse(updatedRaw);
+              if (Array.isArray(parsed)) finalVideos = parsed;
+            }
+          } catch {}
         }
       }
 
       return new Response(
         JSON.stringify({
           sourceId,
-          videos: [],
-          count: 0,
+          videos: finalVideos,
+          count: finalVideos.length,
+          nextPageToken: nextPageToken || null,
         }),
         { status: 200, headers: corsHeaders }
       );
-    } catch {
+    } catch (deepenErr) {
+      console.error(`Unexpected error during channel-archive deepen for ${sourceId}:`, deepenErr);
+      // Fail open: return existing archive
+      let fallbackVideos: VideoItem[] = [];
+      if (env.CHANNELS_ARCHIVE) {
+        try {
+          const raw = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) fallbackVideos = parsed;
+          }
+        } catch {}
+      }
       return new Response(
-        JSON.stringify({ error: 'Failed to load channel archive' }),
-        { status: 500, headers: corsHeaders }
+        JSON.stringify({
+          sourceId,
+          videos: fallbackVideos,
+          count: fallbackVideos.length,
+          nextPageToken: null,
+        }),
+        { status: 200, headers: corsHeaders }
       );
     }
   }

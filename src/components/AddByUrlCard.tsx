@@ -299,7 +299,7 @@ export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
           throw new Error('تعذر جلب فيديوهات القناة');
         }
         const feedData = await rssRes.json();
-        const items = feedData.items || feedData.videos || [];
+        const items = Array.isArray(feedData) ? feedData : (feedData.items || feedData.videos || []);
         if (items.length === 0) {
           throw new Error('لم يتم العثور على فيديوهات حديثة في هذه القناة');
         }
