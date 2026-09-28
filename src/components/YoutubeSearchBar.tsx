@@ -317,39 +317,6 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
         [item.sourceId]: { loading: true, message: 'جاري جلب الفيديوهات...' },
       }));
 
-      // Fire-and-forget request to deepen archive
-      void (async () => {
-        try {
-          const settings = await db.settings.get('main');
-          const headers: Record<string, string> = {};
-          if (settings?.familyYoutubeApiKey) {
-            headers['X-Family-Youtube-Key'] = settings.familyYoutubeApiKey;
-          }
-          const deepenUrl = `${WORKER_URL}/api/channel-archive?id=${encodeURIComponent(item.sourceId)}&sourceType=${encodeURIComponent(item.sourceType)}&deepen=1&max=500`;
-          const res = await fetch(deepenUrl, { headers });
-          if (res.ok) {
-            const data = await res.json().catch(() => null);
-            if (data && typeof data.count === 'number' && data.count > 0) {
-              setSyncStatusMap((prev) => {
-                const current = prev[item.sourceId];
-                if (current && !current.error) {
-                  return {
-                    ...prev,
-                    [item.sourceId]: {
-                      loading: false,
-                      message: `تم — ${data.count} فيديو بأرشيف القناة`,
-                    },
-                  };
-                }
-                return prev;
-              });
-            }
-          }
-        } catch {
-          // Ignore deepen errors as RSS path still works
-        }
-      })();
-
       const rssRes = await syncSingleChannelRss(item.sourceType, item.sourceId, item.title);
 
       if (rssRes.success) {
@@ -357,7 +324,7 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
           ...prev,
           [item.sourceId]: {
             loading: false,
-            message: `تم — ${rssRes.count} فيديو جاهز (جاري جلب المزيد من الفيديوهات...)`,
+            message: `تم — ${rssRes.count} فيديو جاهز`,
           },
         }));
         onChannelAdded?.();
