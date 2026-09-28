@@ -12,9 +12,9 @@
 - Prefer minimal, targeted, and surgical code edits (`edit_file` / targeted line replacements) over full-file rewrites.
 
 ## 3. Architecture & Cloudflare Worker Invariants (ثوابت المعمارية)
-- **Subrequest Limits**: Respect the Cloudflare Worker 50 subrequests limit on the free tier.
-- **/api/channels-latest**: Must read directly and instantly from `env.CHANNELS_ARCHIVE` (`_channels_latest_merged`). It must **NEVER** perform live RSS fetches for all channels in a single request. If key is missing, return `[]`.
-- **Scheduled Cron Batches**: The worker uses `scheduled()` and `refreshChannelsBatch` with a cursor (`_rss_refresh_cursor`) to update 40 channels every 15 minutes (`*/15 * * * *` in `wrangler.toml`). Do not revert or dismantle this pattern.
+- **Subrequest Limits**: Respect the Cloudflare Worker free tier limits: ≈ 50 external subrequests (fetch / YouTube / RSS) per invocation; KV and Durable Objects have separate, higher internal limits. Scheduled batch processing (e.g. BATCH_SIZE=40 RSS) is strictly sized around this external subrequest limit.
+- **/api/channels-latest**: Must read directly and instantly from `env.CHANNELS_ARCHIVE` (`_channels_latest_merged`). It must **NEVER** perform live RSS fetches for all channels in a single request. If the key is missing or KV is uninitialized, it falls back to `channels_seed.json` (safe first-boot seed).
+- **Scheduled Cron Batches**: The worker uses `scheduled()` and `refreshChannelsBatch` with a cursor (`_rss_refresh_cursor`) to update 40 channels per scheduled run (`0 */6 * * *` in `wrangler.toml`). Do not revert or dismantle this pattern.
 - **Channels Seed**: `channels_seed.json` contains the curated list of 196 channels. Do not replace it with mock data or older truncated lists.
 - **Do Not Generate Bun Lockfiles**: Strictly forbidden from generating, committing, or recreating `bun.lock` or `bun.lockb` anywhere in the project.
 

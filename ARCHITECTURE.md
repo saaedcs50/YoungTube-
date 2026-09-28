@@ -27,10 +27,10 @@
 
 ## حالة الهجرة
 
-- [ ] 0 ARCHITECTURE.md
-- [ ] 1 worker/lib/kv-keys.ts
-- [ ] 2 worker/routes/
-- [ ] 3 batch-runner
+- [x] 0 ARCHITECTURE.md
+- [x] 1 worker/lib/kv-keys.ts
+- [x] 2 worker/routes/
+- [x] 3 batch-runner
 - [x] 4 channelRegistry
 - [x] 5 categoryRegistry
 - [ ] 6 admin useBatchTool
