@@ -271,7 +271,14 @@ export default function FilteringResultCard({
                     آخر حساب كامل:
                   </span>
                   <span className="font-mono">
-                    استبعاد {lastResult.breakdown.shortsExcluded} شورتس • {lastResult.breakdown.blacklistExcluded} كلمات
+                    استبعاد {lastResult.breakdown.shortsExcluded} شورتس
+                    {typeof lastResult.breakdown.durationExcluded === 'number' && lastResult.breakdown.durationExcluded > 0
+                      ? ` • ${lastResult.breakdown.durationExcluded} مدة قصيرة`
+                      : ''}
+                    {lastResult.breakdown.portraitExcluded > 0
+                      ? ` • ${lastResult.breakdown.portraitExcluded} طولي`
+                      : ''}
+                    {` • ${lastResult.breakdown.blacklistExcluded} كلمات`}
                   </span>
                 </div>
               )}

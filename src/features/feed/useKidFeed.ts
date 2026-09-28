@@ -188,6 +188,9 @@ async function loadBoundedFeed(
     const byChannel = new Map<string, FeedItem[]>();
     for (const row of rows) {
       if (row.hidden === true) continue;
+      if (row.isPortrait === true) continue;
+      if (typeof row.videoDuration === 'number' && row.videoDuration < 120) continue;
+      if (row.videoDuration === undefined || row.videoDuration === null) continue; // strict
       if (hideMusicVideos && row.hasMusic === true) continue;
       if (blockedChannelSet.has(row.channelId)) continue;
       const list = byChannel.get(row.channelId);

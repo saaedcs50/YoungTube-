@@ -33,5 +33,8 @@
 - [x] 3 batch-runner
 - [x] 4 channelRegistry
 - [x] 5 categoryRegistry
-- [ ] 6 admin useBatchTool
+- [x] 6 admin useBatchTool
 - [x] 7 تفكيك الشاشات الكبيرة
+
+> ملاحظة: admin-youngtube: useBatchTool + BatchToolCard؛ ChannelArchiveManager يبقى one-shot لقناة واحدة
+

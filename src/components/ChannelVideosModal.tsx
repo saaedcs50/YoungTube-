@@ -1,8 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import db, { FeedItem } from '../db';
 import { WORKER_URL } from '../config';
 import { VideoCard } from './VideoCard';
 import { X, Tv, Film, Loader2, Search, Download, KeyRound } from 'lucide-react';
+import {
+  isLikelyShortsTitle,
+  MIN_VIDEO_DURATION_SECONDS,
+  checkIsPortraitVideo,
+  fetchVideoDurations,
+} from '../filtering';
 
 export interface ChannelVideosModalProps {
   sourceId: string;
@@ -32,6 +38,118 @@ export default function ChannelVideosModal({
   const [archiveExhausted, setArchiveExhausted] = useState(false);
   const [familyApiKey, setFamilyApiKey] = useState<string | null>(null);
   const [blacklistWords, setBlacklistWords] = useState<string[]>([]);
+
+  // Track checked IDs to prevent redundant portrait / duration fetches
+  const checkedPortraitIdsRef = useRef<Set<string>>(new Set());
+  const checkedDurationIdsRef = useRef<Set<string>>(new Set());
+  const isEnrichingDurationsRef = useRef<boolean>(false);
+  const isCheckingPortraitsRef = useRef<boolean>(false);
+
+  // Background duration enrich in chunks of 50
+  async function enrichDurations(candidateItems: FeedItem[]) {
+    if (isEnrichingDurationsRef.current) return;
+    const toCheck = candidateItems.filter(
+      (v) => v.videoDuration === undefined && !checkedDurationIdsRef.current.has(v.videoId)
+    );
+    if (toCheck.length === 0) return;
+
+    isEnrichingDurationsRef.current = true;
+    try {
+      const idsToCheck = toCheck.map((v) => v.videoId);
+      for (const id of idsToCheck) {
+        checkedDurationIdsRef.current.add(id);
+      }
+
+      const durationMap = await fetchVideoDurations(idsToCheck);
+
+      // Remove any item with duration < 120; update duration for others
+      setVideos((prev) => {
+        let changed = false;
+        const next: FeedItem[] = [];
+        for (const item of prev) {
+          const dur = durationMap.get(item.videoId);
+          if (dur !== undefined) {
+            if (dur < MIN_VIDEO_DURATION_SECONDS) {
+              changed = true;
+              continue; // remove short video
+            }
+            if (item.videoDuration !== dur) {
+              changed = true;
+              next.push({ ...item, videoDuration: dur });
+              continue;
+            }
+          }
+          next.push(item);
+        }
+        return changed ? next : prev;
+      });
+
+      setSearchResults((prev) => {
+        let changed = false;
+        const next: FeedItem[] = [];
+        for (const item of prev) {
+          const dur = durationMap.get(item.videoId);
+          if (dur !== undefined) {
+            if (dur < MIN_VIDEO_DURATION_SECONDS) {
+              changed = true;
+              continue; // remove short video
+            }
+            if (item.videoDuration !== dur) {
+              changed = true;
+              next.push({ ...item, videoDuration: dur });
+              continue;
+            }
+          }
+          next.push(item);
+        }
+        return changed ? next : prev;
+      });
+    } catch (err) {
+      console.warn('ChannelVideosModal duration enrich error:', err);
+    } finally {
+      isEnrichingDurationsRef.current = false;
+    }
+  }
+
+  // Background portrait check with concurrency <= 4
+  async function checkPortraits(candidateItems: FeedItem[]) {
+    if (isCheckingPortraitsRef.current) return;
+    const toCheck = candidateItems.filter(
+      (v) => !checkedPortraitIdsRef.current.has(v.videoId)
+    );
+    if (toCheck.length === 0) return;
+
+    isCheckingPortraitsRef.current = true;
+    try {
+      const queue = [...toCheck];
+      const CONCURRENCY = 4;
+
+      async function worker() {
+        while (queue.length > 0) {
+          const item = queue.shift();
+          if (!item) break;
+          checkedPortraitIdsRef.current.add(item.videoId);
+          try {
+            const isPortrait = await checkIsPortraitVideo(item.videoId);
+            if (isPortrait) {
+              // Remove portrait video immediately from modal list state
+              setVideos((prev) => prev.filter((v) => v.videoId !== item.videoId));
+              setSearchResults((prev) => prev.filter((v) => v.videoId !== item.videoId));
+            }
+          } catch {
+            // fail-open
+          }
+        }
+      }
+
+      const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, () => worker());
+      await Promise.all(workers);
+    } catch (err) {
+      console.warn('ChannelVideosModal portrait check error:', err);
+    } finally {
+      isCheckingPortraitsRef.current = false;
+    }
+  }
 
   // 1. Initial Load: Read settings & fetch channel archive (no deepen for speed)
   useEffect(() => {
@@ -83,6 +201,8 @@ export default function ChannelVideosModal({
         if (isMounted) {
           setVideos(filtered);
           setLoading(false);
+          void enrichDurations(filtered);
+          void checkPortraits(filtered);
         }
       } catch (err) {
         console.error('Failed to fetch channel archive:', err);
@@ -100,7 +220,7 @@ export default function ChannelVideosModal({
     };
   }, [sourceId]);
 
-  // Helper to sanitize & filter videos against blacklist
+  // Helper to sanitize & filter videos against blacklist, title shorts, and duration
   function filterAndMapRawVideos(
     rawVideos: any[],
     cId: string,
@@ -109,8 +229,24 @@ export default function ChannelVideosModal({
     const list: FeedItem[] = [];
     for (const raw of rawVideos) {
       if (!raw || !raw.videoId || !raw.title) continue;
-      const titleLower = String(raw.title).toLowerCase();
+      const titleStr = String(raw.title);
 
+      // Skip title shorts
+      if (isLikelyShortsTitle(titleStr)) continue;
+
+      // If duration is already present as a number, skip if < 120
+      const rawDur =
+        typeof raw.videoDuration === 'number'
+          ? raw.videoDuration
+          : typeof raw.duration === 'number'
+          ? raw.duration
+          : undefined;
+
+      if (rawDur !== undefined && rawDur < MIN_VIDEO_DURATION_SECONDS) {
+        continue;
+      }
+
+      const titleLower = titleStr.toLowerCase();
       const isBlacklisted = bWords.some((word) => {
         const w = word.trim().toLowerCase();
         return w ? titleLower.includes(w) : false;
@@ -120,7 +256,8 @@ export default function ChannelVideosModal({
         list.push({
           videoId: String(raw.videoId),
           channelId: cId,
-          title: String(raw.title),
+          title: titleStr,
+          videoDuration: rawDur,
           publishedAt: raw.publishedAt ? String(raw.publishedAt) : undefined,
           fetchedAt: Date.now(),
           hidden: false,
@@ -164,6 +301,8 @@ export default function ChannelVideosModal({
         const rawVideos = Array.isArray(data.videos) ? data.videos : [];
         const filtered = filterAndMapRawVideos(rawVideos, sourceId, blacklistWords);
         setSearchResults(filtered);
+        void enrichDurations(filtered);
+        void checkPortraits(filtered);
       } catch (err) {
         console.error('Channel search error:', err);
         setSearchResults([]);
@@ -223,6 +362,9 @@ export default function ChannelVideosModal({
         });
         return merged;
       });
+
+      void enrichDurations(filteredNew);
+      void checkPortraits(filteredNew);
     } catch (err) {
       console.error('Failed to deepen channel archive:', err);
     } finally {

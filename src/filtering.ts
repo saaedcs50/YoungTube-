@@ -8,12 +8,15 @@ import {
   type GlobalBlocks,
 } from './services/globalBlocks';
 
+export const MIN_VIDEO_DURATION_SECONDS = 120;
+
 export interface FilteringResult {
   totalBefore: number;
   totalAfterFilter: number;
   excludedCount: number;
   breakdown: {
     shortsExcluded: number;
+    durationExcluded?: number;
     blacklistExcluded: number;
     portraitExcluded: number;
     hiddenExcluded: number;
@@ -120,6 +123,47 @@ export function checkIsPortraitVideo(videoId: string): Promise<boolean> {
   });
 }
 
+/**
+ * Batch-fetch video durations from the worker API in chunks of 50.
+ * Returns a map of videoId -> seconds.
+ * On network/API error for any chunk, that chunk fails closed (omitted from the map).
+ */
+export async function fetchVideoDurations(videoIds: string[]): Promise<Map<string, number>> {
+  const durationMap = new Map<string, number>();
+  if (!videoIds || videoIds.length === 0) return durationMap;
+
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < videoIds.length; i += BATCH_SIZE) {
+    const chunk = videoIds.slice(i, i + BATCH_SIZE);
+    if (chunk.length === 0) continue;
+    try {
+      const url = `${WORKER_URL}/api/videos-durations?ids=${encodeURIComponent(chunk.join(','))}`;
+      let res: Response;
+      try {
+        res = await fetch(url);
+      } catch {
+        res = await fetch(`/api/videos-durations?ids=${encodeURIComponent(chunk.join(','))}`);
+      }
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+          for (const [vId, seconds] of Object.entries(data)) {
+            if (typeof seconds === 'number' && !Number.isNaN(seconds)) {
+              durationMap.set(vId, seconds);
+            }
+          }
+        }
+      } else {
+        console.warn(`[fetchVideoDurations] HTTP ${res.status} for chunk of ${chunk.length} videos`);
+      }
+    } catch (err) {
+      console.warn('[fetchVideoDurations] Failed to fetch video durations chunk:', err);
+    }
+  }
+
+  return durationMap;
+}
+
 let isProcessingPortraitQueue = false;
 
 /**
@@ -154,7 +198,11 @@ export async function processBackgroundPortraitQueue(): Promise<void> {
         if (!item) break;
         try {
           const isPortrait = await checkIsPortraitVideo(item.videoId);
-          await db.feedCache.update(item.videoId, { isPortrait });
+          if (isPortrait) {
+            await db.feedCache.delete(item.videoId);
+          } else {
+            await db.feedCache.update(item.videoId, { isPortrait: false });
+          }
         } catch {
           await db.feedCache.update(item.videoId, { isPortrait: false });
         }
@@ -371,15 +419,26 @@ export async function filterAndCacheVideos(
 
   let totalBefore = 0;
   let shortsExcluded = 0;
+  let durationExcluded = 0;
   let blacklistExcluded = 0;
   let portraitExcluded = 0;
   let hiddenExcluded = 0;
   let hasMusicCount = 0;
   let noMusicCount = 0;
 
-  const passedFeedItems: FeedItem[] = [];
-  const allStaleIdsToDelete: string[] = [];
-  const now = Date.now();
+  // Candidate items that passed title/blacklist/hidden/portrait checks
+  interface CandidateItem {
+    videoId: string;
+    channelId: string;
+    title: string;
+    hasMusic: boolean;
+    publishedAt?: string;
+    existingItem?: FeedItem;
+    duration?: number;
+  }
+
+  const channelCandidates: Map<string, CandidateItem[]> = new Map();
+  const unknownDurationIdsSet = new Set<string>();
 
   for (const channel of channels) {
     if (!channel || !Array.isArray(channel.videos) || channel.videos.length === 0) continue;
@@ -389,10 +448,7 @@ export async function filterAndCacheVideos(
     if (isBlocked(channelId, channel.sourceType)) continue;
     if (!uniqueChannelIdsSet.has(channelId)) continue;
 
-    // Use in-memory per-channel existing items loaded during bulk step
-    const existingForChannel = existingForChannelMap.get(channelId) || [];
-
-    const channelPassedItems: FeedItem[] = [];
+    const candidates: CandidateItem[] = [];
 
     for (const video of channel.videos) {
       if (!video || !video.videoId || !video.title) continue;
@@ -419,7 +475,23 @@ export async function filterAndCacheVideos(
         continue;
       }
 
-      // 3. hasMusic heuristic
+      const existingItem = existingMap.get(video.videoId);
+
+      // 3. Portrait hard exclusion: if existing item is known to be portrait, exclude
+      if (existingItem?.isPortrait === true) {
+        portraitExcluded++;
+        continue;
+      }
+
+      // 4. Duration check if existing item already has known videoDuration
+      if (typeof existingItem?.videoDuration === 'number') {
+        if (existingItem.videoDuration < MIN_VIDEO_DURATION_SECONDS) {
+          durationExcluded++;
+          continue;
+        }
+      }
+
+      // 5. hasMusic heuristic
       const hasNoMusicPhrase =
         titleLower.includes('no music') || titleLower.includes('بدون موسيقى');
       const hasMusic = !hasNoMusicPhrase;
@@ -430,18 +502,68 @@ export async function filterAndCacheVideos(
         noMusicCount++;
       }
 
-      const existingItem = existingMap.get(video.videoId);
-      const feedItem: FeedItem = {
+      const candidate: CandidateItem = {
         videoId: video.videoId,
         channelId,
         title: video.title,
         hasMusic,
-        fetchedAt: now,
         publishedAt: video.publishedAt,
+        existingItem,
+        duration: existingItem?.videoDuration,
+      };
+
+      candidates.push(candidate);
+
+      if (candidate.duration === undefined) {
+        unknownDurationIdsSet.add(video.videoId);
+      }
+    }
+
+    if (candidates.length > 0) {
+      channelCandidates.set(channelId, candidates);
+    }
+  }
+
+  // Batch-fetch unknown durations from worker API
+  const fetchedDurations = await fetchVideoDurations(Array.from(unknownDurationIdsSet));
+
+  const passedFeedItems: FeedItem[] = [];
+  const allStaleIdsToDelete: string[] = [];
+  const now = Date.now();
+
+  for (const [channelId, candidates] of channelCandidates.entries()) {
+    const existingForChannel = existingForChannelMap.get(channelId) || [];
+    const channelPassedItems: FeedItem[] = [];
+
+    for (const c of candidates) {
+      let finalDuration = c.duration;
+      if (finalDuration === undefined) {
+        finalDuration = fetchedDurations.get(c.videoId);
+      }
+
+      // Fail-closed: if duration is unknown (not returned or API failed), do NOT write to feedCache in this run
+      if (finalDuration === undefined) {
+        continue;
+      }
+
+      // Hard rule: duration < 120s must never remain in feedCache or be written to it
+      if (finalDuration < MIN_VIDEO_DURATION_SECONDS) {
+        durationExcluded++;
+        continue;
+      }
+
+      const feedItem: FeedItem = {
+        videoId: c.videoId,
+        channelId,
+        title: c.title,
+        videoDuration: finalDuration,
+        hasMusic: c.hasMusic,
+        fetchedAt: now,
+        publishedAt: c.publishedAt,
         hidden: false,
-        isPortrait: existingItem?.isPortrait,
-        viewCount: existingItem?.viewCount,
-        viewCountFetchedAt: existingItem?.viewCountFetchedAt,
+        isPortrait: c.existingItem?.isPortrait,
+        viewCount: c.existingItem?.viewCount,
+        viewCountFetchedAt: c.existingItem?.viewCountFetchedAt,
       };
 
       channelPassedItems.push(feedItem);
@@ -456,7 +578,8 @@ export async function filterAndCacheVideos(
     passedFeedItems.push(...kept);
 
     // Reconcile feedCache for this channel using existingForChannel
-    const incomingCount = channel.videos.length;
+    const channelObj = channels.find((ch) => ch && (ch.sourceId || '').trim() === channelId);
+    const incomingCount = channelObj?.videos?.length || 0;
     const existingCount = existingForChannel.length;
     const keptIds = new Set(kept.map((item) => item.videoId));
     const shouldPrune =
@@ -497,6 +620,7 @@ export async function filterAndCacheVideos(
     excludedCount,
     breakdown: {
       shortsExcluded,
+      durationExcluded,
       blacklistExcluded,
       portraitExcluded,
       hiddenExcluded,
@@ -509,32 +633,10 @@ export async function filterAndCacheVideos(
 let hasRunPortraitMigration = false;
 
 /**
- * One-shot migration to unhide videos previously marked hidden by old portrait queue logic.
- * Only unhides items where isPortrait === true AND hidden === true.
+ * Legacy migration: Made a no-op so portrait/vertical videos are never unhidden.
  */
 export async function migrateUnhidePortraitVideos(): Promise<void> {
-  if (hasRunPortraitMigration) return;
-  if (typeof window !== 'undefined' && localStorage.getItem('yt_unhide_portrait_v1') === 'true') {
-    hasRunPortraitMigration = true;
-    return;
-  }
-  hasRunPortraitMigration = true;
-
-  try {
-    const rows = await db.feedCache
-      .filter((v) => v.isPortrait === true && v.hidden === true)
-      .toArray();
-
-    if (rows.length > 0) {
-      const updates = rows.map((r) => db.feedCache.update(r.videoId, { hidden: false }));
-      await Promise.all(updates);
-    }
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('yt_unhide_portrait_v1', 'true');
-    }
-  } catch (err) {
-    console.warn('Failed portrait unhide migration:', err);
-  }
+  // No-op: product rule hard-excludes all portrait videos
 }
 
 /**

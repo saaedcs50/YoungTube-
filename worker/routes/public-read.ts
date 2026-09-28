@@ -19,6 +19,7 @@ import {
   YOUTUBE_PAGE_SIZE,
   parseYouTubeRss,
   parseStoredYoutubePageToken,
+  parseIsoDuration,
 } from '../lib/helpers';
 import { Env, VideoItem } from '../lib/types';
 
@@ -880,6 +881,76 @@ export async function handlePublicReadRoutes(
       return new Response(
         JSON.stringify({
           error: err instanceof Error ? err.message : 'Failed to fetch video statistics',
+        }),
+        { status: 502, headers: corsHeaders }
+      );
+    }
+  }
+
+  // 6.5 GET /api/videos-durations
+  if (url.pathname === '/api/videos-durations' && request.method === 'GET') {
+    const rawIds = url.searchParams.get('ids') || '';
+    const parsedIds = Array.from(
+      new Set(
+        rawIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      )
+    ).slice(0, 50);
+
+    if (parsedIds.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Missing or empty required query parameter "ids"' }),
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    if (!env.YOUTUBE_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: 'YOUTUBE_API_KEY not configured' }),
+        { status: 503, headers: corsHeaders }
+      );
+    }
+
+    try {
+      const ytUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+      ytUrl.searchParams.set('part', 'contentDetails');
+      ytUrl.searchParams.set('id', parsedIds.join(','));
+      ytUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
+
+      const ytRes = await fetch(ytUrl.toString());
+      if (!ytRes.ok) {
+        return new Response(
+          JSON.stringify({ error: `Upstream YouTube API error (${ytRes.status})` }),
+          { status: 502, headers: corsHeaders }
+        );
+      }
+
+      const data: any = await ytRes.json();
+      const results: Record<string, number> = {};
+      for (const item of data.items || []) {
+        const vId = item.id;
+        const rawDuration = item.contentDetails?.duration;
+        if (vId && typeof rawDuration === 'string') {
+          const seconds = parseIsoDuration(rawDuration);
+          if (typeof seconds === 'number' && !isNaN(seconds)) {
+            results[vId] = seconds;
+          }
+        }
+      }
+
+      return new Response(JSON.stringify(results), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Cache-Control': 'public, max-age=300',
+        },
+      });
+    } catch (err) {
+      return new Response(
+        JSON.stringify({
+          error: err instanceof Error ? err.message : 'Failed to fetch video durations',
         }),
         { status: 502, headers: corsHeaders }
       );

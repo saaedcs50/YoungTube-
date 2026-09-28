@@ -332,7 +332,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               .toArray();
             (rawSame || []).sort((a, b) => (b.fetchedAt || 0) - (a.fetchedAt || 0));
             sameChannelItems = (rawSame || [])
-              .filter((f) => !f.hidden)
+              .filter(
+                (f) =>
+                  !f.hidden &&
+                  f.isPortrait !== true &&
+                  typeof f.videoDuration === 'number' &&
+                  f.videoDuration >= 120
+              )
               .slice(0, 20)
               .map((f) => ({
                 videoId: f.videoId,
@@ -350,7 +356,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         try {
           const rawRecent = await db.feedCache.orderBy('fetchedAt').reverse().limit(30).toArray();
           recentFeedItems = (rawRecent || [])
-            .filter((f) => !f.hidden)
+            .filter(
+              (f) =>
+                !f.hidden &&
+                f.isPortrait !== true &&
+                typeof f.videoDuration === 'number' &&
+                f.videoDuration >= 120
+            )
             .map((f) => ({
               videoId: f.videoId,
               title: f.title,
