@@ -231,6 +231,9 @@ export const CATEGORY_TAG_ALIASES: Record<string, string[]> = {
     'يوغا',
     'تحديات',
   ],
+  gaming: ['gaming', 'ألعاب'],
+  cooking: ['cooking', 'food', 'kitchen', 'طبخ'],
+  calm: ['calm', 'sleep', 'relax', 'هدوء', 'نوم'],
 };
 
 /**
