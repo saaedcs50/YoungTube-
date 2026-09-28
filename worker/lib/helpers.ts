@@ -26,6 +26,10 @@ import {
   TelemetryFunnelDaily,
   FunnelEvent,
 } from './types';
+import {
+  YOUTUBE_PAGE_SIZE,
+  fetchPlaylistItemsPage,
+} from './youtube-api';
 
 /**
  * Subrequest Budget Configuration
@@ -41,7 +45,7 @@ import {
  */
 export const MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION = 4;
 export const MAX_CHANNELS_PER_BACKFILL_BATCH = 1;
-export const YOUTUBE_PAGE_SIZE = 50;
+export { YOUTUBE_PAGE_SIZE };
 
 /**
  * Safely parse a stored pageToken value from KV.
@@ -546,16 +550,14 @@ export async function runBackfillAllBatch(
           let nextPageToken: string | undefined = undefined;
 
           while (pageCount < MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION) {
-            const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
-            apiUrl.searchParams.set('part', 'snippet');
-            apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
-            apiUrl.searchParams.set('maxResults', YOUTUBE_PAGE_SIZE.toString());
-            if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
-            apiUrl.searchParams.set('key', apiKey);
-
             let res: Response;
             try {
-              res = await fetch(apiUrl.toString());
+              res = await fetchPlaylistItemsPage({
+                apiKey,
+                playlistId: uploadsPlaylistId,
+                pageToken,
+                maxResults: YOUTUBE_PAGE_SIZE,
+              });
             } catch (fetchErr) {
               const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
               if (errMsg.includes('Too many subrequests') || errMsg.includes('subrequest')) {

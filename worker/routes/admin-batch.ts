@@ -21,6 +21,7 @@ import {
   channelArchiveKey,
   scanCleanupOffsetKey,
 } from '../lib/kv-keys';
+import { fetchVideos } from '../lib/youtube-api';
 import { Env, VideoItem } from '../lib/types';
 
 /**
@@ -213,12 +214,11 @@ export async function handleAdminBatchRoutes(
 
           for (let i = 0; i < allVideoIds.length; i += CHUNK_SIZE) {
             const chunk = allVideoIds.slice(i, i + CHUNK_SIZE);
-            const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-            apiUrl.searchParams.set('part', 'id');
-            apiUrl.searchParams.set('id', chunk.join(','));
-            apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
-
-            const res = await fetch(apiUrl.toString());
+            const res = await fetchVideos({
+              apiKey: env.YOUTUBE_API_KEY!,
+              ids: chunk,
+              part: 'id',
+            });
             if (!res.ok) {
               const errText = await res.text();
               const apiError = new Error(`YouTube API error (${res.status}): ${errText}`) as Error & { status?: number };
@@ -570,12 +570,11 @@ export async function handleAdminBatchRoutes(
 
           try {
             if (sliceVideoIds.length > 0) {
-              const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-              apiUrl.searchParams.set('part', 'contentDetails');
-              apiUrl.searchParams.set('id', sliceVideoIds.join(','));
-              apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY!);
-
-              const res = await fetch(apiUrl.toString());
+              const res = await fetchVideos({
+                apiKey: env.YOUTUBE_API_KEY!,
+                ids: sliceVideoIds,
+                part: 'contentDetails',
+              });
               if (!res.ok) {
                 const errText = await res.text();
                 const apiError = new Error(`YouTube API error (${res.status}): ${errText}`) as Error & { status?: number };

@@ -21,6 +21,12 @@ import {
   parseStoredYoutubePageToken,
   parseIsoDuration,
 } from '../lib/helpers';
+import {
+  fetchPlaylistItemsPage,
+  fetchSearchVideos,
+  fetchVideos,
+  fetchChannels,
+} from '../lib/youtube-api';
 import { Env, VideoItem } from '../lib/types';
 
 export async function handlePublicReadRoutes(
@@ -258,14 +264,12 @@ export async function handlePublicReadRoutes(
         let encounteredInvalidToken = false;
 
         while (pageCount < MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION) {
-          const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
-          apiUrl.searchParams.set('part', 'snippet');
-          apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
-          apiUrl.searchParams.set('maxResults', YOUTUBE_PAGE_SIZE.toString());
-          if (currentToken) apiUrl.searchParams.set('pageToken', currentToken);
-          apiUrl.searchParams.set('key', apiKey);
-
-          const res = await fetch(apiUrl.toString());
+          const res = await fetchPlaylistItemsPage({
+            apiKey,
+            playlistId: uploadsPlaylistId,
+            pageToken: currentToken,
+            maxResults: YOUTUBE_PAGE_SIZE,
+          });
           if (!res.ok) {
             const errText = await res.text();
             const isInvalidToken =
@@ -486,17 +490,14 @@ export async function handlePublicReadRoutes(
     }
 
     try {
-      const apiUrl = new URL('https://www.googleapis.com/youtube/v3/search');
-      apiUrl.searchParams.set('part', 'snippet');
-      apiUrl.searchParams.set('type', 'video');
-      apiUrl.searchParams.set('channelId', sourceId);
-      apiUrl.searchParams.set('q', q);
-      apiUrl.searchParams.set('maxResults', String(maxResults));
-      apiUrl.searchParams.set('safeSearch', 'strict');
-      if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
-      apiUrl.searchParams.set('key', apiKey);
-
-      const ytRes = await fetch(apiUrl.toString());
+      const ytRes = await fetchSearchVideos({
+        apiKey,
+        channelId: sourceId,
+        q,
+        maxResults,
+        pageToken,
+        safeSearch: 'strict',
+      });
       if (!ytRes.ok) {
         if (ytRes.status === 403 || ytRes.status === 429) {
           return new Response(
@@ -679,12 +680,11 @@ export async function handlePublicReadRoutes(
     }
 
     try {
-      const apiUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-      apiUrl.searchParams.set('part', 'snippet');
-      apiUrl.searchParams.set('id', videoId);
-      apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
-
-      const ytRes = await fetch(apiUrl.toString());
+      const ytRes = await fetchVideos({
+        apiKey: env.YOUTUBE_API_KEY,
+        ids: [videoId],
+        part: 'snippet',
+      });
       if (!ytRes.ok) {
         const errText = await ytRes.text();
         return new Response(
@@ -756,14 +756,13 @@ export async function handlePublicReadRoutes(
       const maxPages = 4;
 
       while (pageCount < maxPages) {
-        const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
-        apiUrl.searchParams.set('part', 'snippet');
-        apiUrl.searchParams.set('playlistId', playlistId);
-        apiUrl.searchParams.set('maxResults', '50');
-        if (pageToken) apiUrl.searchParams.set('pageToken', pageToken);
-        apiUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
+        const ytRes = await fetchPlaylistItemsPage({
+          apiKey: env.YOUTUBE_API_KEY,
+          playlistId,
+          pageToken,
+          maxResults: 50,
+        });
 
-        const ytRes = await fetch(apiUrl.toString());
         if (!ytRes.ok) {
           const errText = await ytRes.text();
           if (ytRes.status === 404) {
@@ -847,12 +846,11 @@ export async function handlePublicReadRoutes(
     }
 
     try {
-      const ytUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-      ytUrl.searchParams.set('part', 'statistics,id');
-      ytUrl.searchParams.set('id', parsedIds.join(','));
-      ytUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
-
-      const ytRes = await fetch(ytUrl.toString());
+      const ytRes = await fetchVideos({
+        apiKey: env.YOUTUBE_API_KEY,
+        ids: parsedIds,
+        part: 'statistics,id',
+      });
       if (!ytRes.ok) {
         return new Response(
           JSON.stringify({ error: `Upstream YouTube API error (${ytRes.status})` }),
@@ -914,12 +912,11 @@ export async function handlePublicReadRoutes(
     }
 
     try {
-      const ytUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-      ytUrl.searchParams.set('part', 'contentDetails');
-      ytUrl.searchParams.set('id', parsedIds.join(','));
-      ytUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
-
-      const ytRes = await fetch(ytUrl.toString());
+      const ytRes = await fetchVideos({
+        apiKey: env.YOUTUBE_API_KEY,
+        ids: parsedIds,
+        part: 'contentDetails',
+      });
       if (!ytRes.ok) {
         return new Response(
           JSON.stringify({ error: `Upstream YouTube API error (${ytRes.status})` }),
@@ -1141,12 +1138,11 @@ export async function handlePublicReadRoutes(
       const apiKey = resolveYouTubeApiKey(request, env);
       if (apiKey) {
         try {
-          const ytUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
-          ytUrl.searchParams.set('part', 'snippet');
-          ytUrl.searchParams.set('id', handle);
-          ytUrl.searchParams.set('key', apiKey);
-
-          const ytRes = await fetch(ytUrl.toString());
+          const ytRes = await fetchChannels({
+            apiKey,
+            id: handle,
+            part: 'snippet',
+          });
           if (ytRes.ok) {
             const data: any = await ytRes.json();
             const item = data.items?.[0];
@@ -1205,12 +1201,11 @@ export async function handlePublicReadRoutes(
     }
 
     try {
-      const ytUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
-      ytUrl.searchParams.set('part', 'snippet');
-      ytUrl.searchParams.set('forHandle', handle);
-      ytUrl.searchParams.set('key', apiKey);
-
-      const ytRes = await fetch(ytUrl.toString());
+      const ytRes = await fetchChannels({
+        apiKey,
+        forHandle: handle,
+        part: 'snippet',
+      });
       if (!ytRes.ok) {
         if (ytRes.status === 404) {
           return new Response(

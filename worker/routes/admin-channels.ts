@@ -7,6 +7,7 @@ import {
   YOUTUBE_PAGE_SIZE,
   parseStoredYoutubePageToken,
 } from '../lib/helpers';
+import { fetchPlaylistItemsPage } from '../lib/youtube-api';
 import { CHANNELS_LATEST_MERGED, channelArchiveKey, channelPageTokenKey } from '../lib/kv-keys';
 import { Env, VideoItem } from '../lib/types';
 
@@ -90,14 +91,12 @@ export async function handleAdminChannelsRoutes(
         let encounteredInvalidToken = false;
 
         while (pageCount < MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION) {
-          const apiUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
-          apiUrl.searchParams.set('part', 'snippet');
-          apiUrl.searchParams.set('playlistId', uploadsPlaylistId);
-          apiUrl.searchParams.set('maxResults', YOUTUBE_PAGE_SIZE.toString());
-          if (currentToken) apiUrl.searchParams.set('pageToken', currentToken);
-          apiUrl.searchParams.set('key', apiKey);
-
-          const res = await fetch(apiUrl.toString());
+          const res = await fetchPlaylistItemsPage({
+            apiKey,
+            playlistId: uploadsPlaylistId,
+            pageToken: currentToken,
+            maxResults: YOUTUBE_PAGE_SIZE,
+          });
           if (!res.ok) {
             const errText = await res.text();
             const isInvalidToken =

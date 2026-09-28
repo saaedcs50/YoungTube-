@@ -6,7 +6,7 @@
 
 | السؤال | المكان |
 |---|---|
-| كلام مع YouTube API أو RSS؟ | `worker/lib/youtube-api.ts` (بعد إنشائه) |
+| كلام مع YouTube API أو RSS؟ | YouTube Data API → `worker/lib/youtube-api.ts` فقط؛ RSS يبقى `parseYouTubeRss` في helpers |
 | قراءة/كتابة KV؟ | عبر `worker/lib/kv-keys.ts` فقط — ممنوع اسم مفتاح خام جديد في ملفات أخرى |
 | عملية admin طويلة (batch)؟ | فوق `worker/lib/batch-runner.ts` — ممنوع copy كامل لـ cursor/retry |
 | route API جديد؟ | `worker/routes/` — و`worker/index.ts` توجيه فقط |
