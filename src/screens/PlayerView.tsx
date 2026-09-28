@@ -336,8 +336,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 (f) =>
                   !f.hidden &&
                   f.isPortrait !== true &&
-                  typeof f.videoDuration === 'number' &&
-                  f.videoDuration >= 120
+                  !(typeof f.videoDuration === 'number' && f.videoDuration < 120)
               )
               .slice(0, 20)
               .map((f) => ({
@@ -360,8 +359,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               (f) =>
                 !f.hidden &&
                 f.isPortrait !== true &&
-                typeof f.videoDuration === 'number' &&
-                f.videoDuration >= 120
+                !(typeof f.videoDuration === 'number' && f.videoDuration < 120)
             )
             .map((f) => ({
               videoId: f.videoId,

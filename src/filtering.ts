@@ -124,18 +124,35 @@ export function checkIsPortraitVideo(videoId: string): Promise<boolean> {
 }
 
 /**
- * Batch-fetch video durations from the worker API in chunks of 50.
- * Returns a map of videoId -> seconds.
- * On network/API error for any chunk, that chunk fails closed (omitted from the map).
+ * Result of batch-fetching video durations.
  */
-export async function fetchVideoDurations(videoIds: string[]): Promise<Map<string, number>> {
+export interface FetchDurationsResult {
+  durationMap: Map<string, number>;
+  ok: boolean;
+}
+
+/**
+ * Batch-fetch video durations from the worker API in chunks of 50.
+ * Returns a map of videoId -> seconds, along with an ok health flag.
+ * If at least one chunk request succeeds (or videoIds is empty), ok is true.
+ * If every attempted chunk fails with non-OK HTTP or network exception, ok is false.
+ */
+export async function fetchVideoDurationsDetailed(
+  videoIds: string[]
+): Promise<FetchDurationsResult> {
   const durationMap = new Map<string, number>();
-  if (!videoIds || videoIds.length === 0) return durationMap;
+  if (!videoIds || videoIds.length === 0) {
+    return { durationMap, ok: true };
+  }
 
   const BATCH_SIZE = 50;
+  let succeededChunks = 0;
+  let totalChunks = 0;
+
   for (let i = 0; i < videoIds.length; i += BATCH_SIZE) {
     const chunk = videoIds.slice(i, i + BATCH_SIZE);
     if (chunk.length === 0) continue;
+    totalChunks++;
     try {
       const url = `${WORKER_URL}/api/videos-durations?ids=${encodeURIComponent(chunk.join(','))}`;
       let res: Response;
@@ -145,6 +162,7 @@ export async function fetchVideoDurations(videoIds: string[]): Promise<Map<strin
         res = await fetch(`/api/videos-durations?ids=${encodeURIComponent(chunk.join(','))}`);
       }
       if (res.ok) {
+        succeededChunks++;
         const data = await res.json();
         if (data && typeof data === 'object' && !Array.isArray(data)) {
           for (const [vId, seconds] of Object.entries(data)) {
@@ -161,7 +179,16 @@ export async function fetchVideoDurations(videoIds: string[]): Promise<Map<strin
     }
   }
 
-  return durationMap;
+  const ok = totalChunks === 0 || succeededChunks > 0;
+  return { durationMap, ok };
+}
+
+/**
+ * Backward-compatible helper returning durationMap directly.
+ */
+export async function fetchVideoDurations(videoIds: string[]): Promise<Map<string, number>> {
+  const result = await fetchVideoDurationsDetailed(videoIds);
+  return result.durationMap;
 }
 
 let isProcessingPortraitQueue = false;
@@ -285,6 +312,7 @@ export async function ensureChannelsArchiveSynced(): Promise<boolean> {
         return false;
       }
       await filterAndCacheVideos(data, blocks);
+      await purgeInvalidFeedRows();
 
       try {
         const remoteChannelsCache = (data as any[])
@@ -525,7 +553,12 @@ export async function filterAndCacheVideos(
   }
 
   // Batch-fetch unknown durations from worker API
-  const fetchedDurations = await fetchVideoDurations(Array.from(unknownDurationIdsSet));
+  const { durationMap: fetchedDurations, ok: durationFetchOk } =
+    await fetchVideoDurationsDetailed(Array.from(unknownDurationIdsSet));
+
+  // Duration API failed if we needed durations and the fetch was entirely unsuccessful or returned 0 results
+  const durationApiFailed =
+    unknownDurationIdsSet.size > 0 && (!durationFetchOk || fetchedDurations.size === 0);
 
   const passedFeedItems: FeedItem[] = [];
   const allStaleIdsToDelete: string[] = [];
@@ -541,7 +574,8 @@ export async function filterAndCacheVideos(
         finalDuration = fetchedDurations.get(c.videoId);
       }
 
-      // Fail-closed: if duration is unknown (not returned or API failed), do NOT write to feedCache in this run
+      // If duration is still undefined:
+      // Fail-closed: do NOT write new row to feedCache in this run
       if (finalDuration === undefined) {
         continue;
       }
@@ -578,14 +612,17 @@ export async function filterAndCacheVideos(
     passedFeedItems.push(...kept);
 
     // Reconcile feedCache for this channel using existingForChannel
+    // CRITICAL: If durations API failed, do NOT prune based on missing from kept!
+    // Prune only if duration API succeeded and channel has fresh full incoming list.
     const channelObj = channels.find((ch) => ch && (ch.sourceId || '').trim() === channelId);
     const incomingCount = channelObj?.videos?.length || 0;
     const existingCount = existingForChannel.length;
     const keptIds = new Set(kept.map((item) => item.videoId));
     const shouldPrune =
-      incomingCount >= existingCount ||
-      incomingCount >= PRUNE_SAFE_INCOMING ||
-      existingCount > KEEP_PER_CHANNEL;
+      !durationApiFailed &&
+      (incomingCount >= existingCount ||
+        incomingCount >= PRUNE_SAFE_INCOMING ||
+        existingCount > KEEP_PER_CHANNEL);
 
     if (shouldPrune) {
       for (const item of existingForChannel) {
@@ -594,13 +631,36 @@ export async function filterAndCacheVideos(
           allStaleIdsToDelete.push(item.videoId);
         }
       }
+    } else {
+      // Even when shouldPrune is false (or durationApiFailed is true),
+      // we still prune items that are explicitly known-bad:
+      // duration < 120 or known portrait video.
+      for (const item of existingForChannel) {
+        if (item.hidden === true) continue;
+        const isKnownShort =
+          typeof item.videoDuration === 'number' && item.videoDuration < MIN_VIDEO_DURATION_SECONDS;
+        const isKnownPortrait = item.isPortrait === true;
+        if (isKnownShort || isKnownPortrait) {
+          allStaleIdsToDelete.push(item.videoId);
+        }
+      }
     }
   }
 
   // 5. Single bulk delete for all stale IDs across all channels
+  // Also perform one-shot cleanup: for any feedCache row whose videoId is in fetchedDurations and duration < MIN_VIDEO_DURATION_SECONDS
+  if (fetchedDurations.size > 0) {
+    for (const [vId, dur] of fetchedDurations.entries()) {
+      if (typeof dur === 'number' && dur < MIN_VIDEO_DURATION_SECONDS) {
+        allStaleIdsToDelete.push(vId);
+      }
+    }
+  }
+
   if (allStaleIdsToDelete.length > 0) {
-    for (let i = 0; i < allStaleIdsToDelete.length; i += PUT_CHUNK) {
-      await db.feedCache.bulkDelete(allStaleIdsToDelete.slice(i, i + PUT_CHUNK));
+    const uniqueIdsToDelete = Array.from(new Set(allStaleIdsToDelete));
+    for (let i = 0; i < uniqueIdsToDelete.length; i += PUT_CHUNK) {
+      await db.feedCache.bulkDelete(uniqueIdsToDelete.slice(i, i + PUT_CHUNK));
     }
   }
 
@@ -637,6 +697,35 @@ let hasRunPortraitMigration = false;
  */
 export async function migrateUnhidePortraitVideos(): Promise<void> {
   // No-op: product rule hard-excludes all portrait videos
+}
+
+/**
+ * One-shot cleanup of any feedCache rows that are known-invalid:
+ * - videoDuration is a number and < 120 seconds
+ * - isPortrait is true
+ * Does NOT delete rows where videoDuration is undefined.
+ */
+export async function purgeInvalidFeedRows(): Promise<number> {
+  try {
+    const invalidItems = await db.feedCache
+      .filter(
+        (item) =>
+          item.isPortrait === true ||
+          (typeof item.videoDuration === 'number' && item.videoDuration < MIN_VIDEO_DURATION_SECONDS)
+      )
+      .toArray();
+
+    if (invalidItems.length === 0) return 0;
+
+    const invalidIds = invalidItems.map((item) => item.videoId);
+    for (let i = 0; i < invalidIds.length; i += PUT_CHUNK) {
+      await db.feedCache.bulkDelete(invalidIds.slice(i, i + PUT_CHUNK));
+    }
+    return invalidIds.length;
+  } catch (err) {
+    console.warn('purgeInvalidFeedRows failed:', err);
+    return 0;
+  }
 }
 
 /**
