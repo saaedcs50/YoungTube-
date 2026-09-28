@@ -311,6 +311,14 @@ export async function listAllCategories(): Promise<KidCategory[]> {
     // Ignore db errors
   }
 
-  const { kidCategories } = listCategoriesForKidUi(DEFAULT_KID_CATEGORIES, custom, [...OPT_IN_CATEGORY_IDS]);
+  let enabledOptIn: string[] = [];
+  try {
+    const settings = await db.settings.get('main');
+    enabledOptIn = settings?.enabledOptInCategories || [];
+  } catch {
+    // Ignore db errors
+  }
+
+  const { kidCategories } = listCategoriesForKidUi(DEFAULT_KID_CATEGORIES, custom, enabledOptIn);
   return kidCategories;
 }
