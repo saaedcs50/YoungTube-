@@ -5,6 +5,7 @@ import {
   refreshChannelsBatch,
   MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION,
   YOUTUBE_PAGE_SIZE,
+  parseStoredYoutubePageToken,
 } from '../lib/helpers';
 import { CHANNELS_LATEST_MERGED, channelArchiveKey, channelPageTokenKey } from '../lib/kv-keys';
 import { Env, VideoItem } from '../lib/types';
@@ -62,8 +63,15 @@ export async function handleAdminChannelsRoutes(
       } else if (env.CHANNELS_ARCHIVE) {
         try {
           const savedToken = await env.CHANNELS_ARCHIVE.get(channelPageTokenKey(sourceId));
-          if (savedToken && savedToken.trim()) {
-            pageToken = savedToken.trim();
+          const parsed = parseStoredYoutubePageToken(savedToken);
+          if (parsed === 'done') {
+            try {
+              await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+            } catch {}
+            pageToken = undefined;
+            pageTokenCleared = true;
+          } else if (parsed) {
+            pageToken = parsed.token;
           }
         } catch {}
       }

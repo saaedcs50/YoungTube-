@@ -13,6 +13,7 @@ import {
   MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION,
   YOUTUBE_PAGE_SIZE,
   parseYouTubeRss,
+  parseStoredYoutubePageToken,
 } from '../lib/helpers';
 import { Env, VideoItem } from '../lib/types';
 
@@ -203,21 +204,23 @@ export async function handlePublicReadRoutes(
       if (env.CHANNELS_ARCHIVE) {
         try {
           const savedToken = await env.CHANNELS_ARCHIVE.get(channelPageTokenKey(sourceId));
-          if (savedToken && savedToken.trim()) {
-            const trimmed = savedToken.trim();
-            if (trimmed === 'DONE') {
-              // Channel is already completely deepened
-              return new Response(
-                JSON.stringify({
-                  sourceId,
-                  videos: existingVideos,
-                  count: existingVideos.length,
-                  nextPageToken: null,
-                }),
-                { status: 200, headers: corsHeaders }
-              );
-            }
-            pageToken = trimmed;
+          const parsed = parseStoredYoutubePageToken(savedToken);
+          if (parsed === 'done') {
+            try {
+              await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+            } catch {}
+            // Channel is already completely deepened
+            return new Response(
+              JSON.stringify({
+                sourceId,
+                videos: existingVideos,
+                count: existingVideos.length,
+                nextPageToken: null,
+              }),
+              { status: 200, headers: corsHeaders }
+            );
+          } else if (parsed) {
+            pageToken = parsed.token;
           }
         } catch {}
       }
@@ -323,13 +326,12 @@ export async function handlePublicReadRoutes(
         break;
       }
 
-      // Persist resume cursor or DONE sentinel
+      // Persist resume cursor if more pages remain, or delete key on completion
       if (nextPageToken && env.CHANNELS_ARCHIVE) {
         await env.CHANNELS_ARCHIVE.put(channelPageTokenKey(sourceId), nextPageToken);
       } else if (env.CHANNELS_ARCHIVE) {
-        // No further pages from YouTube: mark DONE sentinel so repeat clicks do not re-fetch
         try {
-          await env.CHANNELS_ARCHIVE.put(channelPageTokenKey(sourceId), 'DONE');
+          await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
         } catch {}
       }
 

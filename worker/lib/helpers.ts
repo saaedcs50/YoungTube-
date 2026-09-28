@@ -44,6 +44,21 @@ export const MAX_CHANNELS_PER_BACKFILL_BATCH = 1;
 export const YOUTUBE_PAGE_SIZE = 50;
 
 /**
+ * Safely parse a stored pageToken value from KV.
+ * Identifies leftover sentinel values (case-insensitive 'DONE') so they can be cleaned up
+ * and never sent to YouTube as a real pageToken.
+ */
+export function parseStoredYoutubePageToken(
+  raw: string | null | undefined
+): 'done' | { token: string } | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.toUpperCase() === 'DONE') return 'done';
+  return { token: trimmed };
+}
+
+/**
  * Helper to update a single channel's entry in _channels_latest_merged
  */
 export async function updateMergedListForChannel(
@@ -496,13 +511,30 @@ export async function runBackfillAllBatch(
 
         // Resume from stored pageToken if available
         let pageToken: string | undefined = undefined;
+        let isDoneSentinel = false;
         if (!resetCursor && env.CHANNELS_ARCHIVE) {
           try {
             const savedToken = await env.CHANNELS_ARCHIVE.get(channelPageTokenKey(sourceId));
-            if (savedToken && savedToken.trim()) {
-              pageToken = savedToken.trim();
+            const parsed = parseStoredYoutubePageToken(savedToken);
+            if (parsed === 'done') {
+              try {
+                await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+              } catch {}
+              isDoneSentinel = true;
+            } else if (parsed) {
+              pageToken = parsed.token;
             }
           } catch {}
+        }
+
+        if (isDoneSentinel) {
+          // Treat as complete for this channel — skip YouTube fetch, do NOT push to failedChannels
+          processedChannels.push({
+            sourceId,
+            title,
+            videoCount: 0,
+          });
+          continue;
         }
 
         try {
@@ -546,6 +578,18 @@ export async function runBackfillAllBatch(
             }
 
             if (!res.ok) {
+              const errText = await res.text();
+              const isInvalidToken =
+                res.status === 400 &&
+                (errText.includes('invalidPageToken') ||
+                  errText.toLowerCase().includes('invalid page token'));
+
+              if (isInvalidToken && env.CHANNELS_ARCHIVE) {
+                try {
+                  await env.CHANNELS_ARCHIVE.delete(channelPageTokenKey(sourceId));
+                } catch {}
+              }
+
               if (res.status === 403 || res.status === 429) {
                 hitRateLimit = true;
                 failedChannels.push({
@@ -556,7 +600,6 @@ export async function runBackfillAllBatch(
                 });
                 break;
               }
-              const errText = await res.text();
               if (errText.includes('Too many subrequests') || errText.includes('subrequest')) {
                 isSubrequestError = true;
               }
@@ -564,7 +607,9 @@ export async function runBackfillAllBatch(
                 sourceId,
                 title,
                 error: 'other',
-                message: `YouTube API ${res.status}: ${errText}`,
+                message: isInvalidToken
+                  ? 'Invalid page token cleared; skipped'
+                  : `YouTube API ${res.status}: ${errText}`,
               });
               break;
             }
