@@ -1,5 +1,10 @@
 import channelsSeed from '../../channels_seed.json';
-import { corsHeaders, resolveYouTubeApiKey, checkAdminAuth } from '../lib/cors';
+import {
+  corsHeaders,
+  resolveYouTubeApiKey,
+  resolveFamilyYouTubeApiKey,
+  checkAdminAuth,
+} from '../lib/cors';
 import {
   CHANNELS_LATEST_MERGED,
   GLOBAL_BLOCKS,
@@ -177,7 +182,7 @@ export async function handlePublicReadRoutes(
 
     // Deepen path: caller requested deepening with optional custom API key
     try {
-      const apiKey = resolveYouTubeApiKey(request, env);
+      const apiKey = resolveFamilyYouTubeApiKey(request);
       if (!apiKey) {
         return new Response(
           JSON.stringify({ error: 'no_api_key' }),
@@ -471,7 +476,7 @@ export async function handlePublicReadRoutes(
       );
     }
 
-    const apiKey = resolveYouTubeApiKey(request, env);
+    const apiKey = resolveFamilyYouTubeApiKey(request);
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: 'no_api_key' }),

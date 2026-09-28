@@ -26,6 +26,18 @@ export function resolveYouTubeApiKey(request: Request, env: Env): string {
 }
 
 /**
+ * Resolves the YouTube API key ONLY from client family request headers (never falls back to env).
+ * Used for public unauthenticated endpoints to prevent exhausting server quota.
+ */
+export function resolveFamilyYouTubeApiKey(request: Request): string {
+  const headerKey =
+    request.headers.get('X-Family-Youtube-Key') ||
+    request.headers.get('x-family-youtube-key') ||
+    '';
+  return headerKey.trim();
+}
+
+/**
  * Validates admin requests using Authorization: Bearer ADMIN_KEY (or legacy X-Admin-Key).
  */
 export function checkAdminAuth(request: Request, env: Env): boolean {
@@ -53,6 +65,12 @@ export const RATE_LIMITED_ROUTES = new Set([
   '/api/global-blocks',
   '/api/rss',
   '/api/resolve-channel',
+  '/api/channel-archive',
+  '/api/channel-search',
+  '/api/search-archive',
+  '/api/video-lookup',
+  '/api/playlist-lookup',
+  '/api/videos-views',
 ]);
 
 // In-memory fallback map for worker isolates when Durable Objects are unavailable or during tests
