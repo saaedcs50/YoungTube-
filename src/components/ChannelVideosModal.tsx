@@ -29,7 +29,7 @@ export default function ChannelVideosModal({
   const [isSearching, setIsSearching] = useState(false);
   const [isDeepening, setIsDeepening] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
-  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [archiveExhausted, setArchiveExhausted] = useState(false);
   const [familyApiKey, setFamilyApiKey] = useState<string | null>(null);
   const [blacklistWords, setBlacklistWords] = useState<string[]>([]);
 
@@ -77,9 +77,6 @@ export default function ChannelVideosModal({
 
         const data = await res.json();
         const rawVideos = Array.isArray(data.videos) ? data.videos : [];
-        if (data.nextPageToken) {
-          setNextPageToken(data.nextPageToken);
-        }
 
         const filtered: FeedItem[] = filterAndMapRawVideos(rawVideos, sourceId, bWords);
 
@@ -188,14 +185,8 @@ export default function ChannelVideosModal({
         headers['X-Family-Youtube-Key'] = familyApiKey;
       }
 
-      let res: Response;
-      if (nextPageToken) {
-        const pageUrl = `${WORKER_URL}/api/channel-videos-page?sourceId=${encodeURIComponent(sourceId)}&pageToken=${encodeURIComponent(nextPageToken)}&pageSize=50`;
-        res = await fetch(pageUrl, { headers });
-      } else {
-        const deepenUrl = `${WORKER_URL}/api/channel-archive?id=${encodeURIComponent(sourceId)}&deepen=1&max=800`;
-        res = await fetch(deepenUrl, { headers });
-      }
+      const deepenUrl = `${WORKER_URL}/api/channel-archive?id=${encodeURIComponent(sourceId)}&deepen=1&max=800`;
+      const res = await fetch(deepenUrl, { headers });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
@@ -209,9 +200,9 @@ export default function ChannelVideosModal({
       const data = await res.json();
       const rawNew = Array.isArray(data.videos) ? data.videos : [];
       if (data.nextPageToken) {
-        setNextPageToken(data.nextPageToken);
+        setArchiveExhausted(false);
       } else {
-        setNextPageToken(null);
+        setArchiveExhausted(true);
       }
 
       const filteredNew = filterAndMapRawVideos(rawNew, sourceId, blacklistWords);
@@ -359,19 +350,21 @@ export default function ChannelVideosModal({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleLoadMoreDeepen}
-                disabled={isDeepening}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yt-brand hover:bg-yt-brand-hover active:scale-95 text-yt-brand-text text-xs font-bold rounded-2xl shadow-sm transition disabled:opacity-50 cursor-pointer"
-              >
-                {isDeepening ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                <span>تحميل المزيد من يوتيوب</span>
-              </button>
+              {!archiveExhausted && (
+                <button
+                  type="button"
+                  onClick={handleLoadMoreDeepen}
+                  disabled={isDeepening}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-yt-brand hover:bg-yt-brand-hover active:scale-95 text-yt-brand-text text-xs font-bold rounded-2xl shadow-sm transition disabled:opacity-50 cursor-pointer"
+                >
+                  {isDeepening ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  <span>تحميل المزيد من يوتيوب</span>
+                </button>
+              )}
             </div>
           ) : (
             /* Main Content View */
@@ -458,21 +451,23 @@ export default function ChannelVideosModal({
                 )}
 
               {/* Load More Button at bottom */}
-              <div className="pt-4 border-t border-yt-border text-center">
-                <button
-                  type="button"
-                  onClick={handleLoadMoreDeepen}
-                  disabled={isDeepening}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-yt-brand-soft hover:bg-yt-surface-muted text-yt-text border border-yt-border text-xs font-extrabold rounded-2xl transition active:scale-95 disabled:opacity-50 cursor-pointer shadow-xs"
-                >
-                  {isDeepening ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-yt-brand" />
-                  ) : (
-                    <Download className="w-4 h-4 text-yt-brand" />
-                  )}
-                  <span>تحميل المزيد من يوتيوب</span>
-                </button>
-              </div>
+              {!archiveExhausted && (
+                <div className="pt-4 border-t border-yt-border text-center">
+                  <button
+                    type="button"
+                    onClick={handleLoadMoreDeepen}
+                    disabled={isDeepening}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 bg-yt-brand-soft hover:bg-yt-surface-muted text-yt-text border border-yt-border text-xs font-extrabold rounded-2xl transition active:scale-95 disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {isDeepening ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-yt-brand" />
+                    ) : (
+                      <Download className="w-4 h-4 text-yt-brand" />
+                    )}
+                    <span>تحميل المزيد من يوتيوب</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
