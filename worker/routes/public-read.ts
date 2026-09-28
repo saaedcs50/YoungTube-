@@ -570,6 +570,27 @@ export async function handlePublicReadRoutes(
         });
       }
 
+      const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
+      if (!rawMerged) {
+        return new Response(JSON.stringify({ results: [], count: 0 }), {
+          status: 200,
+          headers: corsHeaders,
+        });
+      }
+
+      let channels: any[] = [];
+      try {
+        const parsed = JSON.parse(rawMerged);
+        if (Array.isArray(parsed)) {
+          channels = parsed;
+        }
+      } catch {
+        return new Response(JSON.stringify({ results: [], count: 0 }), {
+          status: 200,
+          headers: corsHeaders,
+        });
+      }
+
       const normalize = (text: string) =>
         text
           .toLowerCase()
@@ -581,41 +602,27 @@ export async function handlePublicReadRoutes(
       const qLower = q.toLowerCase();
       const qNorm = normalize(q);
 
-      const sourceIds: string[] = (channelsSeed as any[])
-        .map((ch: any) => ch.sourceId)
-        .filter(Boolean);
-
-      const kvReads = await Promise.allSettled(
-        sourceIds.map((sourceId) => env.CHANNELS_ARCHIVE!.get(channelArchiveKey(sourceId)))
-      );
-
       const matchedVideos: Array<{ videoId: string; title: string; publishedAt: string; sourceId: string }> = [];
 
-      kvReads.forEach((res, idx) => {
-        if (res.status === 'fulfilled' && res.value) {
-          const sourceId = sourceIds[idx];
-          try {
-            const videos = JSON.parse(res.value);
-            if (Array.isArray(videos)) {
-              for (const v of videos) {
-                if (v && v.videoId && v.title) {
-                  const titleStr = String(v.title);
-                  const titleLower = titleStr.toLowerCase();
-                  const titleNorm = normalize(titleStr);
-                  if (titleLower.includes(qLower) || titleNorm.includes(qNorm)) {
-                    matchedVideos.push({
-                      videoId: v.videoId,
-                      title: titleStr,
-                      publishedAt: v.publishedAt || '',
-                      sourceId,
-                    });
-                  }
-                }
-              }
+      for (const ch of channels) {
+        if (!ch || !ch.sourceId || !Array.isArray(ch.videos)) continue;
+        const sourceId = String(ch.sourceId);
+        for (const v of ch.videos) {
+          if (v && v.videoId && v.title) {
+            const titleStr = String(v.title);
+            const titleLower = titleStr.toLowerCase();
+            const titleNorm = normalize(titleStr);
+            if (titleLower.includes(qLower) || titleNorm.includes(qNorm)) {
+              matchedVideos.push({
+                videoId: v.videoId,
+                title: titleStr,
+                publishedAt: v.publishedAt || '',
+                sourceId,
+              });
             }
-          } catch {}
+          }
         }
-      });
+      }
 
       matchedVideos.sort((a, b) => {
         const timeA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
