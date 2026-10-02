@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import ChannelVideosModal from '../../components/ChannelVideosModal';
+import DownloadsModal from '../../components/DownloadsModal';
 import { useKidFeed } from './useKidFeed';
 import { useColumnCount } from './useColumnCount';
 import { useFeedHeaderCollapse } from './useFeedHeaderCollapse';
@@ -31,6 +32,7 @@ export function KidHomeScreen({
   const columnCount = useColumnCount();
   const collapsed = useFeedHeaderCollapse();
   const [viewingChannelId, setViewingChannelId] = useState<{ id: string; title: string } | null>(null);
+  const [showDownloads, setShowDownloads] = useState(false);
 
   const handleChannelSelect = useCallback((id: string, title: string) => {
     setViewingChannelId({ id, title });
@@ -97,6 +99,7 @@ export function KidHomeScreen({
             onSearchChange={setSearchInput}
             onClearSearch={handleClearSearch}
             onToggleFavorites={() => setShowFavorites((prev) => !prev)}
+            onOpenDownloads={() => setShowDownloads(true)}
             onOpenParentDashboard={onOpenParentDashboard}
           />
         ) : (
@@ -106,6 +109,7 @@ export function KidHomeScreen({
               childName={childName}
               showFavorites={showFavorites}
               onToggleFavorites={() => setShowFavorites((prev) => !prev)}
+              onOpenDownloads={() => setShowDownloads(true)}
               onOpenParentDashboard={onOpenParentDashboard}
               searchInput={searchInput}
               onSearchChange={setSearchInput}
@@ -171,6 +175,13 @@ export function KidHomeScreen({
           onSelectVideo={onSelectVideo || (() => {})}
         />
       )}
+
+      {/* 5. Downloads List Modal */}
+      <DownloadsModal
+        isOpen={showDownloads}
+        onClose={() => setShowDownloads(false)}
+        onSelectVideo={onSelectVideo}
+      />
     </div>
   );
 }

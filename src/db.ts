@@ -90,11 +90,19 @@ interface Interaction {
 
 interface DownloadItem {
   id?: number;
+  videoId: string;
   title: string;
-  channelId: string;
-  status: 'downloading' | 'paused' | 'completed' | 'failed';
-  progress: number;
-  size?: number;
+  thumbnailUrl?: string;
+  channelTitle?: string;
+  channelId?: string;
+  status: 'queued' | 'downloading' | 'done' | 'failed';
+  path?: string;
+  errorMessage?: string;
+  bytesDownloaded?: number;
+  totalBytes?: number | null;
+  percent?: number | null;
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface DailySummary {
@@ -194,6 +202,19 @@ db.version(5).stores({
   feedCache: 'videoId, channelId, fetchedAt, publishedAt',
   interactions: 'videoId, channelId',
   downloads: '++id',
+  dailySummaries: 'date',
+  customCategories: '++id, &categoryId',
+  tasteShiftEvents: '++id, ts, categoryId, type, videoId',
+});
+
+// Version 6: updated downloads schema with &videoId, status, and createdAt
+db.version(6).stores({
+  settings: 'id',
+  channels: '++id, sourceId, *category',
+  usage: 'date',
+  feedCache: 'videoId, channelId, fetchedAt, publishedAt',
+  interactions: 'videoId, channelId',
+  downloads: '++id, &videoId, status, createdAt',
   dailySummaries: 'date',
   customCategories: '++id, &categoryId',
   tasteShiftEvents: '++id, ts, categoryId, type, videoId',

@@ -12,9 +12,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.exceptions.ExtractionException;
-import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeStreamLinkHandlerFactory;
 import org.schabi.newpipe.extractor.stream.StreamExtractor;
-import org.schabi.newpipe.extractor.stream.StreamInfo;
 import org.schabi.newpipe.extractor.stream.VideoStream;
 
 import java.io.File;
@@ -62,6 +60,87 @@ public class YoungTubeDownloaderPlugin extends Plugin {
         }
     }
 
+    /**
+     * Download quality locked to ~360p; not user-configurable.
+     * Selects height == 360 if present, else closest height <= 360;
+     * if only higher exist, picks the lowest available.
+     */
+    private VideoStream select360pStream(List<VideoStream> streams) {
+        if (streams == null || streams.isEmpty()) {
+            return null;
+        }
+
+        VideoStream exact360 = null;
+        VideoStream bestUnder360 = null;
+        int maxUnder360Height = -1;
+        VideoStream lowestAbove360 = null;
+        int minAbove360Height = Integer.MAX_VALUE;
+
+        for (VideoStream stream : streams) {
+            if (stream == null || stream.getUrl() == null || stream.getUrl().isEmpty()) {
+                continue;
+            }
+
+            int height = -1;
+            String resStr = stream.getResolution();
+            if (resStr != null) {
+                String digitsOnly = resStr.replaceAll("[^0-9]", "");
+                if (!digitsOnly.isEmpty()) {
+                    try {
+                        height = Integer.parseInt(digitsOnly);
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+
+            // Fallback if height couldn't be parsed from resolution string
+            if (height <= 0) {
+                if ("360p".equalsIgnoreCase(resStr)) height = 360;
+                else if ("240p".equalsIgnoreCase(resStr)) height = 240;
+                else if ("144p".equalsIgnoreCase(resStr)) height = 144;
+                else if ("480p".equalsIgnoreCase(resStr)) height = 480;
+                else if ("720p".equalsIgnoreCase(resStr)) height = 720;
+                else height = 360;
+            }
+
+            if (height == 360) {
+                exact360 = stream;
+                break; // ideal match found
+            } else if (height < 360) {
+                if (height > maxUnder360Height) {
+                    maxUnder360Height = height;
+                    bestUnder360 = stream;
+                }
+            } else {
+                if (height < minAbove360Height) {
+                    minAbove360Height = height;
+                    lowestAbove360 = stream;
+                }
+            }
+        }
+
+        if (exact360 != null) return exact360;
+        if (bestUnder360 != null) return bestUnder360;
+        if (lowestAbove360 != null) return lowestAbove360;
+        return streams.get(0);
+    }
+
+    private void emitProgress(String videoId, long bytesDownloaded, Long totalBytes, Integer percent) {
+        JSObject data = new JSObject();
+        data.put("videoId", videoId);
+        data.put("bytesDownloaded", bytesDownloaded);
+        if (totalBytes != null && totalBytes > 0) {
+            data.put("totalBytes", totalBytes);
+        } else {
+            data.put("totalBytes", (Object) null);
+        }
+        if (percent != null) {
+            data.put("percent", percent);
+        } else {
+            data.put("percent", (Object) null);
+        }
+        notifyListeners("downloadProgress", data);
+    }
+
     @PluginMethod
     public void download(PluginCall call) {
         String videoId = call.getString("videoId");
@@ -92,8 +171,7 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                 StreamExtractor extractor = ServiceList.YouTube.getStreamExtractor(watchUrl);
                 extractor.fetchPage();
 
-                // 1. Choose progressive stream (muxed video+audio) to allow simple single-file offline save
-                // Cap resolution at 720p to keep file sizes appropriate for kids offline viewing
+                // 1. Choose progressive stream (muxed video+audio) locked to ~360p
                 List<VideoStream> videoStreams = extractor.getVideoStreams();
                 if (videoStreams == null || videoStreams.isEmpty()) {
                     JSObject res = new JSObject();
@@ -104,23 +182,8 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                     return;
                 }
 
-                VideoStream selectedStream = null;
-                for (VideoStream stream : videoStreams) {
-                    if (selectedStream == null) {
-                        selectedStream = stream;
-                        continue;
-                    }
-                    String resStr = stream.getResolution();
-                    // Prioritize 720p or 480p or 360p
-                    if ("720p".equalsIgnoreCase(resStr)) {
-                        selectedStream = stream;
-                        break;
-                    } else if ("480p".equalsIgnoreCase(resStr) && !"720p".equalsIgnoreCase(selectedStream.getResolution())) {
-                        selectedStream = stream;
-                    } else if ("360p".equalsIgnoreCase(resStr) && selectedStream == null) {
-                        selectedStream = stream;
-                    }
-                }
+                // Download quality locked to ~360p; not user-configurable
+                VideoStream selectedStream = select360pStream(videoStreams);
 
                 if (selectedStream == null || selectedStream.getUrl() == null || selectedStream.getUrl().isEmpty()) {
                     JSObject res = new JSObject();
@@ -157,7 +220,7 @@ public class YoungTubeDownloaderPlugin extends Plugin {
 
                 File destinationFile = new File(moviesDir, safeName + "_" + cleanVideoId + "." + formatExt);
 
-                // 3. Download the stream to disk
+                // 3. Download the stream to disk with throttled progress updates
                 Request downloadRequest = new Request.Builder()
                         .url(streamUrl)
                         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
@@ -183,15 +246,46 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                         return;
                     }
 
+                    long contentLength = body.contentLength();
+                    Long totalBytes = contentLength > 0 ? contentLength : null;
+
+                    emitProgress(cleanVideoId, 0, totalBytes, totalBytes != null ? 0 : null);
+
+                    long bytesDownloaded = 0;
+                    long lastEmitTime = System.currentTimeMillis();
+                    int lastEmitPercent = 0;
+
                     try (InputStream in = body.byteStream();
                          FileOutputStream out = new FileOutputStream(destinationFile)) {
                         byte[] buffer = new byte[16 * 1024];
                         int bytesRead;
                         while ((bytesRead = in.read(buffer)) != -1) {
                             out.write(buffer, 0, bytesRead);
+                            bytesDownloaded += bytesRead;
+
+                            long now = System.currentTimeMillis();
+                            Integer percent = null;
+                            if (totalBytes != null && totalBytes > 0) {
+                                percent = (int) Math.min(100, (bytesDownloaded * 100) / totalBytes);
+                            }
+
+                            // Throttle updates: every 250ms or at least 2% progress change
+                            boolean percentChanged = percent != null && (percent - lastEmitPercent >= 2);
+                            boolean timeElapsed = (now - lastEmitTime >= 250);
+
+                            if (percentChanged || timeElapsed) {
+                                emitProgress(cleanVideoId, bytesDownloaded, totalBytes, percent);
+                                lastEmitTime = now;
+                                if (percent != null) {
+                                    lastEmitPercent = percent;
+                                }
+                            }
                         }
                         out.flush();
                     }
+
+                    // Final progress 100% notification
+                    emitProgress(cleanVideoId, bytesDownloaded, totalBytes, 100);
                 }
 
                 // 4. Return success structured result with file path
@@ -199,7 +293,7 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                 res.put("ok", true);
                 res.put("status", "done");
                 res.put("path", destinationFile.getAbsolutePath());
-                res.put("message", "تم التحميل بنجاح في ذاكرة التطبيق (تجريبي)");
+                res.put("message", "تم التحميل بنجاح في ذاكرة التطبيق (360p تجريبي)");
                 call.resolve(res);
 
             } catch (ExtractionException e) {
@@ -222,6 +316,74 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                 res.put("ok", false);
                 res.put("code", "NATIVE_ERROR");
                 res.put("message", "خطأ غير متوقع: " + (e.getMessage() != null ? e.getMessage() : "غير معروف"));
+                call.resolve(res);
+            }
+        });
+    }
+
+    /**
+     * Delete a downloaded local file by its path under app storage.
+     * Safely no-ops if file is already missing.
+     */
+    @PluginMethod
+    public void deleteFile(PluginCall call) {
+        String path = call.getString("path");
+        if (path == null || path.trim().isEmpty()) {
+            JSObject res = new JSObject();
+            res.put("ok", false);
+            res.put("code", "INVALID");
+            res.put("message", "مسار الملف غير محدد (Path is required)");
+            call.resolve(res);
+            return;
+        }
+
+        executor.execute(() -> {
+            try {
+                File target = new File(path.trim());
+                if (!target.exists()) {
+                    JSObject res = new JSObject();
+                    res.put("ok", true);
+                    res.put("message", "الملف غير موجود بالفعل");
+                    call.resolve(res);
+                    return;
+                }
+
+                // Security check: ensure target is within app files directory or external files directory
+                File appInternal = getContext().getFilesDir();
+                File appExternal = getContext().getExternalFilesDir(null);
+
+                String canonicalTarget = target.getCanonicalPath();
+                boolean isInsideInternal = appInternal != null && canonicalTarget.startsWith(appInternal.getCanonicalPath());
+                boolean isInsideExternal = appExternal != null && canonicalTarget.startsWith(appExternal.getCanonicalPath());
+
+                if (!isInsideInternal && !isInsideExternal) {
+                    JSObject res = new JSObject();
+                    res.put("ok", false);
+                    res.put("code", "INVALID");
+                    res.put("message", "غير مسموح بحذف ملفات خارج مجلد التطبيق");
+                    call.resolve(res);
+                    return;
+                }
+
+                boolean deleted = target.delete();
+                if (deleted) {
+                    JSObject res = new JSObject();
+                    res.put("ok", true);
+                    res.put("message", "تم حذف الملف بنجاح");
+                    call.resolve(res);
+                } else {
+                    JSObject res = new JSObject();
+                    res.put("ok", false);
+                    res.put("code", "NATIVE_ERROR");
+                    res.put("message", "فشل حذف الملف من الذاكرة");
+                    call.resolve(res);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error deleting file: " + path, e);
+                JSObject res = new JSObject();
+                res.put("ok", false);
+                res.put("code", "NATIVE_ERROR");
+                res.put("message", "خطأ أثناء محاولة حذف الملف: " + e.getMessage());
                 call.resolve(res);
             }
         });

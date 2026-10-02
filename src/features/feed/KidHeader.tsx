@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Heart, Lock, Search, X } from 'lucide-react';
+import { Heart, Lock, Search, X, FolderDown } from 'lucide-react';
 import { CategoryChips } from './CategoryChips';
 
 export interface KidHeaderProps {
@@ -7,6 +7,7 @@ export interface KidHeaderProps {
   childName?: string;
   showFavorites: boolean;
   onToggleFavorites: () => void;
+  onOpenDownloads?: () => void;
   onOpenParentDashboard: () => void;
   searchInput: string;
   onSearchChange: (value: string) => void;
@@ -19,6 +20,7 @@ export function KidHeader({
   collapsed = false,
   showFavorites,
   onToggleFavorites,
+  onOpenDownloads,
   onOpenParentDashboard,
   searchInput,
   onSearchChange,
@@ -109,25 +111,40 @@ export function KidHeader({
           </div>
         )}
 
-        {/* END (RTL: left side) - Love (Favorites) button only */}
-        <button
-          id="kid-favorites-toggle-btn"
-          type="button"
-          onClick={onToggleFavorites}
-          className={`w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full border shadow-xs flex items-center justify-center transition active:scale-95 cursor-pointer ${
-            showFavorites
-              ? 'text-rose-500 bg-rose-50 border-rose-200 ring-2 ring-rose-300'
-              : 'bg-yt-surface border-yt-border text-yt-text-muted hover:text-rose-500 hover:bg-yt-surface-muted'
-          }`}
-          title="المفضلة"
-          aria-label="المفضلة"
-        >
-          <Heart
-            className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${
-              showFavorites ? 'fill-rose-500 text-rose-500' : 'text-yt-text-muted'
+        {/* END (RTL: left side) - Downloads button & Love (Favorites) button */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {onOpenDownloads && (
+            <button
+              id="kid-downloads-open-btn-collapsed"
+              type="button"
+              onClick={onOpenDownloads}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-yt-border bg-yt-surface text-yt-text-muted hover:text-yt-brand hover:bg-yt-brand-soft shadow-xs flex items-center justify-center transition active:scale-95 cursor-pointer"
+              title="التنزيلات"
+              aria-label="التنزيلات"
+            >
+              <FolderDown className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+            </button>
+          )}
+
+          <button
+            id="kid-favorites-toggle-btn"
+            type="button"
+            onClick={onToggleFavorites}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border shadow-xs flex items-center justify-center transition active:scale-95 cursor-pointer ${
+              showFavorites
+                ? 'text-rose-500 bg-rose-50 border-rose-200 ring-2 ring-rose-300'
+                : 'bg-yt-surface border-yt-border text-yt-text-muted hover:text-rose-500 hover:bg-yt-surface-muted'
             }`}
-          />
-        </button>
+            title="المفضلة"
+            aria-label="المفضلة"
+          >
+            <Heart
+              className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${
+                showFavorites ? 'fill-rose-500 text-rose-500' : 'text-yt-text-muted'
+              }`}
+            />
+          </button>
+        </div>
       </header>
     );
   }
@@ -147,8 +164,21 @@ export function KidHeader({
             </span>
           </div>
 
-          {/* End (RTL: left side) - Heart (favorites) & Lock (parents) buttons */}
+          {/* End (RTL: left side) - Downloads, Heart (favorites) & Lock (parents) buttons */}
           <div className="flex items-center gap-2 sm:gap-2.5">
+            {onOpenDownloads && (
+              <button
+                id="kid-downloads-open-btn"
+                type="button"
+                onClick={onOpenDownloads}
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-yt-border bg-yt-surface text-yt-text-muted hover:text-yt-brand hover:bg-yt-brand-soft shadow-xs flex items-center justify-center transition active:scale-95 cursor-pointer"
+                title="التنزيلات"
+                aria-label="التنزيلات"
+              >
+                <FolderDown className="w-5 h-5" />
+              </button>
+            )}
+
             <button
               id="kid-favorites-toggle-btn"
               type="button"

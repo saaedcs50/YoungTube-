@@ -10,6 +10,7 @@ import {
   Repeat,
   Settings,
   Heart,
+  Download,
   SquarePlay,
   Maximize2,
   EyeOff,
@@ -28,6 +29,7 @@ import { recordChildReaction, logTasteEvent, applyLoggedTasteEvent } from '../ta
 import db from '../db';
 import { trackFunnelEvent } from '../services/funnelTelemetry';
 import { WORKER_URL } from '../config';
+import { startDownload, getDownloadByVideoId } from '../services/downloadManager';
 
 export interface QueuedVideo {
   videoId: string;
@@ -576,6 +578,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
   // Save (Parent Bookmark) state (persisted via Dexie interactions.savedByParent)
   const [isSavedByParent, setIsSavedByParent] = useState(false);
+  const [isDownloadingCurrent, setIsDownloadingCurrent] = useState(false);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+
+  const showDownloadNotice = useCallback((msg: string) => {
+    setDownloadNotice(msg);
+    setTimeout(() => setDownloadNotice(null), 3000);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -594,6 +603,45 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       isMounted = false;
     };
   }, [currentVideo.videoId]);
+
+  const handleStartDownload = useCallback(async () => {
+    if (isDownloadingCurrent) return;
+
+    try {
+      const existing = await getDownloadByVideoId(currentVideo.videoId);
+      if (existing && existing.status === 'done') {
+        showDownloadNotice('محمّل مسبقًا');
+        return;
+      }
+
+      setIsDownloadingCurrent(true);
+      showDownloadNotice('بدأ التنزيل...');
+
+      const targetChannelId = await resolveChannelId(
+        currentVideo.videoId,
+        currentVideo.channelTitle,
+        propChannelId
+      );
+
+      const res = await startDownload({
+        videoId: currentVideo.videoId,
+        title: currentVideo.title,
+        thumbnailUrl: `https://i.ytimg.com/vi/${currentVideo.videoId}/hqdefault.jpg`,
+        channelTitle: currentVideo.channelTitle,
+        channelId: targetChannelId,
+      });
+
+      if (res.ok) {
+        showDownloadNotice('تم اكتمال التنزيل');
+      } else {
+        showDownloadNotice(res.message || 'تعذر التنزيل');
+      }
+    } catch (err: any) {
+      showDownloadNotice(err?.message || 'خطأ أثناء التنزيل');
+    } finally {
+      setIsDownloadingCurrent(false);
+    }
+  }, [isDownloadingCurrent, currentVideo, propChannelId, resolveChannelId, showDownloadNotice]);
 
   const handleToggleSave = useCallback(async () => {
     const nextSaved = !isSavedByParent;
@@ -1639,8 +1687,15 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               </button>
             </div>
 
-            {/* 3) Secondary group (lower opacity): settings · loop · love with text labels */}
-            <div className="flex items-center justify-around px-4 border-t border-white/5 pt-2 w-full max-w-xs mx-auto">
+            {/* 3) Secondary group (lower opacity): loop · download · settings · love with text labels */}
+            <div className="relative flex items-center justify-around px-2 border-t border-white/5 pt-2 w-full max-w-sm mx-auto">
+              {/* Floating Download Toast / Notice */}
+              {downloadNotice && (
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-yt-brand text-yt-brand-text text-[11px] font-bold shadow-md animate-fade-in pointer-events-none whitespace-nowrap z-20">
+                  {downloadNotice}
+                </div>
+              )}
+
               {/* Loop Toggle */}
               <button
                 type="button"
@@ -1658,6 +1713,29 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                   <Repeat className="w-5 h-5" />
                 </div>
                 <span className="text-[11px] font-semibold text-yt-text-muted">تكرار</span>
+              </button>
+
+              {/* Download Control */}
+              <button
+                type="button"
+                id="player-control-download"
+                onClick={handleStartDownload}
+                disabled={isDownloadingCurrent}
+                className="flex flex-col items-center gap-1 text-white/70 hover:text-white active:scale-95 transition-all cursor-pointer disabled:opacity-60"
+                title="تنزيل الفيديو (360p)"
+              >
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    isDownloadingCurrent
+                      ? 'bg-yt-brand-soft text-yt-brand border border-yt-brand/40 animate-pulse'
+                      : 'bg-white/5 hover:bg-white/10 text-white/80'
+                  }`}
+                >
+                  <Download className={`w-5 h-5 ${isDownloadingCurrent ? 'animate-bounce' : ''}`} />
+                </div>
+                <span className="text-[11px] font-semibold text-yt-text-muted">
+                  {isDownloadingCurrent ? 'جاري التحميل' : 'تنزيل'}
+                </span>
               </button>
 
               {/* Settings */}

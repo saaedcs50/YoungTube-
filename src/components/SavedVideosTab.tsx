@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import db, { Interaction } from '../db';
 import { listRegistryChannels } from '../data/channelRegistry';
-import { Bookmark, Play, Trash2, Film, Download } from 'lucide-react';
+import { Bookmark, Play, Trash2, Film, Download, CheckCircle, FileX } from 'lucide-react';
 import { getThumbnailCandidateUrls } from './VideoCard';
-import { downloadVideo, isNativeDownloadAvailable } from '../plugins/youngtubeDownloader';
+import {
+  isNativeDownloadAvailable,
+  addDownloadProgressListener,
+  type DownloadProgressPayload,
+} from '../plugins/youngtubeDownloader';
+import {
+  startDownload,
+  removeDownloads,
+  getDownloadByVideoId,
+} from '../services/downloadManager';
 
 interface SavedVideoItem {
   videoId: string;
@@ -12,6 +21,7 @@ interface SavedVideoItem {
   channelTitle: string;
   thumbnail: string;
   lastWatched?: number;
+  localPath?: string;
 }
 
 const SavedVideoRowThumbnail: React.FC<{
@@ -87,11 +97,33 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
   const [isLoading, setIsLoading] = useState(true);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [downloadingVideoId, setDownloadingVideoId] = useState<string | null>(null);
+  const [downloadProgressMap, setDownloadProgressMap] = useState<Record<string, { percent: number | null; bytes: number }>>({});
 
   const showFeedback = (msg: string) => {
     setFeedbackMessage(msg);
     setTimeout(() => setFeedbackMessage(null), 4000);
   };
+
+  // Subscribe to native download progress events
+  useEffect(() => {
+    let handlePromise = addDownloadProgressListener((progress: DownloadProgressPayload) => {
+      if (progress && progress.videoId) {
+        setDownloadProgressMap((prev) => ({
+          ...prev,
+          [progress.videoId]: {
+            percent: progress.percent,
+            bytes: progress.bytesDownloaded,
+          },
+        }));
+      }
+    });
+
+    return () => {
+      handlePromise.then((handle) => {
+        handle?.remove();
+      });
+    };
+  }, []);
 
   const loadSavedVideos = useCallback(async () => {
     try {
@@ -121,6 +153,13 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
         }
       }
 
+      // Check for stored local file paths in localStorage
+      let localPaths: Record<string, string> = {};
+      try {
+        const stored = localStorage.getItem('yt_downloaded_videos');
+        if (stored) localPaths = JSON.parse(stored);
+      } catch {}
+
       const items: SavedVideoItem[] = interactions.map((inter) => {
         const cached = feedMap.get(inter.videoId);
         const resolvedChannelId = inter.channelId || cached?.channelId;
@@ -140,6 +179,7 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
           channelTitle: channelName,
           thumbnail,
           lastWatched: inter.lastWatched,
+          localPath: localPaths[inter.videoId],
         };
       });
 
@@ -177,13 +217,17 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
     if (downloadingVideoId) return; // prevent concurrent duplicate triggers
 
     setDownloadingVideoId(videoId);
-    showFeedback('جاري استخراج وتحميل الفيديو (تجريبي)...');
+    showFeedback('جاري استخراج وتحميل الفيديو (360p تجريبي)...');
 
     try {
-      const result = await downloadVideo({ videoId, title });
-      if (result.ok) {
-        const pathNotice = result.path ? `تم الحفظ في: ${result.path.split('/').slice(-2).join('/')}` : '';
-        showFeedback(`${result.message || 'تم التحميل بنجاح'} ${pathNotice}`.trim());
+      const result = await startDownload({ videoId, title });
+      if (result.ok && result.path) {
+        setSavedVideos((prev) =>
+          prev.map((v) => (v.videoId === videoId ? { ...v, localPath: result.path } : v))
+        );
+
+        const pathNotice = result.path ? `تم الحفظ في: ${result.path.split('/').slice(-1)[0]}` : '';
+        showFeedback(`${result.message || 'تم التحميل بنجاح'} (${pathNotice})`.trim());
       } else {
         showFeedback(result.message || 'تعذر استخراج أو تحميل الفيديو');
       }
@@ -191,6 +235,19 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
       showFeedback(err?.message || 'خطأ أثناء محاولة التنزيل');
     } finally {
       setDownloadingVideoId(null);
+    }
+  };
+
+  const handleDeleteLocalFile = async (e: React.MouseEvent, videoId: string) => {
+    e.stopPropagation();
+    try {
+      await removeDownloads([videoId]);
+      setSavedVideos((prev) =>
+        prev.map((v) => (v.videoId === videoId ? { ...v, localPath: undefined } : v))
+      );
+      showFeedback('تم حذف الملف المحلي بنجاح');
+    } catch (err: any) {
+      showFeedback(err?.message || 'خطأ أثناء محاولة حذف الملف');
     }
   };
 
@@ -261,32 +318,60 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
                   </div>
                 </div>
 
-                {/* Actions: Download (Native/Experimental) + Remove */}
+                {/* Actions: Download (360p Progress / Done / Delete File) + Remove */}
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    id={`download-saved-${video.videoId}-btn`}
-                    onClick={(e) => handleDownload(e, video.videoId, video.title)}
-                    disabled={downloadingVideoId === video.videoId}
-                    className={`min-h-[44px] sm:min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shrink-0 border border-yt-border cursor-pointer shadow-2xs ${
-                      downloadingVideoId === video.videoId
-                        ? 'bg-yt-brand-soft text-yt-brand opacity-80 cursor-wait'
-                        : 'bg-yt-surface-muted hover:bg-yt-brand-soft text-yt-text hover:text-yt-brand'
-                    }`}
-                    title="تنزيل الفيديو (متاح على تطبيق الأندرويد - تجريبي)"
-                  >
-                    {downloadingVideoId === video.videoId ? (
-                      <>
-                        <div className="w-3.5 h-3.5 border-2 border-yt-brand/20 border-t-yt-brand rounded-full animate-spin" />
-                        <span>جاري التحميل...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-3.5 h-3.5" />
-                        <span>تنزيل (تجريبي)</span>
-                      </>
-                    )}
-                  </button>
+                  {video.localPath ? (
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="min-h-[44px] sm:min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center gap-1.5 border border-emerald-200 shadow-2xs"
+                        title={`محفوظ محلياً:\n${video.localPath}`}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>محمل (360p)</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        id={`delete-local-file-${video.videoId}-btn`}
+                        onClick={(e) => handleDeleteLocalFile(e, video.videoId)}
+                        className="min-h-[44px] sm:min-h-[38px] px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1 transition border border-amber-200 cursor-pointer shadow-2xs"
+                        title="حذف ملف الفيديو المحلي لتوفير المساحة"
+                      >
+                        <FileX className="w-3.5 h-3.5" />
+                        <span>حذف الملف</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      id={`download-saved-${video.videoId}-btn`}
+                      onClick={(e) => handleDownload(e, video.videoId, video.title)}
+                      disabled={downloadingVideoId === video.videoId}
+                      className={`min-h-[44px] sm:min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shrink-0 border border-yt-border cursor-pointer shadow-2xs ${
+                        downloadingVideoId === video.videoId
+                          ? 'bg-yt-brand-soft text-yt-brand opacity-90 cursor-wait'
+                          : 'bg-yt-surface-muted hover:bg-yt-brand-soft text-yt-text hover:text-yt-brand'
+                      }`}
+                      title="تنزيل الفيديو بجودة 360p (متاح على تطبيق الأندرويد - تجريبي)"
+                    >
+                      {downloadingVideoId === video.videoId ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-yt-brand/20 border-t-yt-brand rounded-full animate-spin" />
+                          <span>
+                            {downloadProgressMap[video.videoId]?.percent !== null &&
+                            downloadProgressMap[video.videoId]?.percent !== undefined
+                              ? `جاري التحميل ${downloadProgressMap[video.videoId].percent}%`
+                              : 'جاري التحميل...'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-3.5 h-3.5" />
+                          <span>تنزيل (360p تجريبي)</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   <button
                     type="button"
