@@ -641,11 +641,11 @@ export async function filterAndCacheVideos(
     const incomingCount = channelObj?.videos?.length || 0;
     const existingCount = existingForChannel.length;
     const keptIds = new Set(kept.map((item) => item.videoId));
+    const isPartialIncoming = incomingCount < PRUNE_SAFE_INCOMING;
     const shouldPrune =
       !durationApiFailed &&
-      (incomingCount >= existingCount ||
-        incomingCount >= PRUNE_SAFE_INCOMING ||
-        existingCount > KEEP_PER_CHANNEL);
+      !isPartialIncoming &&
+      (incomingCount >= existingCount || existingCount > KEEP_PER_CHANNEL);
 
     if (shouldPrune) {
       for (const item of existingForChannel) {

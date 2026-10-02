@@ -117,10 +117,14 @@ export async function handlePublicReadRoutes(
             try {
               const parsed = JSON.parse(rawMerged);
               if (Array.isArray(parsed)) {
-                const compact = parsed.map((channel: any) => ({
-                  ...channel,
-                  videos: Array.isArray(channel?.videos) ? channel.videos.slice(0, 10) : []
-                }));
+                const compact = parsed.map((channel: any) => {
+                  const fullVideos = Array.isArray(channel?.videos) ? channel.videos : [];
+                  return {
+                    ...channel,
+                    videoCount: typeof channel?.videoCount === 'number' ? channel.videoCount : fullVideos.length,
+                    videos: fullVideos.slice(0, 10),
+                  };
+                });
                 return new Response(JSON.stringify(compact), {
                   status: 200,
                   headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600' }
