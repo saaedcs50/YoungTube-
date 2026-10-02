@@ -86,10 +86,11 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
   const [savedVideos, setSavedVideos] = useState<SavedVideoItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [downloadingVideoId, setDownloadingVideoId] = useState<string | null>(null);
 
   const showFeedback = (msg: string) => {
     setFeedbackMessage(msg);
-    setTimeout(() => setFeedbackMessage(null), 3000);
+    setTimeout(() => setFeedbackMessage(null), 4000);
   };
 
   const loadSavedVideos = useCallback(async () => {
@@ -173,15 +174,23 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
       return;
     }
 
+    if (downloadingVideoId) return; // prevent concurrent duplicate triggers
+
+    setDownloadingVideoId(videoId);
+    showFeedback('جاري استخراج وتحميل الفيديو (تجريبي)...');
+
     try {
       const result = await downloadVideo({ videoId, title });
       if (result.ok) {
-        showFeedback(result.message || 'تمت إضافة الفيديو إلى قائمة التنزيل');
+        const pathNotice = result.path ? `تم الحفظ في: ${result.path.split('/').slice(-2).join('/')}` : '';
+        showFeedback(`${result.message || 'تم التحميل بنجاح'} ${pathNotice}`.trim());
       } else {
-        showFeedback(result.message || 'تعذر بدء التنزيل');
+        showFeedback(result.message || 'تعذر استخراج أو تحميل الفيديو');
       }
     } catch (err: any) {
       showFeedback(err?.message || 'خطأ أثناء محاولة التنزيل');
+    } finally {
+      setDownloadingVideoId(null);
     }
   };
 
@@ -258,11 +267,25 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
                     type="button"
                     id={`download-saved-${video.videoId}-btn`}
                     onClick={(e) => handleDownload(e, video.videoId, video.title)}
-                    className="min-h-[44px] sm:min-h-[38px] px-3.5 py-1.5 rounded-xl bg-yt-surface-muted hover:bg-yt-brand-soft text-yt-text hover:text-yt-brand text-xs font-bold flex items-center gap-1.5 transition shrink-0 border border-yt-border cursor-pointer shadow-2xs"
-                    title="تنزيل الفيديو (متاح على تطبيق الأندرويد)"
+                    disabled={downloadingVideoId === video.videoId}
+                    className={`min-h-[44px] sm:min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shrink-0 border border-yt-border cursor-pointer shadow-2xs ${
+                      downloadingVideoId === video.videoId
+                        ? 'bg-yt-brand-soft text-yt-brand opacity-80 cursor-wait'
+                        : 'bg-yt-surface-muted hover:bg-yt-brand-soft text-yt-text hover:text-yt-brand'
+                    }`}
+                    title="تنزيل الفيديو (متاح على تطبيق الأندرويد - تجريبي)"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>تنزيل</span>
+                    {downloadingVideoId === video.videoId ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-yt-brand/20 border-t-yt-brand rounded-full animate-spin" />
+                        <span>جاري التحميل...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-3.5 h-3.5" />
+                        <span>تنزيل (تجريبي)</span>
+                      </>
+                    )}
                   </button>
 
                   <button
