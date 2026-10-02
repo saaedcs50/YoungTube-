@@ -151,8 +151,7 @@ export async function fetchVideoDurationsDetailed(
   const BATCH_SIZE = 50;
   const familyYoutubeApiHeaders = await getFamilyYoutubeApiHeaders();
   if (!familyYoutubeApiHeaders['X-Family-Youtube-Key']) {
-    console.warn('[fetchVideoDurations] Family YouTube API key is not configured.');
-    return { durationMap, ok: false };
+    return { durationMap, ok: true };
   }
 
   let succeededChunks = 0;
@@ -564,14 +563,19 @@ export async function filterAndCacheVideos(
     }
   }
 
-  // Only resolve a small number of unknown durations per channel in each sync.
-  for (const candidates of channelCandidates.values()) {
-    let unknownCount = 0;
-    for (const candidate of candidates) {
-      if (candidate.duration !== undefined) continue;
-      unknownDurationIdsSet.add(candidate.videoId);
-      unknownCount++;
-      if (unknownCount >= MAX_UNKNOWN_DURATIONS_PER_CHANNEL_PER_SYNC) break;
+  const familyHeaders = await getFamilyYoutubeApiHeaders();
+  const hasFamilyKey = Boolean(familyHeaders['X-Family-Youtube-Key']);
+
+  // Only resolve unknown durations if family key is configured.
+  if (hasFamilyKey) {
+    for (const candidates of channelCandidates.values()) {
+      let unknownCount = 0;
+      for (const candidate of candidates) {
+        if (candidate.duration !== undefined) continue;
+        unknownDurationIdsSet.add(candidate.videoId);
+        unknownCount++;
+        if (unknownCount >= MAX_UNKNOWN_DURATIONS_PER_CHANNEL_PER_SYNC) break;
+      }
     }
   }
 
@@ -579,9 +583,11 @@ export async function filterAndCacheVideos(
   const { durationMap: fetchedDurations, ok: durationFetchOk } =
     await fetchVideoDurationsDetailed(Array.from(unknownDurationIdsSet));
 
-  // Duration API failed if we needed durations and the fetch was entirely unsuccessful or returned 0 results
+  // Duration API failed if family key is present, unknown ids were requested, and the fetch was unsuccessful or returned 0 results
   const durationApiFailed =
-    unknownDurationIdsSet.size > 0 && (!durationFetchOk || fetchedDurations.size === 0);
+    hasFamilyKey &&
+    unknownDurationIdsSet.size > 0 &&
+    (!durationFetchOk || fetchedDurations.size === 0);
 
   const passedFeedItems: FeedItem[] = [];
   const allStaleIdsToDelete: string[] = [];
@@ -598,13 +604,13 @@ export async function filterAndCacheVideos(
       }
 
       // If duration is still undefined:
-      // Fail-closed: do NOT write new row to feedCache in this run
       if (finalDuration === undefined) {
-        continue;
-      }
-
-      // Hard rule: duration < 120s must never remain in feedCache or be written to it
-      if (finalDuration < MIN_VIDEO_DURATION_SECONDS) {
+        if (hasFamilyKey) {
+          // Fail-closed when family key exists but duration couldn't be fetched
+          continue;
+        }
+        // Without family key, allow video with undefined duration (do NOT exclude)
+      } else if (finalDuration < MIN_VIDEO_DURATION_SECONDS) {
         durationExcluded++;
         continue;
       }

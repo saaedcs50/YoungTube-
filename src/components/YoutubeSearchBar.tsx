@@ -383,14 +383,13 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
                   مفتاح YouTube Data API v3 الخاص بالعائلة
                 </h4>
                 <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-yt-brand/30 text-yt-text">
-                  اختياري
+                  اختياري لميزات متقدمة
                 </span>
               </div>
               <ul className="text-xs text-yt-text-muted space-y-1 pt-1 font-medium leading-relaxed list-disc list-inside">
-                <li>المفتاح اختياري</li>
-                <li>يستخدم لجلب فيديوهات أقدم والبحث داخل القناة</li>
-                <li>لا يُرسل إلا إلى خادم يونج تيوب عبر HTTPS</li>
-                <li>الفيد الرئيسي يبقى خفيفًا؛ المكتبة الكاملة من شاشة القناة</li>
+                <li>بدون المفتاح: الفيد الرئيسي يظهر، وفلترة المدة (إخفاء أقل من دقيقتين) متوقفة.</li>
+                <li>بالمفتاح: جلب المدد من يوتيوب واستبعاد الشورتس الحقيقية (&lt;120 ثانية).</li>
+                <li>المفتاح مطلوب لـ: البحث بالكلمات، إضافة رابط قناة/فيديو/قائمة، تعميق الأرشيف، وعدد المشاهدات.</li>
               </ul>
             </div>
           </div>
