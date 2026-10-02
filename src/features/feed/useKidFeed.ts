@@ -146,6 +146,7 @@ function enforceChannelDiversity(items: FeedItem[], maxConsecutive = 2): FeedIte
  * and safely appending newly discovered videos at the end without jump.
  */
 function mergeInPlace(prev: FeedItem[], latest: FeedItem[]): FeedItem[] {
+  if (latest.length === 0) return prev;
   if (prev.length === 0) return enforceChannelDiversity(shuffleVideos(latest));
   const latestMap = new Map(latest.map((v) => [v.videoId, v]));
   const kept = prev

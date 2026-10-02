@@ -106,6 +106,23 @@ export async function handlePublicReadRoutes(
       if (env.CHANNELS_ARCHIVE) {
         const rawMerged = await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
         if (rawMerged) {
+          // The child/public feed only needs a small recent window. Admin Bearer requests
+          // keep the complete archive so the admin panel's operations remain unchanged.
+          if (!checkAdminAuth(request, env)) {
+            try {
+              const parsed = JSON.parse(rawMerged);
+              if (Array.isArray(parsed)) {
+                const compact = parsed.map((channel: any) => ({
+                  ...channel,
+                  videos: Array.isArray(channel?.videos) ? channel.videos.slice(0, 10) : []
+                }));
+                return new Response(JSON.stringify(compact), {
+                  status: 200,
+                  headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600' }
+                });
+              }
+            } catch {}
+          }
           return new Response(rawMerged, {
             status: 200,
             headers: {

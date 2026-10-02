@@ -224,11 +224,7 @@ export async function handleAdminChannelsRoutes(
     url.pathname === '/api/admin/trigger-refresh' &&
     (request.method === 'POST' || request.method === 'GET')
   ) {
-    const queryKey = url.searchParams.get('key');
-    const isAuthorized =
-      checkAdminAuth(request, env) || (Boolean(env.ADMIN_KEY) && queryKey === env.ADMIN_KEY);
-
-    if (!isAuthorized) {
+    if (!checkAdminAuth(request, env)) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
         { status: 401, headers: corsHeaders }

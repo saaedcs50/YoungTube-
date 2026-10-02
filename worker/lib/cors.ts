@@ -5,7 +5,7 @@ export const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers':
-    'Content-Type, X-Admin-Key, Authorization, X-Family-Youtube-Key, x-family-youtube-key',
+    'Content-Type, Authorization, X-Family-Youtube-Key, x-family-youtube-key',
 };
 
 /**
@@ -38,7 +38,7 @@ export function resolveFamilyYouTubeApiKey(request: Request): string {
 }
 
 /**
- * Validates admin requests using Authorization: Bearer ADMIN_KEY (or legacy X-Admin-Key).
+ * Validates admin requests using Authorization: Bearer ADMIN_KEY.
  */
 export function checkAdminAuth(request: Request, env: Env): boolean {
   if (!env.ADMIN_KEY) return false;
@@ -48,8 +48,6 @@ export function checkAdminAuth(request: Request, env: Env): boolean {
     const token = authHeader.slice(7).trim();
     if (token === env.ADMIN_KEY) return true;
   }
-  const xKey = request.headers.get('X-Admin-Key') || request.headers.get('x-admin-key') || '';
-  if (xKey === env.ADMIN_KEY) return true;
   return false;
 }
 
@@ -78,7 +76,7 @@ export const RATE_LIMITED_ROUTES = new Set([
 const fallbackRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 let lastFallbackSweep = Date.now();
 
-function checkFallbackRateLimit(ip: string): boolean {
+function checkFallbackRateLimit(ip: string, limit = RATE_LIMIT_MAX_REQUESTS, windowSeconds = RATE_LIMIT_WINDOW_SECONDS): boolean {
   const now = Date.now();
   if (now - lastFallbackSweep > 60000) {
     lastFallbackSweep = now;
@@ -89,7 +87,7 @@ function checkFallbackRateLimit(ip: string): boolean {
     }
   }
 
-  const windowMs = RATE_LIMIT_WINDOW_SECONDS * 1000;
+  const windowMs = windowSeconds * 1000;
   let entry = fallbackRateLimitMap.get(ip);
   if (!entry || now > entry.resetAt) {
     fallbackRateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
@@ -97,7 +95,7 @@ function checkFallbackRateLimit(ip: string): boolean {
   }
 
   entry.count++;
-  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+  if (entry.count > limit) {
     return false;
   }
   return true;
@@ -107,12 +105,13 @@ function checkFallbackRateLimit(ip: string): boolean {
  * Checks rate limit for public GET requests via Durable Object (Approach A)
  * or gracefully falls back to worker isolate in-memory state.
  */
-export async function checkPublicRateLimit(request: Request, env: Env): Promise<boolean> {
+export async function checkPublicRateLimit(request: Request, env: Env, limit = RATE_LIMIT_MAX_REQUESTS, windowSec = RATE_LIMIT_WINDOW_SECONDS, bucket = 'public'): Promise<boolean> {
   const ip =
     request.headers.get('CF-Connecting-IP') ||
     request.headers.get('x-real-ip') ||
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     '127.0.0.1';
+  const rateKey = `${bucket}:${ip}`;
 
   if (env.TELEMETRY_DO) {
     try {
@@ -122,9 +121,9 @@ export async function checkPublicRateLimit(request: Request, env: Env): Promise<
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ip,
-          limit: RATE_LIMIT_MAX_REQUESTS,
-          windowSec: RATE_LIMIT_WINDOW_SECONDS,
+          ip: rateKey,
+          limit,
+          windowSec,
         }),
       });
       if (res.ok) {
@@ -136,5 +135,5 @@ export async function checkPublicRateLimit(request: Request, env: Env): Promise<
     }
   }
 
-  return checkFallbackRateLimit(ip);
+  return checkFallbackRateLimit(rateKey, limit, windowSec);
 }

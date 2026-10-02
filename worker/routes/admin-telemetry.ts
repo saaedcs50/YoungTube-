@@ -18,19 +18,37 @@ export async function handleAdminTelemetryRoutes(
       url.pathname === '/api/telemetry/parent-session-end' ||
       url.pathname === '/api/telemetry/child-session-end')
   ) {
-    let body: any = {};
+    let body: any;
     try {
       body = await request.json();
-    } catch {}
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400, headers: corsHeaders });
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return new Response(JSON.stringify({ error: 'Invalid telemetry payload' }), { status: 400, headers: corsHeaders });
+    }
 
     const country =
       request.headers.get('CF-IPCountry') ||
       request.headers.get('cf-ipcountry') ||
       'XX';
 
-    const installId = body.installId ? String(body.installId).trim() : undefined;
-    const durationSec = Number(body.durationSec) || 0;
-    const sessionId = body.sessionId ? String(body.sessionId).trim() : undefined;
+    const installId = body.installId == null ? undefined : String(body.installId).trim();
+    const durationSec = body.durationSec == null ? 0 : Number(body.durationSec);
+    const sessionId = body.sessionId == null ? undefined : String(body.sessionId).trim();
+
+    if (country.length > 2) {
+      return new Response(JSON.stringify({ error: 'Invalid country code' }), { status: 400, headers: corsHeaders });
+    }
+    if (installId && installId.length > 128) {
+      return new Response(JSON.stringify({ error: 'installId is too long' }), { status: 400, headers: corsHeaders });
+    }
+    if (sessionId && sessionId.length > 128) {
+      return new Response(JSON.stringify({ error: 'sessionId is too long' }), { status: 400, headers: corsHeaders });
+    }
+    if (!Number.isFinite(durationSec) || durationSec < 0 || durationSec > 14400) {
+      return new Response(JSON.stringify({ error: 'Invalid durationSec' }), { status: 400, headers: corsHeaders });
+    }
 
     try {
       if (env.TELEMETRY_DO) {
@@ -103,6 +121,9 @@ export async function handleAdminTelemetryRoutes(
       body.installId && typeof body.installId === 'string' && body.installId.trim()
         ? body.installId.trim()
         : undefined;
+    if (installId && installId.length > 128) {
+      return new Response(JSON.stringify({ error: 'installId is too long' }), { status: 400, headers: corsHeaders });
+    }
 
     try {
       await recordFunnelEvent(env, event as any, country, installId);

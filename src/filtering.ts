@@ -42,6 +42,8 @@ const PUT_CHUNK = 300;
 const PRUNE_SAFE_INCOMING = 50;
 /** Keep only the newest N passing videos per channel in Dexie (kid feed never needs 200). */
 const KEEP_PER_CHANNEL = 150;
+/** Keep duration lookups bounded per channel during initial/background sync. */
+const MAX_UNKNOWN_DURATIONS_PER_CHANNEL_PER_SYNC = 4;
 
 let archiveSyncPromise: Promise<boolean> | null = null;
 
@@ -134,8 +136,8 @@ export interface FetchDurationsResult {
 /**
  * Batch-fetch video durations from the worker API in chunks of 50.
  * Returns a map of videoId -> seconds, along with an ok health flag.
- * If at least one chunk request succeeds (or videoIds is empty), ok is true.
- * If every attempted chunk fails with non-OK HTTP or network exception, ok is false.
+ * ok is true only when every attempted chunk request succeeds (or videoIds is empty).
+ * Callers should treat ok=false as an incomplete/failed batch and avoid destructive pruning.
  */
 export async function fetchVideoDurationsDetailed(
   videoIds: string[]
@@ -179,7 +181,7 @@ export async function fetchVideoDurationsDetailed(
     }
   }
 
-  const ok = totalChunks === 0 || succeededChunks > 0;
+  const ok = totalChunks === 0 || succeededChunks === totalChunks;
   return { durationMap, ok };
 }
 
@@ -294,9 +296,9 @@ export async function ensureChannelsArchiveSynced(): Promise<boolean> {
     try {
       let response: Response;
       try {
-        response = await fetch(`${WORKER_URL}/api/channels-latest`);
+        response = await fetch(`${WORKER_URL}/api/channels-latest?feedLimit=10`);
       } catch {
-        response = await fetch('/api/channels-latest');
+        response = await fetch('/api/channels-latest?feedLimit=10');
       }
       if (!response.ok) {
         archiveSyncPromise = null;
@@ -311,7 +313,11 @@ export async function ensureChannelsArchiveSynced(): Promise<boolean> {
         archiveSyncPromise = null;
         return false;
       }
-      await filterAndCacheVideos(data, blocks);
+      const filterResult = await filterAndCacheVideos(data, blocks);
+      if (filterResult.totalBefore > 0 && filterResult.totalAfterFilter === 0) {
+        archiveSyncPromise = null;
+        return false;
+      }
       await purgeInvalidFeedRows();
 
       try {
@@ -548,7 +554,19 @@ export async function filterAndCacheVideos(
     }
 
     if (candidates.length > 0) {
+      candidates.sort((a, b) => videoRecencyMs(b.publishedAt, b.existingItem?.fetchedAt || 0) - videoRecencyMs(a.publishedAt, a.existingItem?.fetchedAt || 0));
       channelCandidates.set(channelId, candidates);
+    }
+  }
+
+  // Only resolve a small number of unknown durations per channel in each sync.
+  for (const candidates of channelCandidates.values()) {
+    let unknownCount = 0;
+    for (const candidate of candidates) {
+      if (candidate.duration !== undefined) continue;
+      unknownDurationIdsSet.add(candidate.videoId);
+      unknownCount++;
+      if (unknownCount >= MAX_UNKNOWN_DURATIONS_PER_CHANNEL_PER_SYNC) break;
     }
   }
 

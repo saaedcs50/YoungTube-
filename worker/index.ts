@@ -1,4 +1,10 @@
-import { corsHeaders, checkPublicRateLimit, RATE_LIMITED_ROUTES } from './lib/cors';
+import {
+  corsHeaders,
+  checkPublicRateLimit,
+  RATE_LIMITED_ROUTES,
+  RATE_LIMIT_MAX_REQUESTS,
+  RATE_LIMIT_WINDOW_SECONDS,
+} from './lib/cors';
 import { refreshChannelsBatch } from './lib/helpers';
 import { Env } from './lib/types';
 import { handleAdminBatchRoutes } from './routes/admin-batch';
@@ -26,8 +32,15 @@ export default {
     }
 
     // Apply Rate Limiting to specific public GET endpoints
+    const isTelemetryPost =
+      request.method === 'POST' &&
+      (url.pathname === '/api/telemetry/parent-session-start' ||
+        url.pathname === '/api/telemetry/parent-session-end' ||
+        url.pathname === '/api/telemetry/child-session-end' ||
+        url.pathname === '/api/telemetry/funnel-event');
+
     if (request.method === 'GET' && RATE_LIMITED_ROUTES.has(url.pathname)) {
-      const allowed = await checkPublicRateLimit(request, env);
+      const allowed = await checkPublicRateLimit(request, env, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS, 'public');
       if (!allowed) {
         return new Response(
           JSON.stringify({ error: 'Too many requests. Please slow down.' }),
@@ -38,6 +51,16 @@ export default {
               'Retry-After': '60',
             },
           }
+        );
+      }
+    }
+
+    if (isTelemetryPost) {
+      const allowed = await checkPublicRateLimit(request, env, 30, 60, 'telemetry');
+      if (!allowed) {
+        return new Response(
+          JSON.stringify({ error: 'Too many telemetry requests. Please slow down.' }),
+          { status: 429, headers: { ...corsHeaders, 'Retry-After': '60' } }
         );
       }
     }
