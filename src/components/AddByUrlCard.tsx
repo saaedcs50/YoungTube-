@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import db, { Interaction } from '../db';
 import { WORKER_URL } from '../config';
 import { syncSingleChannelRss } from '../filtering';
+import { getFamilyYoutubeApiHeaders } from '../services/youtubeApiKey';
 import { Plus, Loader2, CheckCircle2, AlertCircle, Link as LinkIcon, Tv } from 'lucide-react';
 
 export function extractPlaylistId(url: string): string | null {
@@ -146,6 +147,9 @@ export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
 
     setIsLoading(true);
 
+    const youtubeApiHeaders = await getFamilyYoutubeApiHeaders();
+    const youtubeHeaders = { Accept: 'application/json', ...youtubeApiHeaders };
+
     try {
       if (target === 'channel') {
         // Channel resolution flow
@@ -158,13 +162,13 @@ export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
           resolveUrl = `${WORKER_URL}/api/resolve-channel?url=${encodeURIComponent(trimmed)}`;
         }
 
-        const res = await fetch(resolveUrl);
+        const res = await fetch(resolveUrl, { headers: youtubeHeaders });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           if (res.status === 404) {
             throw new Error('لم يتم العثور على القناة على يوتيوب. يرجى التحقق من صحة الرابط أو المعرف.');
           } else if (errData.error === 'no_api_key') {
-            throw new Error('خدمة التعرف على القنوات غير مهيأة بمفتاح API على الخادم.');
+            throw new Error('يرجى حفظ مفتاح YouTube API الخاص بك أولاً لاستخدام هذه الوظيفة.');
           } else {
             throw new Error(errData.error || 'تعذر جلب بيانات القناة من يوتيوب');
           }
@@ -207,9 +211,12 @@ export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
         onAdded?.();
       } else if (playlistId) {
         // Fetch playlist lookup
-        const res = await fetch(`${WORKER_URL}/api/playlist-lookup?id=${encodeURIComponent(playlistId)}`);
+        const res = await fetch(`${WORKER_URL}/api/playlist-lookup?id=${encodeURIComponent(playlistId)}`, { headers: youtubeHeaders });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
+          if (errData.error === 'no_api_key') {
+            throw new Error('يرجى حفظ مفتاح YouTube API الخاص بك أولاً لاستخدام هذه الوظيفة.');
+          }
           throw new Error(errData.error || 'فشل جلب بيانات قائمة التشغيل من يوتيوب');
         }
         const data = await res.json();
@@ -247,9 +254,12 @@ export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
         onAdded?.();
       } else if (videoId) {
         // Fetch single video lookup
-        const res = await fetch(`${WORKER_URL}/api/video-lookup?id=${encodeURIComponent(videoId)}`);
+        const res = await fetch(`${WORKER_URL}/api/video-lookup?id=${encodeURIComponent(videoId)}`, { headers: youtubeHeaders });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
+          if (errData.error === 'no_api_key') {
+            throw new Error('يرجى حفظ مفتاح YouTube API الخاص بك أولاً لاستخدام هذه الوظيفة.');
+          }
           throw new Error(errData.error || 'فيديو غير متاح أو تم حذفه');
         }
         const data = await res.json();
@@ -284,7 +294,7 @@ export function AddByUrlCard({ target, onAdded }: AddByUrlCardProps) {
           ? `${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(channelInfo.handle)}`
           : `${WORKER_URL}/api/resolve-channel?url=${encodeURIComponent(trimmed)}`;
 
-        const res = await fetch(resolveUrl);
+        const res = await fetch(resolveUrl, { headers: youtubeHeaders });
         if (!res.ok) {
           throw new Error('تعذر التعرف على القناة');
         }

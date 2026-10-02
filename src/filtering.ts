@@ -1,6 +1,7 @@
 import db, { FeedItem } from './db';
 import { WORKER_URL } from './config';
 import { OPT_IN_CATEGORY_IDS } from './data/categoryRegistry';
+import { getFamilyYoutubeApiHeaders } from './services/youtubeApiKey';
 import {
   fetchGlobalBlocks,
   isChannelBlocked,
@@ -148,6 +149,12 @@ export async function fetchVideoDurationsDetailed(
   }
 
   const BATCH_SIZE = 50;
+  const familyYoutubeApiHeaders = await getFamilyYoutubeApiHeaders();
+  if (!familyYoutubeApiHeaders['X-Family-Youtube-Key']) {
+    console.warn('[fetchVideoDurations] Family YouTube API key is not configured.');
+    return { durationMap, ok: false };
+  }
+
   let succeededChunks = 0;
   let totalChunks = 0;
 
@@ -159,9 +166,11 @@ export async function fetchVideoDurationsDetailed(
       const url = `${WORKER_URL}/api/videos-durations?ids=${encodeURIComponent(chunk.join(','))}`;
       let res: Response;
       try {
-        res = await fetch(url);
+        res = await fetch(url, { headers: familyYoutubeApiHeaders });
       } catch {
-        res = await fetch(`/api/videos-durations?ids=${encodeURIComponent(chunk.join(','))}`);
+        res = await fetch(`/api/videos-durations?ids=${encodeURIComponent(chunk.join(','))}`, {
+          headers: familyYoutubeApiHeaders,
+        });
       }
       if (res.ok) {
         succeededChunks++;
@@ -547,10 +556,6 @@ export async function filterAndCacheVideos(
       };
 
       candidates.push(candidate);
-
-      if (candidate.duration === undefined) {
-        unknownDurationIdsSet.add(video.videoId);
-      }
     }
 
     if (candidates.length > 0) {

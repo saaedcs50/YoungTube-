@@ -53,10 +53,11 @@ function workerProxyPlugin(): Plugin {
             res.setHeader('Access-Control-Allow-Origin', '*');
             try {
               const parsed = JSON.parse(body || '{}');
-              const adminKey = req.headers['x-admin-key'];
-              if (!adminKey) {
+              const authHeader = String(req.headers.authorization || '');
+              const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+              if (!token || !process.env.ADMIN_KEY || token !== process.env.ADMIN_KEY) {
                 res.statusCode = 401;
-                res.end(JSON.stringify({ error: 'Unauthorized: Missing X-Admin-Key header' }));
+                res.end(JSON.stringify({ error: 'Unauthorized' }));
                 return;
               }
               res.end(

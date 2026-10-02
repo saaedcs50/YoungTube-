@@ -31,6 +31,7 @@ import { recordChildReaction, logTasteEvent, applyLoggedTasteEvent } from '../ta
 import db from '../db';
 import { trackFunnelEvent } from '../services/funnelTelemetry';
 import { WORKER_URL } from '../config';
+import { getFamilyYoutubeApiHeaders } from '../services/youtubeApiKey';
 import { startDownload, getDownloadByVideoId } from '../services/downloadManager';
 import { Capacitor } from '@capacitor/core';
 
@@ -1148,7 +1149,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
       if (targetChannelId.startsWith('@')) {
         try {
-          const res = await fetch(`${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(targetChannelId.replace(/^@+/, ''))}`);
+          const familyHeaders = await getFamilyYoutubeApiHeaders();
+          const res = await fetch(`${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(targetChannelId.replace(/^@+/, ''))}`, { headers: familyHeaders });
           if (res.ok) {
             const data = await res.json();
             if (data.sourceId && !data.sourceId.startsWith('@')) {

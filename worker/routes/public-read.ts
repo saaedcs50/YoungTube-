@@ -29,6 +29,11 @@ import {
 } from '../lib/youtube-api';
 import { Env, VideoItem } from '../lib/types';
 
+function resolveYoutubeApiKeyForPublicRoute(request: Request, env: Env): string {
+  const isAdmin = checkAdminAuth(request, env);
+  return (isAdmin ? resolveYouTubeApiKey(request, env) : resolveFamilyYouTubeApiKey(request)).trim();
+}
+
 export async function handlePublicReadRoutes(
   request: Request,
   env: Env,
@@ -689,16 +694,17 @@ export async function handlePublicReadRoutes(
       );
     }
 
-    if (!env.YOUTUBE_API_KEY) {
+    const apiKey = resolveYoutubeApiKeyForPublicRoute(request, env);
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'Server configuration error: YOUTUBE_API_KEY is not set' }),
-        { status: 500, headers: corsHeaders }
+        JSON.stringify({ error: 'no_api_key' }),
+        { status: 400, headers: corsHeaders }
       );
     }
 
     try {
       const ytRes = await fetchVideos({
-        apiKey: env.YOUTUBE_API_KEY,
+        apiKey,
         ids: [videoId],
         part: 'snippet',
       });
@@ -759,10 +765,11 @@ export async function handlePublicReadRoutes(
       );
     }
 
-    if (!env.YOUTUBE_API_KEY) {
+    const apiKey = resolveYoutubeApiKeyForPublicRoute(request, env);
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'Server configuration error: YOUTUBE_API_KEY is not set' }),
-        { status: 500, headers: corsHeaders }
+        JSON.stringify({ error: 'no_api_key' }),
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -774,7 +781,7 @@ export async function handlePublicReadRoutes(
 
       while (pageCount < maxPages) {
         const ytRes = await fetchPlaylistItemsPage({
-          apiKey: env.YOUTUBE_API_KEY,
+          apiKey,
           playlistId,
           pageToken,
           maxResults: 50,
@@ -855,16 +862,17 @@ export async function handlePublicReadRoutes(
       );
     }
 
-    if (!env.YOUTUBE_API_KEY) {
+    const apiKey = resolveYoutubeApiKeyForPublicRoute(request, env);
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'YOUTUBE_API_KEY not configured' }),
-        { status: 503, headers: corsHeaders }
+        JSON.stringify({ error: 'no_api_key' }),
+        { status: 400, headers: corsHeaders }
       );
     }
 
     try {
       const ytRes = await fetchVideos({
-        apiKey: env.YOUTUBE_API_KEY,
+        apiKey,
         ids: parsedIds,
         part: 'statistics,id',
       });
@@ -921,16 +929,17 @@ export async function handlePublicReadRoutes(
       );
     }
 
-    if (!env.YOUTUBE_API_KEY) {
+    const apiKey = resolveYoutubeApiKeyForPublicRoute(request, env);
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'YOUTUBE_API_KEY not configured' }),
-        { status: 503, headers: corsHeaders }
+        JSON.stringify({ error: 'no_api_key' }),
+        { status: 400, headers: corsHeaders }
       );
     }
 
     try {
       const ytRes = await fetchVideos({
-        apiKey: env.YOUTUBE_API_KEY,
+        apiKey,
         ids: parsedIds,
         part: 'contentDetails',
       });
@@ -1152,7 +1161,7 @@ export async function handlePublicReadRoutes(
     // Check if value already matches UC... channel ID format
     const isChannelId = /^UC[\w-]{22}$/.test(handle);
     if (isChannelId) {
-      const apiKey = resolveYouTubeApiKey(request, env);
+      const apiKey = resolveYoutubeApiKeyForPublicRoute(request, env);
       if (apiKey) {
         try {
           const ytRes = await fetchChannels({
@@ -1209,7 +1218,7 @@ export async function handlePublicReadRoutes(
     }
 
     // Must resolve @handle via YouTube API
-    const apiKey = resolveYouTubeApiKey(request, env);
+    const apiKey = resolveYoutubeApiKeyForPublicRoute(request, env);
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: 'no_api_key' }),

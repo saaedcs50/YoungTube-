@@ -101,9 +101,9 @@ export default function FilteringResultCard({
         try {
           let resp: Response;
           try {
-            resp = await fetch(`${WORKER_URL}/api/channels-latest`);
+            resp = await fetch(`${WORKER_URL}/api/channels-latest?feedLimit=10`);
           } catch {
-            resp = await fetch('/api/channels-latest');
+            resp = await fetch('/api/channels-latest?feedLimit=10');
           }
           if (resp.ok) {
             const data = await resp.json();

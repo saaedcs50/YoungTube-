@@ -143,13 +143,15 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
           resolveUrl = `${WORKER_URL}/api/resolve-channel?url=${encodeURIComponent(cleanQuery)}`;
         }
 
-        const res = await fetch(resolveUrl);
+        const res = await fetch(resolveUrl, {
+          headers: apiKey ? { Accept: 'application/json', 'X-Family-Youtube-Key': apiKey } : { Accept: 'application/json' },
+        });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           if (res.status === 404) {
             throw new Error('لم يتم العثور على القناة. تأكد من صحة الرابط أو المعرف.');
           } else if (errData.error === 'no_api_key') {
-            throw new Error('خدمة التعرف على القنوات غير مهيأة بمفتاح API على الخادم.');
+            throw new Error('يرجى حفظ مفتاح YouTube API الخاص بك أولاً لاستخدام هذه الوظيفة.');
           } else {
             throw new Error(errData.error || 'تعذر التعرف على القناة');
           }
@@ -264,7 +266,9 @@ export const YoutubeSearchBar: React.FC<YoutubeSearchBarProps> = ({ onChannelAdd
       // If sourceId starts with @, resolve via WORKER_URL/api/resolve-channel before db.channels.add
       if (finalSourceId.startsWith('@')) {
         const cleanHandle = finalSourceId.replace(/^@+/, '');
-        const res = await fetch(`${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(cleanHandle)}`);
+        const res = await fetch(`${WORKER_URL}/api/resolve-channel?handle=${encodeURIComponent(cleanHandle)}`, {
+          headers: apiKey ? { Accept: 'application/json', 'X-Family-Youtube-Key': apiKey } : { Accept: 'application/json' },
+        });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.error || 'فشل في حل معرف القناة عبر الخادم');

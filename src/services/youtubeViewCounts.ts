@@ -1,5 +1,6 @@
 import db, { FeedItem } from '../db';
 import { WORKER_URL } from '../config';
+import { getFamilyYoutubeApiHeaders } from './youtubeApiKey';
 
 const MAX_BATCH_SIZE = 50;
 const CACHE_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours
@@ -47,9 +48,14 @@ async function fetchBatchViewCounts(videoIds: string[]): Promise<ViewCountResult
   const idParam = videoIds.slice(0, MAX_BATCH_SIZE).join(',');
 
   try {
+    const headers = await getFamilyYoutubeApiHeaders();
+    if (!headers['X-Family-Youtube-Key']) {
+      return {};
+    }
+
     const proxyBase = WORKER_URL || '';
     const proxyUrl = `${proxyBase}/api/videos-views?ids=${encodeURIComponent(idParam)}`;
-    const proxyRes = await fetch(proxyUrl);
+    const proxyRes = await fetch(proxyUrl, { headers });
     if (proxyRes.ok) {
       const data = await proxyRes.json();
       if (

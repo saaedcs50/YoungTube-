@@ -73,13 +73,14 @@ export default function ChannelsCountCard({
   }, [fetchChannelsLatest, refreshTrigger]);
 
   const totalChannels = channels.length;
-  const channelsWithVideos = channels.filter(
-    (c) => (c.videos && c.videos.length > 0) || (c.videoCount && c.videoCount > 0)
-  ).length;
-  const totalVideos = channels.reduce(
-    (sum, c) => sum + (c.videos?.length || c.videoCount || 0),
-    0
-  );
+  const channelsWithVideos = channels.filter((c) => {
+    if (typeof c.videoCount === 'number') return c.videoCount > 0;
+    return Boolean(c.videos && c.videos.length > 0);
+  }).length;
+  const totalVideos = channels.reduce((sum, c) => {
+    if (typeof c.videoCount === 'number') return sum + c.videoCount;
+    return sum + (c.videos?.length || 0);
+  }, 0);
 
   return (
     <div
@@ -162,7 +163,7 @@ export default function ChannelsCountCard({
         <div className="flex items-center justify-between text-[11px] text-yt-text-muted">
           <span className="flex items-center gap-1 text-yt-text font-medium">
             <Film className="w-3.5 h-3.5 text-yt-brand" />
-            <span>بحد أقصى 200 فيديو لكل قناة</span>
+            <span>العرض العام يُرسل أحدث 10 فيديوهات لكل قناة</span>
           </span>
           <span className="font-mono text-[10px] text-yt-text-muted">Cloudflare KV + Seed</span>
         </div>

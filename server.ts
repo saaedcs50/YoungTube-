@@ -48,9 +48,10 @@ async function startServer() {
 
   // Stage 5: Backfill channel endpoint (fallback/proxy)
   app.post('/api/admin/backfill-channel', (req, res) => {
-    const adminKey = req.headers['x-admin-key'];
-    if (!adminKey) {
-      res.status(401).json({ error: 'Unauthorized: Missing X-Admin-Key header' });
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (!token || !process.env.ADMIN_KEY || token !== process.env.ADMIN_KEY) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
     const { sourceId, sourceType } = req.body || {};
@@ -63,10 +64,11 @@ async function startServer() {
     });
   });
 
-  // YouTube videos statistics proxy endpoint (safely proxies with server YOUTUBE_API_KEY if present)
+  // Local fallback for YouTube statistics. Use the family-owned key supplied by the client; never spend the server key here.
   app.get('/api/videos-views', async (req, res) => {
     const ids = (req.query.ids as string) || '';
-    const apiKey = process.env.YOUTUBE_API_KEY;
+    const familyKeyHeader = req.headers['x-family-youtube-key'];
+    const apiKey = typeof familyKeyHeader === 'string' ? familyKeyHeader.trim() : '';
     if (!ids || !apiKey) {
       res.json({});
       return;
