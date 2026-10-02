@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <!-- Background with rounded corners -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <!-- Safe inner area circle/shield -->
+  <circle cx="256" cy="256" r="170" fill="#ffffff" opacity="0.12" />
+  <!-- Play triangle with gentle rounded corners and safe shield badge -->
+  <g filter="url(#shadow)">
+    <path d="M210 160 C198 152 182 161 182 176 L182 336 C182 351 198 360 210 352 L336 272 C348 264 348 248 336 240 Z" fill="#ffffff" />
+    <circle cx="340" cy="180" r="28" fill="#facc15" />
+    <path d="M332 180 L338 186 L348 174" stroke="#0f172a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  </g>
+</svg>

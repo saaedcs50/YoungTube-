@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import db, { Interaction } from '../db';
 import { listRegistryChannels } from '../data/channelRegistry';
-import { Bookmark, Play, Trash2, Film } from 'lucide-react';
+import { Bookmark, Play, Trash2, Film, Download } from 'lucide-react';
 import { getThumbnailCandidateUrls } from './VideoCard';
+import { downloadVideo, isNativeDownloadAvailable } from '../plugins/youngtubeDownloader';
 
 interface SavedVideoItem {
   videoId: string;
@@ -165,6 +166,25 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
     }
   };
 
+  const handleDownload = async (e: React.MouseEvent, videoId: string, title: string) => {
+    e.stopPropagation();
+    if (!isNativeDownloadAvailable()) {
+      showFeedback('متاح على تطبيق الأندرويد فقط');
+      return;
+    }
+
+    try {
+      const result = await downloadVideo({ videoId, title });
+      if (result.ok) {
+        showFeedback(result.message || 'تمت إضافة الفيديو إلى قائمة التنزيل');
+      } else {
+        showFeedback(result.message || 'تعذر بدء التنزيل');
+      }
+    } catch (err: any) {
+      showFeedback(err?.message || 'خطأ أثناء محاولة التنزيل');
+    }
+  };
+
   return (
     <div id="saved-videos-tab" className="space-y-5 max-w-4xl mx-auto text-right" dir="rtl">
       {/* Section Header */}
@@ -232,17 +252,30 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
                   </div>
                 </div>
 
-                {/* Action: Remove Button (Destructive: Rose) */}
-                <button
-                  type="button"
-                  id={`remove-saved-${video.videoId}-btn`}
-                  onClick={(e) => handleRemoveSaved(e, video.videoId, video.title)}
-                  className="min-h-[44px] sm:min-h-[38px] px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-yt-danger text-xs font-bold flex items-center gap-1.5 transition shrink-0 border border-yt-danger/30 cursor-pointer shadow-2xs"
-                  title="إزالة من المحفوظات"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>إزالة</span>
-                </button>
+                {/* Actions: Download (Native/Experimental) + Remove */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    id={`download-saved-${video.videoId}-btn`}
+                    onClick={(e) => handleDownload(e, video.videoId, video.title)}
+                    className="min-h-[44px] sm:min-h-[38px] px-3.5 py-1.5 rounded-xl bg-yt-surface-muted hover:bg-yt-brand-soft text-yt-text hover:text-yt-brand text-xs font-bold flex items-center gap-1.5 transition shrink-0 border border-yt-border cursor-pointer shadow-2xs"
+                    title="تنزيل الفيديو (متاح على تطبيق الأندرويد)"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>تنزيل</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id={`remove-saved-${video.videoId}-btn`}
+                    onClick={(e) => handleRemoveSaved(e, video.videoId, video.title)}
+                    className="min-h-[44px] sm:min-h-[38px] px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-yt-danger text-xs font-bold flex items-center gap-1.5 transition shrink-0 border border-yt-danger/30 cursor-pointer shadow-2xs"
+                    title="إزالة من المحفوظات"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>إزالة</span>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
