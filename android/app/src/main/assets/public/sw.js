@@ -90,7 +90,7 @@ define(['./workbox-970124e6'], (function (workbox) { 'use strict';
     "revision": "a28b0cfb28569a76a72f7432ccf22403"
   }, {
     "url": "index.html",
-    "revision": "c5bc9535b92c1df6a93462c80ef81fcc"
+    "revision": "7f223bbd04d36adca1232bf8abd46aff"
   }, {
     "url": "icon.svg",
     "revision": "a369c0f27465a27aafb9aaacad116718"
@@ -119,121 +119,121 @@ define(['./workbox-970124e6'], (function (workbox) { 'use strict';
     "url": "assets/workbox-window.prod.es5-BBnX5xw4.js",
     "revision": null
   }, {
-    "url": "assets/user-B9InaCjD.js",
+    "url": "assets/user-CDrk-K0a.js",
     "revision": null
   }, {
-    "url": "assets/smartphone-CZUMPYvO.js",
+    "url": "assets/smartphone-EU0AvTKe.js",
     "revision": null
   }, {
-    "url": "assets/sliders-vertical-CaQ1iIC4.js",
+    "url": "assets/sliders-vertical-Ha6xCyHl.js",
     "revision": null
   }, {
-    "url": "assets/shield-check-cEp1SbJz.js",
+    "url": "assets/shield-check-CxyNVib4.js",
     "revision": null
   }, {
-    "url": "assets/shield-alert-R8z7izqe.js",
+    "url": "assets/shield-alert-Cxq0sK11.js",
     "revision": null
   }, {
-    "url": "assets/rotate-ccw-DTHilXJk.js",
+    "url": "assets/rotate-ccw-Bp798isV.js",
     "revision": null
   }, {
-    "url": "assets/plus-DciMKUoK.js",
+    "url": "assets/plus--Mb-2Mut.js",
     "revision": null
   }, {
-    "url": "assets/moon-BrM_DOmO.js",
+    "url": "assets/moon-BfRqOCp4.js",
     "revision": null
   }, {
-    "url": "assets/layers-COAcTsJn.js",
+    "url": "assets/layers-CL_hAo9f.js",
     "revision": null
   }, {
-    "url": "assets/info-Bp9vXFUc.js",
+    "url": "assets/info-CWGYiorc.js",
     "revision": null
   }, {
-    "url": "assets/index-ClthDRL9.css",
+    "url": "assets/index-DzlJWdf2.js",
     "revision": null
   }, {
-    "url": "assets/index-CTL6pcpv.js",
+    "url": "assets/index-CTKQijvg.css",
     "revision": null
   }, {
-    "url": "assets/funnelTelemetry-S2rdWxug.js",
+    "url": "assets/funnelTelemetry-BME-gUmp.js",
     "revision": null
   }, {
-    "url": "assets/fast-forward-BgmMbxas.js",
+    "url": "assets/fast-forward-DbJjyerc.js",
     "revision": null
   }, {
-    "url": "assets/external-link-Xj4gfJh3.js",
+    "url": "assets/external-link-MYmn0ITH.js",
     "revision": null
   }, {
-    "url": "assets/clock-COIp--7u.js",
+    "url": "assets/clock-r2EHzXjO.js",
     "revision": null
   }, {
-    "url": "assets/check-BaDwvZjZ.js",
+    "url": "assets/check-BYVwwzrc.js",
     "revision": null
   }, {
-    "url": "assets/bookmark-Bql-VJNp.js",
+    "url": "assets/bookmark-C_pnc5iu.js",
     "revision": null
   }, {
-    "url": "assets/arrow-left-CcJR3EZu.js",
+    "url": "assets/arrow-left-D7UfHWuC.js",
     "revision": null
   }, {
-    "url": "assets/WelcomeValueScreen-B5TPMkfg.js",
+    "url": "assets/WelcomeValueScreen-D0S_NStk.js",
     "revision": null
   }, {
-    "url": "assets/TimerTestCard-DW4yZya_.js",
+    "url": "assets/TimerTestCard-DqObeuq_.js",
     "revision": null
   }, {
-    "url": "assets/TimerSection-BbGoda6O.js",
+    "url": "assets/TimerSection-47g3-KP1.js",
     "revision": null
   }, {
-    "url": "assets/TasteShiftCard-6D5nKwr7.js",
+    "url": "assets/TasteShiftCard-MtE0T33w.js",
     "revision": null
   }, {
-    "url": "assets/SessionEndScreen-BijZ0BHf.js",
+    "url": "assets/SessionEndScreen-DhmuWslw.js",
     "revision": null
   }, {
-    "url": "assets/SavedVideosTab-Du5HXfM5.js",
+    "url": "assets/SavedVideosTab-DzDiIMeF.js",
     "revision": null
   }, {
-    "url": "assets/PostSetupChecklist-BAsCRvS4.js",
+    "url": "assets/PostSetupChecklist-CYBepeKu.js",
     "revision": null
   }, {
-    "url": "assets/PlayerView-JDZyribP.js",
+    "url": "assets/PlayerView-CeW61sr6.js",
     "revision": null
   }, {
-    "url": "assets/PinOtpInput-DFlWCbiC.js",
+    "url": "assets/PinOtpInput-Bf4nYPSy.js",
     "revision": null
   }, {
-    "url": "assets/PinLockModal-bAfxDAT5.js",
+    "url": "assets/PinLockModal-LNDsMBZ3.js",
     "revision": null
   }, {
-    "url": "assets/Onboarding-BWZAEJxl.js",
+    "url": "assets/Onboarding-BTwNR9hT.js",
     "revision": null
   }, {
-    "url": "assets/FilteringTab-B103YZX4.js",
+    "url": "assets/FilteringTab-CBmgk-Vb.js",
     "revision": null
   }, {
-    "url": "assets/FilteringResultCard-BN1yqlCN.js",
+    "url": "assets/FilteringResultCard-BtFqXgJt.js",
     "revision": null
   }, {
-    "url": "assets/DashboardShell-tjaSkmVk.js",
+    "url": "assets/DashboardShell-CgyEBZpV.js",
     "revision": null
   }, {
-    "url": "assets/ChildProfileSection-CHUVjmsz.js",
+    "url": "assets/ChildProfileSection-CCbqyTof.js",
     "revision": null
   }, {
-    "url": "assets/ChannelsCountCard-CXKQZmrS.js",
+    "url": "assets/ChannelsCountCard-C7omBKV2.js",
     "revision": null
   }, {
-    "url": "assets/ChannelCurationByCategory-BRQ8YcaK.js",
+    "url": "assets/ChannelCurationByCategory-s_JZMshh.js",
     "revision": null
   }, {
-    "url": "assets/AnnouncementModal-CbEcr_6_.js",
+    "url": "assets/AnnouncementModal-BjonTrkD.js",
     "revision": null
   }, {
-    "url": "assets/AddByUrlCard-Dq1a5-1r.js",
+    "url": "assets/AddByUrlCard-Bm5wAv5y.js",
     "revision": null
   }, {
-    "url": "assets/AdBlockNotice-ByyTiVnE.js",
+    "url": "assets/AdBlockNotice-u1rrdFdh.js",
     "revision": null
   }, {
     "url": "apple-touch-icon.png",

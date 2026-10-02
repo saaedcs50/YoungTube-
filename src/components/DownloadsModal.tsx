@@ -28,7 +28,8 @@ export interface DownloadsModalProps {
     videoId: string,
     title?: string,
     channelName?: string,
-    channelId?: string
+    channelId?: string,
+    options?: { localPath?: string; fromDownloads?: boolean }
   ) => void;
 }
 
@@ -335,7 +336,10 @@ export const DownloadsModal: React.FC<DownloadsModalProps> = ({
                     if (isSelectionMode) {
                       handleToggleSelectVideo(item.videoId);
                     } else if (item.status === 'done') {
-                      onSelectVideo?.(item.videoId, item.title, item.channelTitle, item.channelId);
+                      onSelectVideo?.(item.videoId, item.title, item.channelTitle, item.channelId, {
+                        localPath: item.path,
+                        fromDownloads: true,
+                      });
                       onClose();
                     }
                   }}

@@ -89,7 +89,13 @@ const SavedVideoRowThumbnail: React.FC<{
 };
 
 interface SavedVideosTabProps {
-  onSelectVideo?: (videoId: string, title?: string, channelName?: string, channelId?: string) => void;
+  onSelectVideo?: (
+    videoId: string,
+    title?: string,
+    channelName?: string,
+    channelId?: string,
+    options?: { localPath?: string; fromDownloads?: boolean }
+  ) => void;
 }
 
 export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo }) => {
@@ -291,7 +297,12 @@ export const SavedVideosTab: React.FC<SavedVideosTabProps> = ({ onSelectVideo })
               <div
                 key={video.videoId}
                 id={`saved-video-row-${video.videoId}`}
-                onClick={() => onSelectVideo?.(video.videoId, video.title, video.channelTitle, video.channelId)}
+                onClick={() =>
+                  onSelectVideo?.(video.videoId, video.title, video.channelTitle, video.channelId, {
+                    localPath: video.localPath,
+                    fromDownloads: Boolean(video.localPath),
+                  })
+                }
                 className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-yt-surface transition cursor-pointer group"
                 title="انقر لتشغيل الفيديو في المشغل"
               >

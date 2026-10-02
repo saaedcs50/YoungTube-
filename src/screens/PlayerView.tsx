@@ -19,6 +19,8 @@ import {
   FastForward,
   Rewind,
   X,
+  AlertTriangle,
+  FolderDown,
 } from 'lucide-react';
 import { LandscapeShell } from './LandscapeShell';
 import { PlayerSeekBar } from '../components/PlayerSeekBar';
@@ -30,6 +32,7 @@ import db from '../db';
 import { trackFunnelEvent } from '../services/funnelTelemetry';
 import { WORKER_URL } from '../config';
 import { startDownload, getDownloadByVideoId } from '../services/downloadManager';
+import { Capacitor } from '@capacitor/core';
 
 export interface QueuedVideo {
   videoId: string;
@@ -88,6 +91,7 @@ interface PlayerViewProps {
   videoTitle?: string;
   channelTitle?: string;
   channelId?: string;
+  localPath?: string;
   onVideoHidden?: (videoId: string) => void;
   onChannelBlocked?: () => void;
   onRefreshHomeFeed?: () => void;
@@ -111,6 +115,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   videoTitle,
   channelTitle,
   channelId: propChannelId,
+  localPath: propLocalPath,
   onVideoHidden,
   onChannelBlocked,
   onRefreshHomeFeed,
@@ -129,8 +134,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   onPlayingChange,
 }) => {
   const playerRef = useRef<YouTubePlayer | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [testForceStop, setTestForceStop] = useState(false);
+
+  // Local file playback state
+  const [activeLocalPath, setActiveLocalPath] = useState<string | null>(propLocalPath || null);
+  const [localPlayError, setLocalPlayError] = useState<string | null>(null);
 
   // Minimized state (floating mini-player in bottom-right corner)
   const [isMinimizedLocal, setIsMinimizedLocal] = useState(false);
@@ -160,6 +170,43 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       channelId: propChannelId,
     });
   }, [videoId, videoTitle, channelTitle, propChannelId]);
+
+  // Resolve local path from prop or Dexie catalog for current videoId
+  useEffect(() => {
+    let active = true;
+    setLocalPlayError(null);
+    async function resolveLocalPath() {
+      if (propLocalPath) {
+        if (active) setActiveLocalPath(propLocalPath);
+        return;
+      }
+      try {
+        const rec = await getDownloadByVideoId(currentVideo.videoId);
+        if (active) {
+          if (rec && rec.status === 'done' && rec.path) {
+            setActiveLocalPath(rec.path);
+          } else {
+            setActiveLocalPath(null);
+          }
+        }
+      } catch {
+        if (active) setActiveLocalPath(null);
+      }
+    }
+    resolveLocalPath();
+    return () => {
+      active = false;
+    };
+  }, [currentVideo.videoId, propLocalPath]);
+
+  const convertedLocalSrc = React.useMemo(() => {
+    if (!activeLocalPath) return '';
+    try {
+      return Capacitor.convertFileSrc(activeLocalPath);
+    } catch {
+      return activeLocalPath;
+    }
+  }, [activeLocalPath]);
 
   // Expanding from minimized back to portrait
   const performExpandFromMinimized = useCallback(() => {
@@ -404,6 +451,21 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
   useEffect(() => {
     const timer = setInterval(() => {
+      if (activeLocalPath && !localPlayError && localVideoRef.current) {
+        const cur = localVideoRef.current.currentTime || 0;
+        const dur = localVideoRef.current.duration || 0;
+        const sec = Math.floor(cur);
+
+        if (sec !== lastSecondRef.current) {
+          lastSecondRef.current = sec;
+          setCurrentTime(cur);
+        }
+        if (dur > 0 && Math.abs(dur - duration) > 0.5) {
+          setDuration(dur);
+        }
+        return;
+      }
+
       if (playerRef.current) {
         try {
           const cur = playerRef.current.getCurrentTime?.() || 0;
@@ -432,9 +494,16 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       }
     }, 350);
     return () => clearInterval(timer);
-  }, [duration]);
+  }, [duration, activeLocalPath, localPlayError, currentVideo, getCategoryForVideo, propChannelId]);
 
   const handleSeek = useCallback((targetSeconds: number) => {
+    if (activeLocalPath && !localPlayError && localVideoRef.current) {
+      localVideoRef.current.currentTime = targetSeconds;
+      lastSecondRef.current = Math.floor(targetSeconds);
+      setCurrentTime(targetSeconds);
+      return;
+    }
+
     if (!playerRef.current) return;
     try {
       if (typeof playerRef.current.seekTo === 'function') {
@@ -445,7 +514,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     } catch (err) {
       console.warn('Seek failed:', err);
     }
-  }, []);
+  }, [activeLocalPath, localPlayError]);
 
   // Video switching via loadVideoById (no black flash, same instance)
   const handlePlayQueuedVideo = useCallback((item: QueuedVideo) => {
@@ -716,6 +785,17 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [isFullscreen, isMinimized, effectiveForceStop, isSettingsOpen, onCloseSheet]);
 
   const handleTogglePlay = useCallback(() => {
+    if (activeLocalPath && !localPlayError && localVideoRef.current) {
+      if (isPlaying) {
+        localVideoRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        localVideoRef.current.play().catch(console.warn);
+        setIsPlaying(true);
+      }
+      return;
+    }
+
     if (!playerRef.current) return;
     try {
       if (isPlaying) {
@@ -728,7 +808,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     } catch (err) {
       console.warn('handleTogglePlay failed:', err);
     }
-  }, [isPlaying]);
+  }, [isPlaying, activeLocalPath, localPlayError]);
 
   const handleToggleLoop = useCallback(() => {
     setIsLooping((prev) => !prev);
@@ -1459,31 +1539,90 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               : 'h-[75%] relative bg-black w-full p-0 rounded-none flex items-center justify-center overflow-hidden'
           }
         >
-          {/* Exactly ONE YouTube Video Instance across entire lifetime */}
-          <YouTube
-            videoId={currentVideo.videoId}
-            className="w-full h-full"
-            iframeClassName="w-full h-full object-cover border-0 block"
-            opts={{
-              host: 'https://www.youtube-nocookie.com',
-              width: '100%',
-              height: '100%',
-              playerVars: {
-                rel: 0,
-                modestbranding: 1,
-                autoplay: 1,
-                controls: 0,
-                disablekb: 1,
-                playsinline: 1,
-                fs: 0,
-                iv_load_policy: 3,
-                cc_load_policy: 0,
-              },
-            }}
-            onReady={handleReady}
-            onStateChange={handleStateChange}
-            onEnd={() => {}}
-          />
+          {activeLocalPath && !localPlayError ? (
+            <div className="relative w-full h-full bg-black flex items-center justify-center">
+              <video
+                ref={localVideoRef}
+                src={convertedLocalSrc}
+                autoPlay
+                playsInline
+                className="w-full h-full object-contain bg-black"
+                onPlay={() => {
+                  setIsPlaying(true);
+                  onPlayingChange?.(true);
+                }}
+                onPause={() => {
+                  setIsPlaying(false);
+                  onPlayingChange?.(false);
+                }}
+                onTimeUpdate={(e) => {
+                  const cur = e.currentTarget.currentTime;
+                  setCurrentTime(cur);
+                }}
+                onLoadedMetadata={(e) => {
+                  setDuration(e.currentTarget.duration);
+                }}
+                onEnded={() => {
+                  if (isLooping) {
+                    if (localVideoRef.current) {
+                      localVideoRef.current.currentTime = 0;
+                      localVideoRef.current.play().catch(console.warn);
+                    }
+                  } else {
+                    setIsPlaying(false);
+                    onPlayingChange?.(false);
+                    onEnded();
+                  }
+                }}
+                onError={() => {
+                  console.error('Local video failed to play:', activeLocalPath);
+                  setLocalPlayError('تعذر تشغيل الملف المحلي');
+                }}
+              />
+              {/* Badge: Offline Local Play */}
+              <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-full bg-emerald-600/90 backdrop-blur-md text-white text-[10px] font-bold flex items-center gap-1.5 shadow-lg border border-white/20 select-none">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>تشغيل محلي (بدون إنترنت)</span>
+              </div>
+            </div>
+          ) : localPlayError ? (
+            <div className="w-full h-full bg-yt-surface-muted flex flex-col items-center justify-center text-center p-6 space-y-3 z-10">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <p className="text-xs font-bold text-yt-text">{localPlayError}</p>
+              {!navigator.onLine && (
+                <p className="text-[11px] text-yt-text-muted">
+                  أنت حالياً غير متصل بالإنترنت ولم يتم العثور على ملف محلي صالح.
+                </p>
+              )}
+            </div>
+          ) : (
+            <YouTube
+              videoId={currentVideo.videoId}
+              className="w-full h-full"
+              iframeClassName="w-full h-full object-cover border-0 block"
+              opts={{
+                host: 'https://www.youtube-nocookie.com',
+                width: '100%',
+                height: '100%',
+                playerVars: {
+                  rel: 0,
+                  modestbranding: 1,
+                  autoplay: 1,
+                  controls: 0,
+                  disablekb: 1,
+                  playsinline: 1,
+                  fs: 0,
+                  iv_load_policy: 3,
+                  cc_load_policy: 0,
+                },
+              }}
+              onReady={handleReady}
+              onStateChange={handleStateChange}
+              onEnd={() => {}}
+            />
+          )}
 
           {/* Soft top & bottom cinematic ambient gradient overlays on video */}
           <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/50 to-transparent pointer-events-none z-10" />

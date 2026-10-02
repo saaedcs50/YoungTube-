@@ -16,7 +16,8 @@ export interface KidHomeScreenProps {
     videoId: string,
     title?: string,
     channelName?: string,
-    channelId?: string
+    channelId?: string,
+    options?: { localPath?: string; fromDownloads?: boolean }
   ) => void;
   refreshTrigger?: number;
   suppressedVideoIds?: string[];
