@@ -12,7 +12,13 @@ import {
   CUSTOM_CATEGORIES,
   channelArchiveKey,
   channelPageTokenKey,
+  SUPPORT_PAY,
+  SUPPORT_PAY_HISTORY_PREFIX,
 } from '../lib/kv-keys';
+import {
+  validateSupportPayPayload,
+  signSupportPayPayload,
+} from '../lib/support-pay';
 import {
   mergeAndStoreKVArchive,
   MAX_YOUTUBE_PAGES_PER_CHANNEL_PER_INVOCATION,
@@ -1032,7 +1038,7 @@ export async function handlePublicReadRoutes(
       );
     }
 
-    const returnAll = isAdminRequest || isAdminPath || requestedAll;
+    const returnAll = isAdminRequest;
     let list: any[] = [];
     if (env.CHANNELS_ARCHIVE) {
       try {
@@ -1312,6 +1318,100 @@ export async function handlePublicReadRoutes(
       return new Response(
         JSON.stringify({ error: err?.message || 'Failed to resolve channel handle' }),
         { status: 500, headers: corsHeaders }
+      );
+    }
+  }
+
+  // 10. GET /api/support-pay
+  if (url.pathname === '/api/support-pay' && request.method === 'GET') {
+    if (!env.CHANNELS_ARCHIVE) {
+      return new Response(
+        JSON.stringify({ error: 'KV binding CHANNELS_ARCHIVE is not available' }),
+        { status: 500, headers: { ...corsHeaders, 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    try {
+      const raw = await env.CHANNELS_ARCHIVE.get(SUPPORT_PAY);
+      let payloadToUse: any = null;
+
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          const valRes = validateSupportPayPayload(parsed);
+          if (valRes.valid && valRes.payload) {
+            payloadToUse = valRes.payload;
+          } else {
+            return new Response(
+              JSON.stringify({ error: 'Malformed support pay configuration' }),
+              { status: 500, headers: { ...corsHeaders, 'Cache-Control': 'no-store' } }
+            );
+          }
+        } catch {
+          return new Response(
+            JSON.stringify({ error: 'Malformed support pay configuration' }),
+            { status: 500, headers: { ...corsHeaders, 'Cache-Control': 'no-store' } }
+          );
+        }
+      } else {
+        // Attempt recovery from support_pay_history:...
+        try {
+          const listRes = await env.CHANNELS_ARCHIVE.list({
+            prefix: SUPPORT_PAY_HISTORY_PREFIX,
+            limit: 20,
+          });
+          const keys = listRes?.keys || [];
+          if (keys.length > 0) {
+            keys.sort((a: any, b: any) => (b.name || '').localeCompare(a.name || ''));
+            for (const keyObj of keys) {
+              const histRaw = await env.CHANNELS_ARCHIVE.get(keyObj.name);
+              if (histRaw) {
+                try {
+                  const parsedHist = JSON.parse(histRaw);
+                  const valRes = validateSupportPayPayload(parsedHist);
+                  if (valRes.valid && valRes.payload) {
+                    payloadToUse = valRes.payload;
+                    break;
+                  }
+                } catch {}
+              }
+            }
+          }
+        } catch {}
+      }
+
+      if (!payloadToUse) {
+        return new Response(
+          JSON.stringify({ error: 'not_configured' }),
+          { status: 404, headers: { ...corsHeaders, 'Cache-Control': 'no-store' } }
+        );
+      }
+
+      const signingKey = (env.SUPPORT_PAY_SIGNING_KEY || '').trim();
+      if (signingKey) {
+        const sig = await signSupportPayPayload(payloadToUse, signingKey);
+        return new Response(
+          JSON.stringify({
+            payload: payloadToUse,
+            sig,
+            signed: true,
+            alg: 'HS256',
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Cache-Control': 'no-store' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          payload: payloadToUse,
+          signed: false,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Cache-Control': 'no-store' } }
+      );
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Failed to retrieve support pay configuration' }),
+        { status: 500, headers: { ...corsHeaders, 'Cache-Control': 'no-store' } }
       );
     }
   }

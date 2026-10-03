@@ -17,6 +17,7 @@ interface Settings {
   negativeInterests?: string[];
   familyYoutubeApiKey?: string;
   hasCompletedFirstSetup?: boolean;
+  supportPayOnboardingSeenAt?: number;
   hideMusicVideos?: boolean;
   enabledOptInCategories?: string[];
   tasteShift?: {

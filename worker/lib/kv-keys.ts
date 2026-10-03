@@ -19,6 +19,8 @@ export const GLOBAL_BLOCKS = 'global_blocks';
 export const ANNOUNCEMENTS = 'announcements';
 export const CUSTOM_CATEGORIES = 'custom_categories';
 export const TELEMETRY_INDEX = 'telemetry_index';
+export const SUPPORT_PAY = 'support_pay';
+export const SUPPORT_PAY_HISTORY_PREFIX = 'support_pay_history:';
 
 // Helper Functions for Dynamic KV Keys
 export function channelArchiveKey(sourceId: string): string {
@@ -67,6 +69,7 @@ export const STATIC_KV_KEYS = [
   ANNOUNCEMENTS,
   CUSTOM_CATEGORIES,
   TELEMETRY_INDEX,
+  SUPPORT_PAY,
 ] as const;
 
 /**

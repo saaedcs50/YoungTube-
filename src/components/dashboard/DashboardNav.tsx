@@ -7,6 +7,7 @@ import {
   Sparkles,
   Bookmark,
   Wrench,
+  Heart,
 } from 'lucide-react';
 
 export type DashboardSectionId =
@@ -16,6 +17,7 @@ export type DashboardSectionId =
   | 'timer'
   | 'taste'
   | 'saved'
+  | 'support'
   | 'tools';
 
 export interface DashboardNavProps {
@@ -38,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'timer', label: 'الوقت والجلسة', icon: Clock },
   { id: 'taste', label: 'التوجيه الذكي', icon: Sparkles },
   { id: 'saved', label: 'المحفوظات', icon: Bookmark },
+  { id: 'support', label: 'دعم YoungTube', icon: Heart },
   { id: 'tools', label: 'أدوات النظام', icon: Wrench },
 ];
 

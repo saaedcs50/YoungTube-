@@ -7,7 +7,13 @@ import {
   CUSTOM_CATEGORIES,
   CHANNELS_LATEST_MERGED,
   RSS_REFRESH_CURSOR,
+  SUPPORT_PAY,
+  SUPPORT_PAY_HISTORY_PREFIX,
 } from '../lib/kv-keys';
+import {
+  validateSupportPayPayload,
+  canonicalJson,
+} from '../lib/support-pay';
 import { Env } from '../lib/types';
 
 export async function handleAdminContentRoutes(
@@ -392,6 +398,131 @@ export async function handleAdminContentRoutes(
       }),
       { status: 200, headers: corsHeaders }
     );
+  }
+
+  // 5. GET /api/admin/support-pay
+  if (url.pathname === '/api/admin/support-pay' && request.method === 'GET') {
+    if (!checkAdminAuth(request, env)) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    if (!env.CHANNELS_ARCHIVE) {
+      return new Response(
+        JSON.stringify({ error: 'KV binding CHANNELS_ARCHIVE is not available' }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    try {
+      const raw = await env.CHANNELS_ARCHIVE.get(SUPPORT_PAY);
+      if (!raw) {
+        return new Response(
+          JSON.stringify({ error: 'not_configured' }),
+          { status: 404, headers: corsHeaders }
+        );
+      }
+
+      const parsed = JSON.parse(raw);
+      const valRes = validateSupportPayPayload(parsed);
+      if (!valRes.valid || !valRes.payload) {
+        return new Response(
+          JSON.stringify({ error: 'Malformed support pay configuration in storage' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          payload: valRes.payload,
+          hasSigningKey: Boolean(env.SUPPORT_PAY_SIGNING_KEY),
+        }),
+        { status: 200, headers: corsHeaders }
+      );
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Failed to read support pay configuration' }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
+  }
+
+  // 6. POST /api/admin/support-pay
+  if (url.pathname === '/api/admin/support-pay' && request.method === 'POST') {
+    if (!checkAdminAuth(request, env)) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    if (!env.CHANNELS_ARCHIVE) {
+      return new Response(
+        JSON.stringify({ error: 'KV binding CHANNELS_ARCHIVE is not available' }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    // Force v = 1 and updatedAt = current ISO timestamp
+    const validationInput = {
+      ...body,
+      v: 1,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const valRes = validateSupportPayPayload(validationInput);
+    if (!valRes.valid || !valRes.payload) {
+      return new Response(
+        JSON.stringify({ error: valRes.error || 'Invalid support pay payload' }),
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    const newPayload = valRes.payload;
+
+    try {
+      // Archive current version if present before overwrite
+      const currentRaw = await env.CHANNELS_ARCHIVE.get(SUPPORT_PAY);
+      if (currentRaw) {
+        const historyKey = `${SUPPORT_PAY_HISTORY_PREFIX}${Date.now()}`;
+        try {
+          await env.CHANNELS_ARCHIVE.put(historyKey, currentRaw);
+        } catch (histErr) {
+          console.warn('Failed to archive previous support pay payload to history:', histErr);
+        }
+      }
+
+      // Write current canonical payload to KV
+      const canonicalString = canonicalJson(newPayload);
+      await env.CHANNELS_ARCHIVE.put(SUPPORT_PAY, canonicalString);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          payload: newPayload,
+          message: 'Support payment settings updated successfully',
+        }),
+        { status: 200, headers: corsHeaders }
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ error: err?.message || 'Failed to save support pay configuration' }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
   }
 
   return null;

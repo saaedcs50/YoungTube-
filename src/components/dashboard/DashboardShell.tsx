@@ -2,6 +2,9 @@ import React, { useRef, useEffect, useState } from 'react';
 import { ShieldCheck, Lock, ArrowRight, Sun, Moon } from 'lucide-react';
 import { DashboardNav, DashboardSectionId } from './DashboardNav';
 import { getInitialTheme, setTheme, type ThemeMode } from '../../services/theme';
+import { SupportPayStrip } from '../SupportPayStrip';
+import { SupportPayPanel } from '../SupportPayPanel';
+import { loadSupportPay } from '../../services/supportPay';
 
 export interface DashboardShellProps {
   title?: string;
@@ -53,6 +56,11 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       onSelectSection('child');
     }
   }, [showTools, activeSection, onSelectSection]);
+
+  // Fetch support pay settings when dashboard opens
+  useEffect(() => {
+    void loadSupportPay();
+  }, []);
 
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => {
     if (typeof document !== 'undefined' && document.documentElement.dataset.theme) {
@@ -150,14 +158,24 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           showTools={showTools}
         />
 
+        {/* Support Pay Strip at start of content for each dashboard tab */}
+        <SupportPayStrip />
+
         {/* Section Content Panel */}
         <div
           id={`dashboard-panel-${activeSection}`}
           key={activeSection}
-          className="transition-opacity duration-150 ease-out"
+          className="transition-opacity duration-150 ease-out space-y-6"
         >
-          {children}
+          {activeSection === 'support' ? (
+            <SupportPayPanel />
+          ) : (
+            children
+          )}
         </div>
+
+        {/* Support Pay Strip at end of content for each dashboard tab */}
+        <SupportPayStrip />
       </main>
 
       {/* 3. Footer */}

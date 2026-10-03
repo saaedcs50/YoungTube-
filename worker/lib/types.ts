@@ -29,6 +29,7 @@ export interface Env {
   TELEMETRY_DO?: DurableObjectNamespace;
   YOUTUBE_API_KEY?: string;
   ADMIN_KEY?: string;
+  SUPPORT_PAY_SIGNING_KEY?: string;
 }
 
 export interface VideoItem {
@@ -105,4 +106,29 @@ export interface BackfillBatchResult {
   cursorAfter: number;
   totalChannels: number;
   wrappedAround: boolean;
+}
+
+export interface SupportPayPayload {
+  v: number;
+  updatedAt: string;
+  instapay: {
+    label?: string;
+    phone?: string;
+    ipa?: string;
+    url?: string;
+    name?: string;
+  };
+  vodafoneCash: {
+    label?: string;
+    phone?: string;
+    name?: string;
+  };
+  note?: string;
+}
+
+export interface SupportPayResponse {
+  payload: SupportPayPayload;
+  signed: boolean;
+  sig?: string;
+  alg?: string;
 }

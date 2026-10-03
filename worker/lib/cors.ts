@@ -70,6 +70,7 @@ export const RATE_LIMITED_ROUTES = new Set([
   '/api/playlist-lookup',
   '/api/videos-views',
   '/api/videos-durations',
+  '/api/support-pay',
 ]);
 
 // In-memory fallback map for worker isolates when Durable Objects are unavailable or during tests
