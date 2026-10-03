@@ -321,6 +321,9 @@ export async function ensureChannelsArchiveSynced(): Promise<boolean> {
         archiveSyncPromise = null;
         return false;
       }
+      const hasFamilyKeyForSync = Boolean(
+        (await getFamilyYoutubeApiHeaders())['X-Family-Youtube-Key']
+      );
       const filterResult = await filterAndCacheVideos(data, blocks);
       if (filterResult.totalBefore > 0 && filterResult.totalAfterFilter === 0) {
         archiveSyncPromise = null;
@@ -481,6 +484,8 @@ export async function filterAndCacheVideos(
 
   const channelCandidates: Map<string, CandidateItem[]> = new Map();
   const unknownDurationIdsSet = new Set<string>();
+  const familyHeaders = await getFamilyYoutubeApiHeaders();
+  const hasFamilyKey = Boolean(familyHeaders['X-Family-Youtube-Key']);
 
   for (const channel of channels) {
     if (!channel || !Array.isArray(channel.videos) || channel.videos.length === 0) continue;
@@ -525,8 +530,9 @@ export async function filterAndCacheVideos(
         continue;
       }
 
-      // 4. Duration check if existing item already has known videoDuration
-      if (typeof existingItem?.videoDuration === 'number') {
+      // 4. Duration filtering is opt-in. Only enforce the 120s minimum when
+      // the family has configured its own YouTube API key.
+      if (hasFamilyKey && typeof existingItem?.videoDuration === 'number') {
         if (existingItem.videoDuration < MIN_VIDEO_DURATION_SECONDS) {
           durationExcluded++;
           continue;
@@ -562,9 +568,6 @@ export async function filterAndCacheVideos(
       channelCandidates.set(channelId, candidates);
     }
   }
-
-  const familyHeaders = await getFamilyYoutubeApiHeaders();
-  const hasFamilyKey = Boolean(familyHeaders['X-Family-Youtube-Key']);
 
   // Only resolve unknown durations if family key is configured.
   if (hasFamilyKey) {
@@ -610,7 +613,7 @@ export async function filterAndCacheVideos(
           continue;
         }
         // Without family key, allow video with undefined duration (do NOT exclude)
-      } else if (finalDuration < MIN_VIDEO_DURATION_SECONDS) {
+      } else if (hasFamilyKey && finalDuration < MIN_VIDEO_DURATION_SECONDS) {
         durationExcluded++;
         continue;
       }
@@ -667,7 +670,9 @@ export async function filterAndCacheVideos(
       for (const item of existingForChannel) {
         if (item.hidden === true) continue;
         const isKnownShort =
-          typeof item.videoDuration === 'number' && item.videoDuration < MIN_VIDEO_DURATION_SECONDS;
+          hasFamilyKey &&
+          typeof item.videoDuration === 'number' &&
+          item.videoDuration < MIN_VIDEO_DURATION_SECONDS;
         const isKnownPortrait = item.isPortrait === true;
         if (isKnownShort || isKnownPortrait) {
           allStaleIdsToDelete.push(item.videoId);
@@ -730,17 +735,19 @@ export async function migrateUnhidePortraitVideos(): Promise<void> {
 
 /**
  * One-shot cleanup of any feedCache rows that are known-invalid:
- * - videoDuration is a number and < 120 seconds
  * - isPortrait is true
+ * - videoDuration < 120 seconds only when duration filtering is explicitly enabled
  * Does NOT delete rows where videoDuration is undefined.
  */
-export async function purgeInvalidFeedRows(): Promise<number> {
+export async function purgeInvalidFeedRows(filterDuration = false): Promise<number> {
   try {
     const invalidItems = await db.feedCache
       .filter(
         (item) =>
           item.isPortrait === true ||
-          (typeof item.videoDuration === 'number' && item.videoDuration < MIN_VIDEO_DURATION_SECONDS)
+          (filterDuration &&
+            typeof item.videoDuration === 'number' &&
+            item.videoDuration < MIN_VIDEO_DURATION_SECONDS)
       )
       .toArray();
 

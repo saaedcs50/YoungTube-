@@ -133,15 +133,33 @@ export default defineConfig(() => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [
             {
-              // دومين الـ Worker (workers.dev) - channels-latest / api paths
-              urlPattern: /^https:\/\/.*\.workers\.dev\/(api\/|channels-latest).*/i,
+              // Cache only public, key-independent channel metadata.
+              // Authenticated/admin and YouTube-key-dependent endpoints are
+              // intentionally excluded to prevent cross-user/cache-variant reuse.
+              urlPattern: /^https:\/\/.*\.workers\.dev\/api\/channels-latest(?:\?feedLimit=10)?$/i,
               handler: 'NetworkFirst',
               options: {
-                cacheName: 'worker-api-cache',
+                cacheName: 'worker-public-channels-cache',
+                networkTimeoutSeconds: 3,
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 24 * 60 * 60,
+                },
+                cacheableResponse: {
+                  statuses: [200],
+                },
+              },
+            },
+            {
+              // Public, key-independent channel archive reads are safe to cache.
+              urlPattern: /^https:\/\/.*\.workers\.dev\/api\/channel-archive\?id=[^&]+$/i,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'worker-public-archive-cache',
                 networkTimeoutSeconds: 3,
                 expiration: {
                   maxEntries: 100,
-                  maxAgeSeconds: 24 * 60 * 60, // أقصى عمر للكاش يوم واحد (24 ساعة)
+                  maxAgeSeconds: 24 * 60 * 60,
                 },
                 cacheableResponse: {
                   statuses: [200],

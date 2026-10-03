@@ -46,8 +46,8 @@ export default function ChannelVideosModal({
   const isCheckingPortraitsRef = useRef<boolean>(false);
 
   // Background duration enrich in chunks of 50
-  async function enrichDurations(candidateItems: FeedItem[]) {
-    if (isEnrichingDurationsRef.current) return;
+  async function enrichDurations(candidateItems: FeedItem[], apiKey: string | null = familyApiKey) {
+    if (isEnrichingDurationsRef.current || !apiKey) return;
     const toCheck = candidateItems.filter(
       (v) => v.videoDuration === undefined && !checkedDurationIdsRef.current.has(v.videoId)
     );
@@ -196,12 +196,12 @@ export default function ChannelVideosModal({
         const data = await res.json();
         const rawVideos = Array.isArray(data.videos) ? data.videos : [];
 
-        const filtered: FeedItem[] = filterAndMapRawVideos(rawVideos, sourceId, bWords);
+        const filtered: FeedItem[] = filterAndMapRawVideos(rawVideos, sourceId, bWords, Boolean(key));
 
         if (isMounted) {
           setVideos(filtered);
           setLoading(false);
-          void enrichDurations(filtered);
+          if (key) void enrichDurations(filtered, key);
           void checkPortraits(filtered);
         }
       } catch (err) {
@@ -224,7 +224,8 @@ export default function ChannelVideosModal({
   function filterAndMapRawVideos(
     rawVideos: any[],
     cId: string,
-    bWords: string[]
+    bWords: string[],
+    filterDuration: boolean = Boolean(familyApiKey)
   ): FeedItem[] {
     const list: FeedItem[] = [];
     for (const raw of rawVideos) {
@@ -234,7 +235,6 @@ export default function ChannelVideosModal({
       // Skip title shorts
       if (isLikelyShortsTitle(titleStr)) continue;
 
-      // If duration is already present as a number, skip if < 120
       const rawDur =
         typeof raw.videoDuration === 'number'
           ? raw.videoDuration
@@ -242,7 +242,9 @@ export default function ChannelVideosModal({
           ? raw.duration
           : undefined;
 
-      if (rawDur !== undefined && rawDur < MIN_VIDEO_DURATION_SECONDS) {
+      // Duration filtering is opt-in. Without the family's own API key,
+      // preserve videos even when an archive item already contains a duration.
+      if (filterDuration && rawDur !== undefined && rawDur < MIN_VIDEO_DURATION_SECONDS) {
         continue;
       }
 
@@ -299,9 +301,9 @@ export default function ChannelVideosModal({
 
         const data = await res.json();
         const rawVideos = Array.isArray(data.videos) ? data.videos : [];
-        const filtered = filterAndMapRawVideos(rawVideos, sourceId, blacklistWords);
+        const filtered = filterAndMapRawVideos(rawVideos, sourceId, blacklistWords, Boolean(familyApiKey));
         setSearchResults(filtered);
-        void enrichDurations(filtered);
+        if (familyApiKey) void enrichDurations(filtered);
         void checkPortraits(filtered);
       } catch (err) {
         console.error('Channel search error:', err);
@@ -344,7 +346,7 @@ export default function ChannelVideosModal({
         setArchiveExhausted(true);
       }
 
-      const filteredNew = filterAndMapRawVideos(rawNew, sourceId, blacklistWords);
+      const filteredNew = filterAndMapRawVideos(rawNew, sourceId, blacklistWords, Boolean(familyApiKey));
 
       setVideos((prev) => {
         const existingMap = new Map<string, FeedItem>();
@@ -363,7 +365,7 @@ export default function ChannelVideosModal({
         return merged;
       });
 
-      void enrichDurations(filteredNew);
+      if (familyApiKey) void enrichDurations(filteredNew);
       void checkPortraits(filteredNew);
     } catch (err) {
       console.error('Failed to deepen channel archive:', err);

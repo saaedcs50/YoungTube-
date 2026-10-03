@@ -113,7 +113,8 @@ export async function handlePublicReadRoutes(
         if (rawMerged) {
           // The child/public feed only needs a small recent window. Admin Bearer requests
           // keep the complete archive so the admin panel's operations remain unchanged.
-          if (!checkAdminAuth(request, env)) {
+          const isAdminRequest = checkAdminAuth(request, env);
+          if (!isAdminRequest) {
             try {
               const parsed = JSON.parse(rawMerged);
               if (Array.isArray(parsed)) {
@@ -136,25 +137,32 @@ export async function handlePublicReadRoutes(
             status: 200,
             headers: {
               ...corsHeaders,
-              'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
+              'Cache-Control': isAdminRequest
+                ? 'no-cache, no-store, must-revalidate'
+                : 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
+              ...(isAdminRequest ? { Vary: 'Authorization' } : {}),
             },
           });
         }
       }
 
+      const isAdminRequest = checkAdminAuth(request, env);
       return new Response(JSON.stringify(channelsSeed), {
         status: 200,
         headers: {
           ...corsHeaders,
-          'Cache-Control': 'public, max-age=60',
+          'Cache-Control': isAdminRequest ? 'no-cache, no-store, must-revalidate' : 'public, max-age=60',
+          ...(isAdminRequest ? { Vary: 'Authorization' } : {}),
         },
       });
     } catch {
+      const isAdminRequest = checkAdminAuth(request, env);
       return new Response(JSON.stringify(channelsSeed), {
         status: 200,
         headers: {
           ...corsHeaders,
-          'Cache-Control': 'public, max-age=60',
+          'Cache-Control': isAdminRequest ? 'no-cache, no-store, must-revalidate' : 'public, max-age=60',
+          ...(isAdminRequest ? { Vary: 'Authorization' } : {}),
         },
       });
     }
@@ -1013,10 +1021,18 @@ export async function handlePublicReadRoutes(
     (url.pathname === '/api/announcements' || url.pathname === '/api/admin/announcements') &&
     request.method === 'GET'
   ) {
-    const returnAll =
-      url.searchParams.get('all') === 'true' ||
-      url.pathname === '/api/admin/announcements' ||
-      checkAdminAuth(request, env);
+    const isAdminRequest = checkAdminAuth(request, env);
+    const isAdminPath = url.pathname === '/api/admin/announcements';
+    const requestedAll = url.searchParams.get('all') === 'true';
+
+    if ((isAdminPath || requestedAll) && !isAdminRequest) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Invalid or missing Bearer ADMIN_KEY' }),
+        { status: 401, headers: corsHeaders }
+      );
+    }
+
+    const returnAll = isAdminRequest || isAdminPath || requestedAll;
     let list: any[] = [];
     if (env.CHANNELS_ARCHIVE) {
       try {
