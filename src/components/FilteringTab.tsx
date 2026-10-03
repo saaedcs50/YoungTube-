@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   Search,
   SlidersHorizontal,
+  KeyRound,
+  ExternalLink,
 } from 'lucide-react';
 
 const OPT_IN_CATEGORY_META: Record<string, { label: string; emoji: string; description: string }> = {
@@ -43,6 +45,11 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
   // Hidden videos
   const [hiddenVideos, setHiddenVideos] = useState<FeedItem[]>([]);
 
+  // Family YouTube API Key State
+  const [familyApiKey, setFamilyApiKey] = useState<string>('');
+  const [apiKeyInput, setApiKeyInput] = useState<string>('');
+  const [isEditingKey, setIsEditingKey] = useState<boolean>(false);
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
@@ -60,6 +67,9 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
         db.feedCache.filter((v) => v.hidden === true).toArray(),
       ]);
 
+      const key = settings?.familyYoutubeApiKey?.trim() || '';
+      setFamilyApiKey(key);
+      setApiKeyInput(key);
       setEnabledOptInCategories(settings?.enabledOptInCategories || []);
       setBlacklistWords(settings?.blacklistWords || []);
       setBlockedChannels(channels);
@@ -70,6 +80,47 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
       setIsLoading(false);
     }
   }, []);
+
+  // Family YouTube API Key Handlers
+  const handleSaveApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanKey = apiKeyInput.trim();
+    if (!cleanKey) return;
+
+    try {
+      const current = await db.settings.get('main');
+      if (current) {
+        await db.settings.update('main', { familyYoutubeApiKey: cleanKey });
+      } else {
+        await db.settings.put({
+          id: 'main',
+          blacklistWords: [],
+          familyYoutubeApiKey: cleanKey,
+        });
+      }
+      setFamilyApiKey(cleanKey);
+      setIsEditingKey(false);
+      showFeedback('تم الحفظ — فلترة المدة ستُطبَّق في المزامنة التالية');
+      onFilterChanged?.();
+    } catch (err) {
+      console.error('Failed to save family API key:', err);
+    }
+  };
+
+  const handleRemoveApiKey = async () => {
+    if (window.confirm('هل تريد إزالة مفتاح YouTube API وتعطيل فلترة المدة؟')) {
+      try {
+        await db.settings.update('main', { familyYoutubeApiKey: undefined });
+        setFamilyApiKey('');
+        setApiKeyInput('');
+        setIsEditingKey(false);
+        showFeedback('تمت إزالة المفتاح — فلترة المدة متوقفة الآن');
+        onFilterChanged?.();
+      } catch (err) {
+        console.error('Failed to remove family API key:', err);
+      }
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -183,6 +234,121 @@ export const FilteringTab: React.FC<FilteringTabProps> = ({ onFilterChanged }) =
             <span>{feedbackMessage}</span>
           </span>
         )}
+      </div>
+
+      {/* Family YouTube API Key Card */}
+      <div
+        id="family-youtube-key-card"
+        className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-5 shadow-sm space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-yt-border">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-yt-brand-soft text-yt-brand flex items-center justify-center shrink-0">
+              <KeyRound className="w-4 h-4" />
+            </div>
+            <h4 className="text-xs sm:text-sm font-bold text-yt-text">
+              مفتاح YouTube للعائلة — فلترة المدة
+            </h4>
+          </div>
+          {familyApiKey ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto shrink-0">
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <span>فلترة المدة مفعّلة</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-auto shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+              <span>فلترة المدة متوقفة</span>
+            </span>
+          )}
+        </div>
+
+        {/* Explanation Bullets */}
+        <ul className="text-xs text-yt-text-muted space-y-1.5 font-medium leading-relaxed list-disc list-inside">
+          <li>بدون المفتاح: الفيد يظهر عادي، وفلترة المدة (إخفاء أقل من دقيقتين) متوقفة.</li>
+          <li>بالمفتاح: التطبيق يجلب مدد الفيديوهات ويستبعد الشورتس الحقيقية (&lt;120 ثانية).</li>
+          <li>فلترة العنوان (#shorts) والحظر والبورتريه تفضل شغّالة بدون مفتاح.</li>
+          <li>المفتاح يُحفظ محليًا على الجهاز فقط ويُرسل عبر HTTPS لخادم يونج تيوب عند الحاجة.</li>
+        </ul>
+
+        {/* Form or Key Display */}
+        {familyApiKey && !isEditingKey ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-yt-surface-muted border border-yt-border">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-yt-text">المفتاح المحفوظ:</span>
+              <code className="text-xs font-mono bg-yt-surface px-2 py-1 rounded border border-yt-border text-yt-text-muted">
+                ••••{familyApiKey.slice(-4)}
+              </code>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsEditingKey(true)}
+                className="px-3 py-2 rounded-xl bg-yt-surface hover:bg-yt-surface-muted border border-yt-border text-yt-text text-xs font-bold transition min-h-[44px] sm:min-h-[36px] cursor-pointer"
+              >
+                تغيير
+              </button>
+              <button
+                type="button"
+                onClick={handleRemoveApiKey}
+                className="px-3 py-2 rounded-xl bg-yt-brand-soft hover:bg-yt-brand/20 text-yt-brand text-xs font-bold transition min-h-[44px] sm:min-h-[36px] cursor-pointer"
+              >
+                إزالة
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSaveApiKey} className="space-y-3 pt-1">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                id="family-youtube-api-key-input"
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="ألصق مفتاح AIzaSy... هنا"
+                className="grow p-2.5 text-xs rounded-xl border border-yt-border bg-yt-surface text-yt-text focus:outline-hidden focus:ring-2 focus:ring-yt-brand font-mono min-h-[44px]"
+              />
+              <div className="flex gap-2 shrink-0">
+                <button
+                  id="family-youtube-api-key-save-btn"
+                  type="submit"
+                  disabled={!apiKeyInput.trim()}
+                  className="px-4 py-2.5 rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-xs font-bold transition disabled:opacity-50 cursor-pointer min-h-[44px]"
+                >
+                  حفظ المفتاح
+                </button>
+                {familyApiKey && isEditingKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingKey(false);
+                      setApiKeyInput(familyApiKey);
+                    }}
+                    className="px-3 py-2.5 rounded-xl bg-yt-surface-muted hover:bg-yt-surface border border-yt-border text-yt-text-muted text-xs font-bold transition cursor-pointer min-h-[44px]"
+                  >
+                    إلغاء
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* Help Link */}
+        <div className="pt-2 border-t border-yt-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-yt-text-muted">
+          <span>
+            تأكد من تفعيل <strong>YouTube Data API v3</strong> في مشروع Google Cloud الخاص بك.
+          </span>
+          <a
+            href="https://console.cloud.google.com/apis/credentials"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-bold text-yt-brand hover:underline shrink-0"
+          >
+            <span>Google Cloud Console</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
       </div>
 
       {/* Opt-in Categories Approval Section */}
