@@ -483,7 +483,7 @@ export async function handleAdminContentRoutes(
       updatedAt: new Date().toISOString(),
     };
 
-    const valRes = validateSupportPayPayload(validationInput);
+    const valRes = validateSupportPayPayload(validationInput, true);
     if (!valRes.valid || !valRes.payload) {
       return new Response(
         JSON.stringify({ error: valRes.error || 'Invalid support pay payload' }),

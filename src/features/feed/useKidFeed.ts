@@ -176,7 +176,8 @@ const CACHE_KEEP = 30;
 /** Bounded, recency-sorted load of enabled-channel videos (chunked anyOf, not 196 parallel queries). */
 async function loadBoundedFeed(
   enabledChannelIds: string[],
-  hideMusicVideos: boolean
+  hideMusicVideos: boolean,
+  hasFamilyKey = false
 ): Promise<FeedItem[]> {
   const cachedBlocks = loadCachedBlocks();
   const blockedChannelSet = new Set(cachedBlocks.channelIds);
@@ -190,7 +191,7 @@ async function loadBoundedFeed(
     for (const row of rows) {
       if (row.hidden === true) continue;
       if (row.isPortrait === true) continue;
-      if (typeof row.videoDuration === 'number' && row.videoDuration < 120) continue;
+      if (hasFamilyKey && typeof row.videoDuration === 'number' && row.videoDuration < 120) continue;
       if (hideMusicVideos && row.hasMusic === true) continue;
       if (blockedChannelSet.has(row.channelId)) continue;
       const list = byChannel.get(row.channelId);
@@ -314,10 +315,11 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
         .map((c) => c.sourceId);
 
       const hideMusicVideos = settings?.hideMusicVideos === true;
+      const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
 
       let availableVideos: FeedItem[] = [];
       if (enabledChannelIds.length > 0) {
-        availableVideos = await loadBoundedFeed(enabledChannelIds, hideMusicVideos);
+        availableVideos = await loadBoundedFeed(enabledChannelIds, hideMusicVideos, hasFamilyKey);
       }
 
       // If feedCache is empty, seed initial curated safe videos

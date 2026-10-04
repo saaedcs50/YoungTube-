@@ -1045,7 +1045,7 @@ export default function App() {
           <DashboardShell
             activeSection={dashboardSection}
             onSelectSection={setDashboardSection}
-            onClose={() => setViewMode('kids')}
+            onClose={handleLockDashboard}
             onLock={handleLockDashboard}
             hasIncompleteSetup={!mainSettings?.hasCompletedFirstSetup}
             showTools={showTools}

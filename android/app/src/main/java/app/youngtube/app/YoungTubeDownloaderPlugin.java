@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -62,8 +63,8 @@ public class YoungTubeDownloaderPlugin extends Plugin {
 
     /**
      * Download quality locked to ~360p; not user-configurable.
-     * Selects height == 360 if present, else closest height <= 360;
-     * if only higher exist, picks the lowest available.
+     * Selects height == 360 if present, else best height < 360;
+     * Never selects a stream with height > 360. Returns null if none available <= 360.
      */
     private VideoStream select360pStream(List<VideoStream> streams) {
         if (streams == null || streams.isEmpty()) {
@@ -73,8 +74,6 @@ public class YoungTubeDownloaderPlugin extends Plugin {
         VideoStream exact360 = null;
         VideoStream bestUnder360 = null;
         int maxUnder360Height = -1;
-        VideoStream lowestAbove360 = null;
-        int minAbove360Height = Integer.MAX_VALUE;
 
         for (VideoStream stream : streams) {
             if (stream == null || stream.getUrl() == null || stream.getUrl().isEmpty()) {
@@ -92,14 +91,18 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                 }
             }
 
-            // Fallback if height couldn't be parsed from resolution string
-            if (height <= 0) {
+            // Fallback for known standard resolution labels if digits parsing was inconclusive
+            if (height <= 0 && resStr != null) {
                 if ("360p".equalsIgnoreCase(resStr)) height = 360;
                 else if ("240p".equalsIgnoreCase(resStr)) height = 240;
                 else if ("144p".equalsIgnoreCase(resStr)) height = 144;
                 else if ("480p".equalsIgnoreCase(resStr)) height = 480;
                 else if ("720p".equalsIgnoreCase(resStr)) height = 720;
-                else height = 360;
+                else if ("1080p".equalsIgnoreCase(resStr)) height = 1080;
+            }
+
+            if (height <= 0 || height > 360) {
+                continue;
             }
 
             if (height == 360) {
@@ -110,18 +113,12 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                     maxUnder360Height = height;
                     bestUnder360 = stream;
                 }
-            } else {
-                if (height < minAbove360Height) {
-                    minAbove360Height = height;
-                    lowestAbove360 = stream;
-                }
             }
         }
 
         if (exact360 != null) return exact360;
         if (bestUnder360 != null) return bestUnder360;
-        if (lowestAbove360 != null) return lowestAbove360;
-        return streams.get(0);
+        return null;
     }
 
     private void emitProgress(String videoId, long bytesDownloaded, Long totalBytes, Integer percent) {
@@ -189,7 +186,7 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                     JSObject res = new JSObject();
                     res.put("ok", false);
                     res.put("code", "NATIVE_ERROR");
-                    res.put("message", "تعذر استخراج رابط التدفق المباشر للفيديو");
+                    res.put("message", "لا يتوفر تدفق فيديو بدقة 360p أو أقل لهذا المحتوى");
                     call.resolve(res);
                     return;
                 }
@@ -352,9 +349,17 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                 File appInternal = getContext().getFilesDir();
                 File appExternal = getContext().getExternalFilesDir(null);
 
-                String canonicalTarget = target.getCanonicalPath();
-                boolean isInsideInternal = appInternal != null && canonicalTarget.startsWith(appInternal.getCanonicalPath());
-                boolean isInsideExternal = appExternal != null && canonicalTarget.startsWith(appExternal.getCanonicalPath());
+                Path targetPath = target.getCanonicalFile().toPath().toAbsolutePath().normalize();
+                boolean isInsideInternal = false;
+                if (appInternal != null) {
+                    Path internalPath = appInternal.getCanonicalFile().toPath().toAbsolutePath().normalize();
+                    isInsideInternal = targetPath.startsWith(internalPath);
+                }
+                boolean isInsideExternal = false;
+                if (appExternal != null) {
+                    Path externalPath = appExternal.getCanonicalFile().toPath().toAbsolutePath().normalize();
+                    isInsideExternal = targetPath.startsWith(externalPath);
+                }
 
                 if (!isInsideInternal && !isInsideExternal) {
                     JSObject res = new JSObject();

@@ -47,9 +47,10 @@ export function isValidHttpsUrl(urlString: string): boolean {
 
 /**
  * Validates and sanitizes a SupportPayPayload or admin input.
+ * For admin writes, requires non-empty trimmed values for instapay and vodafoneCash.
  * Does NOT supply any default payment values.
  */
-export function validateSupportPayPayload(input: any): {
+export function validateSupportPayPayload(input: any, isAdminWrite = false): {
   valid: boolean;
   error?: string;
   payload?: SupportPayPayload;
@@ -74,6 +75,11 @@ export function validateSupportPayPayload(input: any): {
   // Validate instapay
   const instapayInput = input.instapay;
   const instapay: SupportPayPayload['instapay'] = {};
+
+  if (isAdminWrite && (!instapayInput || typeof instapayInput !== 'object' || Array.isArray(instapayInput))) {
+    return { valid: false, error: 'instapay object is required for admin writes' };
+  }
+
   if (instapayInput !== undefined) {
     if (typeof instapayInput !== 'object' || instapayInput === null || Array.isArray(instapayInput)) {
       return { valid: false, error: 'instapay must be an object' };
@@ -86,39 +92,66 @@ export function validateSupportPayPayload(input: any): {
       instapay.label = instapayInput.label.trim();
     }
 
-    if (instapayInput.phone !== undefined) {
-      if (typeof instapayInput.phone !== 'string' || instapayInput.phone.length > MAX_PHONE_LENGTH) {
-        return { valid: false, error: `instapay.phone must be a string up to ${MAX_PHONE_LENGTH} chars` };
+    if (isAdminWrite) {
+      if (typeof instapayInput.phone !== 'string' || !instapayInput.phone.trim() || instapayInput.phone.trim().length > MAX_PHONE_LENGTH) {
+        return { valid: false, error: `instapay.phone is required and must be non-empty (up to ${MAX_PHONE_LENGTH} chars)` };
       }
       instapay.phone = instapayInput.phone.trim();
-    }
 
-    if (instapayInput.ipa !== undefined) {
-      if (typeof instapayInput.ipa !== 'string' || instapayInput.ipa.length > MAX_IPA_LENGTH) {
-        return { valid: false, error: `instapay.ipa must be a string up to ${MAX_IPA_LENGTH} chars` };
+      if (typeof instapayInput.ipa !== 'string' || !instapayInput.ipa.trim() || instapayInput.ipa.trim().length > MAX_IPA_LENGTH) {
+        return { valid: false, error: `instapay.ipa is required and must be non-empty (up to ${MAX_IPA_LENGTH} chars)` };
       }
       instapay.ipa = instapayInput.ipa.trim();
-    }
 
-    if (instapayInput.name !== undefined) {
-      if (typeof instapayInput.name !== 'string' || instapayInput.name.length > MAX_NAME_LENGTH) {
-        return { valid: false, error: `instapay.name must be a string up to ${MAX_NAME_LENGTH} chars` };
+      if (typeof instapayInput.name !== 'string' || !instapayInput.name.trim() || instapayInput.name.trim().length > MAX_NAME_LENGTH) {
+        return { valid: false, error: `instapay.name is required and must be non-empty (up to ${MAX_NAME_LENGTH} chars)` };
       }
       instapay.name = instapayInput.name.trim();
-    }
 
-    if (instapayInput.url !== undefined && String(instapayInput.url).trim().length > 0) {
-      const urlStr = String(instapayInput.url).trim();
-      if (!isValidHttpsUrl(urlStr)) {
-        return { valid: false, error: 'instapay.url must be a valid HTTPS-only URL' };
+      if (typeof instapayInput.url !== 'string' || !instapayInput.url.trim() || !isValidHttpsUrl(instapayInput.url.trim())) {
+        return { valid: false, error: 'instapay.url is required and must be a valid HTTPS-only URL' };
       }
-      instapay.url = urlStr;
+      instapay.url = instapayInput.url.trim();
+    } else {
+      if (instapayInput.phone !== undefined) {
+        if (typeof instapayInput.phone !== 'string' || instapayInput.phone.length > MAX_PHONE_LENGTH) {
+          return { valid: false, error: `instapay.phone must be a string up to ${MAX_PHONE_LENGTH} chars` };
+        }
+        instapay.phone = instapayInput.phone.trim();
+      }
+
+      if (instapayInput.ipa !== undefined) {
+        if (typeof instapayInput.ipa !== 'string' || instapayInput.ipa.length > MAX_IPA_LENGTH) {
+          return { valid: false, error: `instapay.ipa must be a string up to ${MAX_IPA_LENGTH} chars` };
+        }
+        instapay.ipa = instapayInput.ipa.trim();
+      }
+
+      if (instapayInput.name !== undefined) {
+        if (typeof instapayInput.name !== 'string' || instapayInput.name.length > MAX_NAME_LENGTH) {
+          return { valid: false, error: `instapay.name must be a string up to ${MAX_NAME_LENGTH} chars` };
+        }
+        instapay.name = instapayInput.name.trim();
+      }
+
+      if (instapayInput.url !== undefined && String(instapayInput.url).trim().length > 0) {
+        const urlStr = String(instapayInput.url).trim();
+        if (!isValidHttpsUrl(urlStr)) {
+          return { valid: false, error: 'instapay.url must be a valid HTTPS-only URL' };
+        }
+        instapay.url = urlStr;
+      }
     }
   }
 
   // Validate vodafoneCash
   const vodafoneCashInput = input.vodafoneCash;
   const vodafoneCash: SupportPayPayload['vodafoneCash'] = {};
+
+  if (isAdminWrite && (!vodafoneCashInput || typeof vodafoneCashInput !== 'object' || Array.isArray(vodafoneCashInput))) {
+    return { valid: false, error: 'vodafoneCash object is required for admin writes' };
+  }
+
   if (vodafoneCashInput !== undefined) {
     if (typeof vodafoneCashInput !== 'object' || vodafoneCashInput === null || Array.isArray(vodafoneCashInput)) {
       return { valid: false, error: 'vodafoneCash must be an object' };
@@ -131,28 +164,43 @@ export function validateSupportPayPayload(input: any): {
       vodafoneCash.label = vodafoneCashInput.label.trim();
     }
 
-    if (vodafoneCashInput.phone !== undefined) {
-      if (typeof vodafoneCashInput.phone !== 'string' || vodafoneCashInput.phone.length > MAX_PHONE_LENGTH) {
-        return { valid: false, error: `vodafoneCash.phone must be a string up to ${MAX_PHONE_LENGTH} chars` };
+    if (isAdminWrite) {
+      if (typeof vodafoneCashInput.phone !== 'string' || !vodafoneCashInput.phone.trim() || vodafoneCashInput.phone.trim().length > MAX_PHONE_LENGTH) {
+        return { valid: false, error: `vodafoneCash.phone is required and must be non-empty (up to ${MAX_PHONE_LENGTH} chars)` };
       }
       vodafoneCash.phone = vodafoneCashInput.phone.trim();
-    }
 
-    if (vodafoneCashInput.name !== undefined) {
-      if (typeof vodafoneCashInput.name !== 'string' || vodafoneCashInput.name.length > MAX_NAME_LENGTH) {
-        return { valid: false, error: `vodafoneCash.name must be a string up to ${MAX_NAME_LENGTH} chars` };
+      if (typeof vodafoneCashInput.name !== 'string' || !vodafoneCashInput.name.trim() || vodafoneCashInput.name.trim().length > MAX_NAME_LENGTH) {
+        return { valid: false, error: `vodafoneCash.name is required and must be non-empty (up to ${MAX_NAME_LENGTH} chars)` };
       }
       vodafoneCash.name = vodafoneCashInput.name.trim();
+    } else {
+      if (vodafoneCashInput.phone !== undefined) {
+        if (typeof vodafoneCashInput.phone !== 'string' || vodafoneCashInput.phone.length > MAX_PHONE_LENGTH) {
+          return { valid: false, error: `vodafoneCash.phone must be a string up to ${MAX_PHONE_LENGTH} chars` };
+        }
+        vodafoneCash.phone = vodafoneCashInput.phone.trim();
+      }
+
+      if (vodafoneCashInput.name !== undefined) {
+        if (typeof vodafoneCashInput.name !== 'string' || vodafoneCashInput.name.length > MAX_NAME_LENGTH) {
+          return { valid: false, error: `vodafoneCash.name must be a string up to ${MAX_NAME_LENGTH} chars` };
+        }
+        vodafoneCash.name = vodafoneCashInput.name.trim();
+      }
     }
   }
 
   // Validate note
   let note: string | undefined = undefined;
-  if (input.note !== undefined) {
+  if (input.note !== undefined && input.note !== null) {
     if (typeof input.note !== 'string' || input.note.length > MAX_NOTE_LENGTH) {
       return { valid: false, error: `note must be a string up to ${MAX_NOTE_LENGTH} chars` };
     }
-    note = input.note.trim();
+    const trimmedNote = input.note.trim();
+    if (trimmedNote.length > 0) {
+      note = trimmedNote;
+    }
   }
 
   const payload: SupportPayPayload = {

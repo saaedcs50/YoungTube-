@@ -363,6 +363,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     let isCancelled = false;
     async function loadFeedQueue() {
       try {
+        const settings = await db.settings.get('main');
+        const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
+
         const currentItem: QueuedVideo = {
           videoId,
           title: videoTitle || 'فيديو أطفال ممتع',
@@ -386,7 +389,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 (f) =>
                   !f.hidden &&
                   f.isPortrait !== true &&
-                  !(typeof f.videoDuration === 'number' && f.videoDuration < 120)
+                  !(hasFamilyKey && typeof f.videoDuration === 'number' && f.videoDuration < 120)
               )
               .slice(0, 20)
               .map((f) => ({
@@ -409,7 +412,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               (f) =>
                 !f.hidden &&
                 f.isPortrait !== true &&
-                !(typeof f.videoDuration === 'number' && f.videoDuration < 120)
+                !(hasFamilyKey && typeof f.videoDuration === 'number' && f.videoDuration < 120)
             )
             .map((f) => ({
               videoId: f.videoId,

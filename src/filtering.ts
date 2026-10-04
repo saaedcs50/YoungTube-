@@ -329,7 +329,7 @@ export async function ensureChannelsArchiveSynced(): Promise<boolean> {
         archiveSyncPromise = null;
         return false;
       }
-      await purgeInvalidFeedRows();
+      await purgeInvalidFeedRows(hasFamilyKeyForSync);
 
       try {
         const remoteChannelsCache = (data as any[])
