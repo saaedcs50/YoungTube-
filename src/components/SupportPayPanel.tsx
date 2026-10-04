@@ -10,6 +10,8 @@ import {
   Calendar,
   AlertCircle,
   Loader2,
+  Quote,
+  MessageCircle,
 } from 'lucide-react';
 
 export const SupportPayPanel: React.FC = () => {
@@ -119,14 +121,31 @@ export const SupportPayPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Note from developers / organizers (Full text in payload.note) */}
+      {/* 2. Developer support message — intentionally styled, not plain text */}
       {data.note && (
-        <div className="bg-yt-surface rounded-2xl border border-yt-border p-4 sm:p-5 shadow-xs">
-          <h3 className="text-xs font-bold text-yt-text-muted mb-2">رسالة وتفاصيل الدعم:</h3>
-          <p className="text-xs sm:text-sm text-yt-text leading-relaxed font-medium whitespace-pre-line">
-            {data.note}
-          </p>
-        </div>
+        <section
+          id="support-developer-message"
+          className="relative overflow-hidden rounded-3xl border-2 border-yt-brand/25 bg-gradient-to-br from-yt-brand-soft via-yt-surface to-rose-50/70 p-4 sm:p-5 shadow-sm"
+        >
+          <div className="absolute -top-10 -start-8 w-28 h-28 rounded-full bg-yt-brand/10 blur-2xl pointer-events-none" />
+          <div className="relative flex items-start gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-yt-brand text-yt-brand-text flex items-center justify-center shrink-0 shadow-sm">
+              <MessageCircle className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Quote className="w-4 h-4 text-yt-brand" />
+                <h3 className="text-sm sm:text-base font-black text-yt-text">رسالة من فريق YoungTube</h3>
+              </div>
+              <p className="text-xs sm:text-sm text-yt-text leading-7 font-semibold whitespace-pre-line">
+                {data.note}
+              </p>
+              <div className="mt-3 inline-flex items-center rounded-full border border-yt-brand/20 bg-yt-surface/75 px-3 py-1 text-[10px] font-bold text-yt-text-muted">
+                دعم المشروع = استمرار الخدمة وتطويرها
+              </div>
+            </div>
+          </div>
+        </section>
       )}
 
       {/* 3. Payment Channels Cards Grid */}

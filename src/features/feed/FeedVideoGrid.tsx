@@ -29,6 +29,7 @@ export interface FeedVideoGridProps {
   onResetCategory: () => void;
   onTasteReacted: () => void;
   onChoiceMade: () => void;
+  onAddToPlaylist?: (video: FeedItem) => void;
 }
 
 export function FeedVideoGrid({
@@ -49,6 +50,7 @@ export function FeedVideoGrid({
   onResetCategory,
   onTasteReacted,
   onChoiceMade,
+  onAddToPlaylist,
 }: FeedVideoGridProps) {
   // Chunk filtered videos into rows for virtualization
   const videoRows = useMemo(() => {
@@ -143,6 +145,7 @@ export function FeedVideoGrid({
                       onSelectVideo={onSelectVideo}
                       onOpenDemoPlayer={onOpenDemoPlayer}
                       onChannelSelect={onChannelSelect}
+                      onAddToPlaylist={onAddToPlaylist}
                     />
                   );
                 })}
@@ -263,6 +266,7 @@ export function FeedVideoGrid({
                   onOpenDemoPlayer={onOpenDemoPlayer}
                   onTasteReacted={onTasteReacted}
                   onChannelSelect={onChannelSelect}
+                  onAddToPlaylist={onAddToPlaylist}
                 />
               );
             })}
@@ -305,6 +309,7 @@ export function FeedVideoGrid({
                       onOpenDemoPlayer={onOpenDemoPlayer}
                       onTasteReacted={onTasteReacted}
                       onChannelSelect={onChannelSelect}
+                      onAddToPlaylist={onAddToPlaylist}
                     />
                   );
                 })}
@@ -363,6 +368,7 @@ export function FeedVideoGrid({
                   onSelectVideo={onSelectVideo}
                   onOpenDemoPlayer={onOpenDemoPlayer}
                   onChannelSelect={onChannelSelect}
+                  onAddToPlaylist={onAddToPlaylist}
                 />
               );
             })}

@@ -48,11 +48,11 @@ export const SupportPayStrip: React.FC = () => {
       id="support-pay-strip"
       aria-label="دعم YoungTube"
       dir="rtl"
-      className="w-full bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-emerald-500/10 border border-yt-border rounded-2xl p-3 sm:p-3.5 shadow-xs"
+      className="w-full rounded-2xl border-2 border-yt-border bg-yt-surface p-3 sm:p-4 shadow-sm"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3 items-stretch">
         {/* Title Badge */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 min-w-0 rounded-xl border border-yt-border bg-yt-surface-muted/60 p-2.5">
           <div className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
             <Heart className="w-4 h-4 fill-white" />
           </div>
@@ -67,10 +67,10 @@ export const SupportPayStrip: React.FC = () => {
         </div>
 
         {/* Payment Channels */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0 text-xs">
           {/* InstaPay */}
           {hasInstapay && data.instapay && (
-            <div className="flex items-center gap-1.5 bg-yt-surface/90 border border-yt-border px-2.5 py-1.5 rounded-xl shadow-2xs">
+            <div className="min-w-0 flex flex-wrap items-center gap-1.5 bg-yt-surface border border-yt-border px-2.5 py-2 rounded-xl">
               <span className="font-extrabold text-yt-text">
                 {data.instapay.label || 'InstaPay'}:
               </span>
@@ -127,7 +127,7 @@ export const SupportPayStrip: React.FC = () => {
 
           {/* Vodafone Cash */}
           {hasVodafone && data.vodafoneCash && (
-            <div className="flex items-center gap-1.5 bg-yt-surface/90 border border-yt-border px-2.5 py-1.5 rounded-xl shadow-2xs">
+            <div className="min-w-0 flex flex-wrap items-center gap-1.5 bg-yt-surface border border-yt-border px-2.5 py-2 rounded-xl">
               <Smartphone className="w-3.5 h-3.5 text-rose-600" />
               <span className="font-extrabold text-yt-text">
                 {data.vodafoneCash.label || 'فودافون كاش'}:

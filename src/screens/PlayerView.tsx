@@ -9,6 +9,7 @@ import {
   SkipForward,
   Repeat,
   Settings,
+  Cast,
   Heart,
   Download,
   SquarePlay,
@@ -33,6 +34,7 @@ import { trackFunnelEvent } from '../services/funnelTelemetry';
 import { WORKER_URL } from '../config';
 import { getFamilyYoutubeApiHeaders } from '../services/youtubeApiKey';
 import { startDownload, getDownloadByVideoId } from '../services/downloadManager';
+import { castYouTubeVideo } from '../services/castService';
 import { Capacitor } from '@capacitor/core';
 
 export interface QueuedVideo {
@@ -766,6 +768,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       setIsSettingsOpenLocal(true);
     }
   }, [onOpenSheet]);
+
+  const handleCastVideo = useCallback(async () => {
+    const result = await castYouTubeVideo(videoId, videoTitle);
+    setDownloadNotice(result.message);
+    window.setTimeout(() => setDownloadNotice(null), 4500);
+  }, [videoId, videoTitle]);
 
   const handleCloseSettings = useCallback(() => {
     if (typeof window !== 'undefined' && window.history.state?.sheetOpen) {
@@ -1880,6 +1888,21 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 <span className="text-[11px] font-semibold text-yt-text-muted">
                   {isDownloadingCurrent ? 'جاري التحميل' : 'تنزيل'}
                 </span>
+              </button>
+
+              {/* Cast / external screen */}
+              <button
+                type="button"
+                id="player-control-cast"
+                onClick={handleCastVideo}
+                className="flex flex-col items-center gap-1 text-white/70 hover:text-white active:scale-95 transition-all cursor-pointer"
+                title="عرض الفيديو على شاشة خارجية أو TV مدعوم"
+                aria-label="عرض الفيديو على شاشة خارجية أو TV مدعوم"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-white/80">
+                  <Cast className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-semibold text-yt-text-muted">بث</span>
               </button>
 
               {/* Settings */}

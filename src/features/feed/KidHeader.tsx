@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Heart, Lock, Search, X, FolderDown } from 'lucide-react';
 import { CategoryChips } from './CategoryChips';
+import { YoungTubeWordmark } from '../../components/YoungTubeWordmark';
 
 export interface KidHeaderProps {
   collapsed?: boolean;
@@ -53,7 +54,7 @@ export function KidHeader({
    * ========================================================================= */
   if (collapsed) {
     return (
-      <header className="px-3 sm:px-6 py-2 h-13 sm:h-14 flex items-center gap-2 sm:gap-3 transition-all duration-200">
+      <header className="px-3 sm:px-6 py-1.5 h-12 sm:h-13 flex items-center gap-2 sm:gap-3 transition-[height,padding] duration-200">
         {/* START (RTL: right side) - Search icon or in-bar expanded search */}
         {searchOpen ? (
           <div className="flex-1 min-w-0 flex items-center relative transition-all duration-200 ease-out">
@@ -144,6 +145,17 @@ export function KidHeader({
               }`}
             />
           </button>
+
+          <button
+            id="parent-dashboard-lock-btn-collapsed"
+            type="button"
+            onClick={onOpenParentDashboard}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-yt-border bg-yt-surface text-yt-text-muted hover:text-yt-text hover:bg-yt-surface-muted shadow-xs flex items-center justify-center transition active:scale-95 cursor-pointer"
+            title="منطقة الوالدين"
+            aria-label="منطقة الوالدين"
+          >
+            <Lock className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+          </button>
         </div>
       </header>
     );
@@ -153,15 +165,13 @@ export function KidHeader({
    * 2. EXPANDED VIEW: Full Header Stack (Brand, Love, Lock, and Full Search)
    * ========================================================================= */
   return (
-    <header className="px-4 sm:px-8 py-2.5 sm:py-3 transition-all duration-200">
-      <div className="max-w-7xl mx-auto space-y-2.5">
+    <header className="px-3.5 sm:px-8 py-2 sm:py-3 transition-all duration-200">
+      <div className="max-w-7xl mx-auto space-y-2 sm:space-y-2.5">
         {/* Top row: Brand wordmark at start, Favorites & Parent lock at end */}
         <div className="flex items-center justify-between">
           {/* Start (RTL: right side) - brand wordmark */}
           <div className="flex items-center gap-2">
-            <span className="text-xl sm:text-2xl font-extrabold text-yt-brand tracking-tight select-none">
-              يونج تيوب
-            </span>
+            <YoungTubeWordmark />
           </div>
 
           {/* End (RTL: left side) - Downloads, Heart (favorites) & Lock (parents) buttons */}

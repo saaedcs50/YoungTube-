@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FeedItem } from '../db';
-import { VolumeX, Heart, Play } from 'lucide-react';
+import { VolumeX, Heart, Play, ListPlus } from 'lucide-react';
 import { TasteReactionBar } from './TasteReactionBar';
 import { formatViewCount } from '../services/youtubeViewCounts';
 
@@ -20,6 +20,7 @@ export interface VideoCardProps {
   onChannelSelect?: (channelId: string, channelTitle: string) => void;
   onOpenDemoPlayer?: () => void;
   onTasteReacted?: () => void;
+  onAddToPlaylist?: (video: FeedItem) => void;
 }
 
 const THUMBNAIL_QUALITIES = ['mqdefault', 'hqdefault', 'sddefault', 'hq720'] as const;
@@ -110,6 +111,7 @@ export const VideoCard = React.memo(
     onChannelSelect,
     onOpenDemoPlayer,
     onTasteReacted,
+    onAddToPlaylist,
   }: VideoCardProps) {
     const candidates = useMemo(
       () => getThumbnailCandidateUrls(video.videoId, (video as any).thumbnail),
@@ -216,6 +218,24 @@ export const VideoCard = React.memo(
             >
               ✨ جديد
             </div>
+          )}
+
+
+          {onAddToPlaylist && (
+            <button
+              type="button"
+              id={`add-to-playlist-${video.videoId}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToPlaylist(video);
+              }}
+              className="absolute bottom-2 start-2 z-20 inline-flex items-center gap-1 rounded-full bg-black/75 px-2.5 py-1.5 text-[10px] font-bold text-white backdrop-blur-sm hover:bg-yt-brand transition active:scale-95 cursor-pointer"
+              aria-label="إضافة إلى قائمة تشغيل"
+              title="إضافة إلى قائمة تشغيل"
+            >
+              <ListPlus className="w-3.5 h-3.5" />
+              <span>قائمة</span>
+            </button>
           )}
 
           {/* Optional No Music Muted Badge */}
@@ -332,7 +352,8 @@ export const VideoCard = React.memo(
       prev.isFavorite === next.isFavorite &&
       prev.isTasteShiftTarget === next.isTasteShiftTarget &&
       prev.activeTasteShiftCategory === next.activeTasteShiftCategory &&
-      prev.onChannelSelect === next.onChannelSelect
+      prev.onChannelSelect === next.onChannelSelect &&
+      prev.onAddToPlaylist === next.onAddToPlaylist
     );
   }
 );

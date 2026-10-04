@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(YoungTubeDownloaderPlugin.class);
+        registerPlugin(YoungTubeCastPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

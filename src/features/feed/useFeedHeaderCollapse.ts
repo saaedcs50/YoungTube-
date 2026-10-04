@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 // Tuning constants for YouTube-style direction + hysteresis
-export const TOP_EXPAND = 32;       // scrollY <= this threshold always forces expanded state
-export const COLLAPSE_AFTER = 80;   // Minimum scrollY needed before downward collapse can trigger
-export const COLLAPSE_DELTA = 32;   // Accumulated downward scroll delta required to collapse
-export const EXPAND_DELTA = 56;     // Accumulated upward scroll delta required to expand (hysteresis prevents flicker)
+export const TOP_EXPAND = 16;       // scrollY <= this threshold always forces expanded state
+export const COLLAPSE_AFTER = 56;   // Minimum scrollY needed before downward collapse can trigger
+export const COLLAPSE_DELTA = 18;   // Accumulated downward scroll delta required to collapse
+export const EXPAND_DELTA = 14;     // Accumulated upward scroll delta required to expand (hysteresis prevents flicker)
 export const MIN_STEP = 4;          // Ignore micro-jitter / tiny scroll increments
 
 export interface UseFeedHeaderCollapseOptions {
@@ -23,11 +23,11 @@ export interface UseFeedHeaderCollapseOptions {
  * - false = full header
  * 
  * Rules:
- * 1) scrollY <= TOP_EXPAND (32) -> always collapsed = false
- * 2) Scroll DOWN: only set collapsed true if scrollY >= COLLAPSE_AFTER (80)
- *    and accumulated downward delta >= COLLAPSE_DELTA (32)
- * 3) Scroll UP: only set collapsed false if accumulated upward delta >= EXPAND_DELTA (56)
- *    (EXPAND_DELTA > COLLAPSE_DELTA = hysteresis, prevents flicker)
+ * 1) scrollY <= TOP_EXPAND (16) -> always collapsed = false
+ * 2) Scroll DOWN: only set collapsed true if scrollY >= COLLAPSE_AFTER (56)
+ *    and accumulated downward delta >= COLLAPSE_DELTA (18)
+ * 3) Scroll UP: only set collapsed false if accumulated upward delta >= EXPAND_DELTA (14)
+ *    (أعلى سرعة رجوع: EXPAND_DELTA أقل من COLLAPSE_DELTA، لتقليل الإحساس بالاهتزاز)
  * 4) Ignore |diff| < MIN_STEP (4)
  * 5) Passive window scroll listener throttled with requestAnimationFrame (at most once per frame)
  * 6) Uses refs for lastScrollY, accumulated delta, and collapsedRef to eliminate redundant setStates

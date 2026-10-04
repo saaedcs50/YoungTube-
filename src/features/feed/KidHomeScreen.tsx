@@ -8,6 +8,9 @@ import { KidHeader } from './KidHeader';
 import { CategoryChips } from './CategoryChips';
 import { FavoritesView } from './FavoritesView';
 import { FeedVideoGrid } from './FeedVideoGrid';
+import { PullToRefresh } from '../../components/PullToRefresh';
+import { PlaylistManager } from '../../components/PlaylistManager';
+import { FeedItem } from '../../db';
 
 export interface KidHomeScreenProps {
   onOpenParentDashboard: () => void;
@@ -34,6 +37,7 @@ export function KidHomeScreen({
   const collapsed = useFeedHeaderCollapse();
   const [viewingChannelId, setViewingChannelId] = useState<{ id: string; title: string } | null>(null);
   const [showDownloads, setShowDownloads] = useState(false);
+  const [playlistActionVideo, setPlaylistActionVideo] = useState<FeedItem | null>(null);
 
   const handleChannelSelect = useCallback((id: string, title: string) => {
     setViewingChannelId({ id, title });
@@ -62,6 +66,11 @@ export function KidHomeScreen({
     loadVideos,
     loadFavorites,
   } = useKidFeed({ refreshTrigger, suppressedVideoIds });
+
+  const handleRefreshFeed = useCallback(async () => {
+    // Full feed refresh intentionally re-shuffles the current approved pool.
+    await loadVideos(false);
+  }, [loadVideos]);
 
   const handleClearSearch = useCallback(() => {
     setSearchInput('');
@@ -126,6 +135,7 @@ export function KidHomeScreen({
       </div>
 
       {/* 2. Main Content: Favorites View OR Main Feed Video Grid */}
+      <PullToRefresh onRefresh={handleRefreshFeed} disabled={loading || showFavorites}>
       <main className="grow w-full py-2 sm:py-6">
         {showFavorites ? (
           <FavoritesView
@@ -138,6 +148,7 @@ export function KidHomeScreen({
             onCloseFavorites={() => setShowFavorites(false)}
             onClearSearch={handleClearSearch}
             onFavoritesChanged={() => void loadFavorites()}
+            onAddToPlaylist={(video) => setPlaylistActionVideo(video)}
           />
         ) : (
           <FeedVideoGrid
@@ -158,9 +169,24 @@ export function KidHomeScreen({
             onResetCategory={handleResetCategory}
             onTasteReacted={() => void loadVideos(true)}
             onChoiceMade={() => void loadVideos(true)}
+            onAddToPlaylist={(video) => setPlaylistActionVideo(video)}
           />
         )}
       </main>
+      </PullToRefresh>
+
+      {playlistActionVideo && (
+        <div className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" onMouseDown={() => setPlaylistActionVideo(null)}>
+          <div className="w-full max-w-md bg-yt-surface rounded-3xl border border-yt-border shadow-2xl p-4 sm:p-5 max-h-[80vh] overflow-y-auto" onMouseDown={(e) => e.stopPropagation()}>
+            <PlaylistManager
+              mode="add"
+              video={playlistActionVideo}
+              onClose={() => setPlaylistActionVideo(null)}
+              onChanged={() => setPlaylistActionVideo(null)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 3. Friendly Bottom Footer */}
       <footer className="py-5 border-t border-yt-border text-center text-xs font-medium text-yt-text-muted">

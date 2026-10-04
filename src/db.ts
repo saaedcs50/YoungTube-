@@ -115,6 +115,14 @@ interface DailySummary {
   dislikedVideoIds: string[];
 }
 
+interface ChildPlaylist {
+  id: string;
+  name: string;
+  videoIds: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 interface CustomCategory {
   id?: number;
   categoryId: string;
@@ -149,6 +157,7 @@ const db = new Dexie('KidsYouTubeDB') as Dexie & {
   dailySummaries: EntityTable<DailySummary, 'date'>;
   customCategories: EntityTable<CustomCategory, 'id'>;
   tasteShiftEvents: EntityTable<TasteShiftEvent, 'id'>;
+  childPlaylists: EntityTable<ChildPlaylist, 'id'>;
 };
 
 db.version(1).stores({
@@ -221,6 +230,20 @@ db.version(6).stores({
   tasteShiftEvents: '++id, ts, categoryId, type, videoId',
 });
 
+// Version 7: child-created playlists for the Favorites screen
+db.version(7).stores({
+  settings: 'id',
+  channels: '++id, sourceId, *category',
+  usage: 'date',
+  feedCache: 'videoId, channelId, fetchedAt, publishedAt',
+  interactions: 'videoId, channelId',
+  downloads: '++id, &videoId, status, createdAt',
+  dailySummaries: 'date',
+  customCategories: '++id, &categoryId',
+  tasteShiftEvents: '++id, ts, categoryId, type, videoId',
+  childPlaylists: 'id, createdAt, updatedAt',
+});
+
 // INVARIANT: Block adding any channel whose sourceId starts with '@'
 db.channels.hook('creating', (_primKey, obj) => {
   if (obj.sourceId && typeof obj.sourceId === 'string' && obj.sourceId.trim().startsWith('@')) {
@@ -241,4 +264,5 @@ export type {
   DailySummary,
   CustomCategory,
   TasteShiftEvent,
+  ChildPlaylist,
 };

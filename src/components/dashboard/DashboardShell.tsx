@@ -81,11 +81,11 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       className="min-h-screen bg-yt-bg text-yt-text flex flex-col font-sans"
     >
       {/* 1. Header Bar */}
-      <header className="sticky top-0 z-40 bg-yt-bg/90 backdrop-blur-md border-b border-yt-border px-4 sm:px-8 py-3.5 shadow-sm">
-        <div className="max-w-6xl w-full mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 bg-yt-bg/90 backdrop-blur-md border-b border-yt-border px-3.5 sm:px-8 py-3 shadow-sm overflow-x-clip">
+        <div className="max-w-6xl w-full mx-auto flex flex-wrap items-center justify-between gap-2.5 min-w-0">
           {/* Logo & Title */}
           <div
-            className="flex items-center gap-3 select-none cursor-pointer"
+            className="flex items-center gap-2.5 select-none cursor-pointer min-w-0"
             onClick={handleTitleTap}
             title="لوحة الأهل (اضغط 5 مرات لتغيير وضع أدوات النظام)"
           >
@@ -100,14 +100,14 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           </div>
 
           {/* Top Actions: الوضع الليلي · قفل · شاشة الأطفال */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end max-w-full">
             {headerSlot}
 
             <button
               id="dashboard-header-theme-toggle-btn"
               type="button"
               onClick={handleToggleTheme}
-              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-yt-surface hover:bg-yt-surface-muted text-yt-text border border-yt-border text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-2 rounded-xl bg-yt-surface hover:bg-yt-surface-muted text-yt-text border border-yt-border text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
               title={currentTheme === 'dark' ? 'التحويل إلى الوضع الفاتح' : 'التحويل إلى الوضع الليلي'}
             >
               {currentTheme === 'dark' ? (
@@ -127,7 +127,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               id="dashboard-header-lock-btn"
               type="button"
               onClick={onLock}
-              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-yt-surface hover:bg-yt-surface-muted text-yt-text border border-yt-border text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-2 rounded-xl bg-yt-surface hover:bg-yt-surface-muted text-yt-text border border-yt-border text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
               title="قفل لوحة الأهل"
             >
               <Lock className="w-3 h-3 text-yt-text-muted" />
@@ -138,7 +138,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               id="dashboard-header-back-btn"
               type="button"
               onClick={onClose}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-2 rounded-xl bg-yt-brand hover:bg-yt-brand-hover text-yt-brand-text text-xs font-bold transition duration-150 shadow-sm cursor-pointer active:scale-[0.98]"
               title="العودة لشاشة الأطفال"
             >
               <span>شاشة الأطفال</span>
@@ -174,8 +174,6 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           )}
         </div>
 
-        {/* Support Pay Strip at end of content for each dashboard tab */}
-        <SupportPayStrip />
       </main>
 
       {/* 3. Footer */}

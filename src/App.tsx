@@ -27,7 +27,6 @@ const SessionEndScreen = React.lazy(() => import('./components/SessionEndScreen'
 const AnnouncementModal = React.lazy(() => import('./components/AnnouncementModal'));
 const DashboardShell = React.lazy(() => import('./components/dashboard/DashboardShell').then((m) => ({ default: m.DashboardShell })));
 const ChannelsCountCard = React.lazy(() => import('./components/ChannelsCountCard'));
-const FilteringResultCard = React.lazy(() => import('./components/FilteringResultCard'));
 const ChildProfileSection = React.lazy(() => import('./components/ChildProfileSection').then((m) => ({ default: m.ChildProfileSection })));
 const TimerSection = React.lazy(() => import('./components/dashboard/TimerSection').then((m) => ({ default: m.TimerSection })));
 const TasteShiftCard = React.lazy(() => import('./components/TasteShiftCard').then((m) => ({ default: m.TasteShiftCard })));
@@ -970,8 +969,8 @@ export default function App() {
       )}
 
       {/* Background archive sync lives in ensureChannelsArchiveSynced (kids + dashboard).
-          Do not mount hidden ChannelsCountCard/FilteringResultCard here — they put the
-          full Worker payload into React state and double-fetch in some modes. */}
+          Do not mount hidden archive summary widgets here — they put the full Worker payload into React state
+          and can double-fetch in some modes. */}
 
       {/* Phase 8: Full-Screen Session Takeover when session limit reached */}
       {sessionTimer.isLimitReached && viewMode !== 'dashboard' ? (
@@ -1138,14 +1137,6 @@ export default function App() {
           {/* SECTION: الفلترة والحجب */}
           {dashboardSection === 'filtering' && (
             <div id="section-filtering" className="space-y-6">
-              {/* Filtering Engine Result & Protection Summary Card */}
-              <Suspense fallback={<SectionLoadingSkeleton />}>
-                <FilteringResultCard
-                  channels={channelsData}
-                  refreshTrigger={channelsRefreshTrigger}
-                />
-              </Suspense>
-
               <Suspense fallback={<SectionLoadingSkeleton />}>
                 <FilteringTab
                   onFilterChanged={() => {
