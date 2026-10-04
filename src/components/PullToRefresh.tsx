@@ -14,6 +14,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
   threshold = 72,
   children,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const startYRef = useRef<number | null>(null);
   const startXRef = useRef<number | null>(null);
   const activeRef = useRef(false);
@@ -23,9 +24,58 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
   const [refreshing, setRefreshing] = useState(false);
   const [completed, setCompleted] = useState(false);
 
+  // Helper to reliably check scroll position across all mobile webviews & browsers
+  const getScrollTop = () => {
+    if (typeof window === 'undefined') return 0;
+    return Math.max(
+      0,
+      window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+    );
+  };
+
+  // Reset any active pull state immediately when disabled
+  useEffect(() => {
+    if (disabled) {
+      activeRef.current = false;
+      pullDistanceRef.current = 0;
+      setPullDistance(0);
+      startYRef.current = null;
+      startXRef.current = null;
+    }
+  }, [disabled]);
+
   useEffect(() => {
     const onTouchStart = (event: TouchEvent) => {
-      if (disabled || refreshingRef.current || window.scrollY > 2 || event.touches.length !== 1) return;
+      // 1. Guard against disabled state, active refresh, or multi-touch gestures
+      if (disabled || refreshingRef.current || event.touches.length !== 1) return;
+
+      // 2. Strict top check: ONLY trigger when at the very top of the feed (scrollY <= 1)
+      if (getScrollTop() > 1) return;
+
+      // 3. Strict Target check: Touch MUST start directly inside this PullToRefresh container
+      const target = event.target as Node | null;
+      if (!containerRef.current || !target || !containerRef.current.contains(target)) {
+        return;
+      }
+
+      // 4. Exclude touches on player, modals, dialogs, buttons, or form controls
+      const el = event.target as HTMLElement | null;
+      if (
+        el &&
+        el.closest(
+          '#player-video-container, #player-view, #mini-player-body-tap, #mini-player-close-btn, .player-view, [data-prevent-pull-to-refresh], button, a, input, textarea, select'
+        )
+      ) {
+        return;
+      }
+
+      // 5. Do not activate if a full/portrait video player is currently active in the DOM
+      const playerEl = document.getElementById('player-video-container');
+      const isMini = document.getElementById('mini-player-close-btn');
+      if (playerEl && !isMini) {
+        return;
+      }
+
       startYRef.current = event.touches[0].clientY;
       startXRef.current = event.touches[0].clientX;
       activeRef.current = true;
@@ -34,7 +84,9 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
 
     const onTouchMove = (event: TouchEvent) => {
       if (!activeRef.current || startYRef.current == null || startXRef.current == null || refreshingRef.current) return;
-      if (window.scrollY > 2 || event.touches.length !== 1) {
+
+      // If user has scrolled down into the feed or changed fingers, abort pull-to-refresh
+      if (getScrollTop() > 1 || event.touches.length !== 1) {
         activeRef.current = false;
         pullDistanceRef.current = 0;
         setPullDistance(0);
@@ -43,6 +95,8 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
 
       const dy = event.touches[0].clientY - startYRef.current;
       const dx = event.touches[0].clientX - startXRef.current;
+
+      // Must be a downward swipe and strictly more vertical than horizontal
       if (Math.abs(dx) > Math.abs(dy) || dy <= 0) {
         pullDistanceRef.current = 0;
         setPullDistance(0);
@@ -52,7 +106,9 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       const eased = Math.min(threshold * 1.35, Math.pow(dy, 0.82) * 2.1);
       pullDistanceRef.current = eased;
       setPullDistance(eased);
-      if (eased > 6) event.preventDefault();
+      if (eased > 6 && event.cancelable) {
+        event.preventDefault();
+      }
     };
 
     const onTouchEnd = async () => {
@@ -102,7 +158,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
   );
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <div
         className={`pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center transition-opacity duration-150 ${visible ? 'opacity-100' : 'opacity-0'}`}
         aria-hidden="true"

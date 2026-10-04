@@ -24,6 +24,7 @@ export interface KidHomeScreenProps {
   ) => void;
   refreshTrigger?: number;
   suppressedVideoIds?: string[];
+  isPlayerOpen?: boolean;
 }
 
 export function KidHomeScreen({
@@ -32,6 +33,7 @@ export function KidHomeScreen({
   onSelectVideo,
   refreshTrigger = 0,
   suppressedVideoIds = [],
+  isPlayerOpen = false,
 }: KidHomeScreenProps) {
   const columnCount = useColumnCount();
   const [viewingChannelId, setViewingChannelId] = useState<{ id: string; title: string } | null>(null);
@@ -138,7 +140,7 @@ export function KidHomeScreen({
       </div>
 
       {/* 2. Main Content: Favorites View OR Main Feed Video Grid */}
-      <PullToRefresh onRefresh={handleRefreshFeed} disabled={loading || showFavorites}>
+      <PullToRefresh onRefresh={handleRefreshFeed} disabled={loading || showFavorites || isPlayerOpen}>
       <main className="grow w-full py-2 sm:py-6">
         {showFavorites ? (
           <FavoritesView

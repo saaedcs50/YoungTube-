@@ -991,6 +991,7 @@ export default function App() {
             onSelectVideo={handleSelectVideo}
             refreshTrigger={channelsRefreshTrigger}
             suppressedVideoIds={suppressedVideoIds}
+            isPlayerOpen={isPlayerOpen && !isPlayerMinimized}
           />
 
           {/* If ?dev=1 was present in URL, provide quick dev switch floating badge */}
