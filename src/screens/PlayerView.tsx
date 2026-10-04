@@ -1731,7 +1731,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             </div>
           )}
 
-          {/* Mini-Player Close "X" Button placed at top-right of mini rectangle */}
+          {/* Mini-Player Close "X" Button placed inside top-right of mini rectangle */}
           {isMinimized && (
             <button
               type="button"
@@ -1740,11 +1740,11 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 e.stopPropagation();
                 handleMiniPlayerClose();
               }}
-              className="absolute -top-2 -right-2 z-30 w-7 h-7 rounded-full bg-yt-surface border border-yt-border hover:border-rose-400 text-yt-text-muted hover:text-white hover:bg-rose-600 shadow-lg flex items-center justify-center cursor-pointer transition"
+              className="absolute top-2 right-2 z-30 w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-black/85 hover:bg-rose-600 text-white border border-white/40 hover:border-white shadow-md shadow-black/80 backdrop-blur-md flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-90"
               aria-label="إغلاق المشغل المصغر"
               title="إغلاق الفيديو"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4.5 h-4.5 text-white stroke-[2.5] drop-shadow-xs" />
             </button>
           )}
 
