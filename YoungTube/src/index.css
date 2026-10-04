@@ -1,0 +1,101 @@
+@import "tailwindcss";
+@import "./theme.css";
+
+@theme inline {
+  --color-yt-bg: var(--yt-bg);
+  --color-yt-surface: var(--yt-surface);
+  --color-yt-surface-muted: var(--yt-surface-muted);
+  --color-yt-border: var(--yt-border);
+  --color-yt-text: var(--yt-text);
+  --color-yt-text-muted: var(--yt-text-muted);
+  --color-yt-text-inverse: var(--yt-text-inverse);
+  --color-yt-brand: var(--yt-brand);
+  --color-yt-brand-hover: var(--yt-brand-hover);
+  --color-yt-brand-soft: var(--yt-brand-soft);
+  --color-yt-brand-text: var(--yt-brand-text);
+  --color-yt-danger: var(--yt-danger);
+  --color-yt-warning: var(--yt-warning);
+  --color-yt-success: var(--yt-success);
+  --color-yt-info: var(--yt-info);
+  --radius-yt: var(--yt-radius);
+  --radius-yt-sm: var(--yt-radius-sm);
+  --shadow-yt: var(--yt-shadow);
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/cairo-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/cairo-500.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/cairo-600.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/cairo-700.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/cairo-800.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/fonts/cairo-900.woff2') format('woff2');
+}
+
+@layer base {
+  body {
+    font-family: 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--yt-bg);
+    color: var(--yt-text);
+  }
+}
+
+/* Tiny section enter transition */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.18s ease-out forwards;
+}
+
+/* Phase 6 — player options panel */
+@keyframes slideInRight {
+  from { transform: translateX(12px); opacity: 0.6; }
+  to { transform: translateX(0); opacity: 1; }
+}

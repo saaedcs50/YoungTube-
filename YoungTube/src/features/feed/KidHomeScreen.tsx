@@ -34,6 +34,7 @@ export function KidHomeScreen({
   suppressedVideoIds = [],
 }: KidHomeScreenProps) {
   const columnCount = useColumnCount();
+  const collapsed = useFeedHeaderCollapse();
   const [viewingChannelId, setViewingChannelId] = useState<{ id: string; title: string } | null>(null);
   const [showDownloads, setShowDownloads] = useState(false);
   const [playlistActionVideo, setPlaylistActionVideo] = useState<FeedItem | null>(null);
@@ -65,10 +66,6 @@ export function KidHomeScreen({
     loadVideos,
     loadFavorites,
   } = useKidFeed({ refreshTrigger, suppressedVideoIds });
-
-  const collapsed = useFeedHeaderCollapse({
-    disabled: Boolean(searchInput.trim()) || showFavorites,
-  });
 
   const handleRefreshFeed = useCallback(async () => {
     // Full feed refresh intentionally re-shuffles the current approved pool.

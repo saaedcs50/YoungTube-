@@ -3,7 +3,6 @@ import { Play } from 'lucide-react';
 
 export const YoungTubeWordmark: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
   <div
-    dir="ltr"
     className={`inline-flex items-center select-none font-black tracking-[-0.045em] leading-none ${compact ? 'text-[18px]' : 'text-[22px] sm:text-[24px]'}`}
     aria-label="YoungTube"
   >

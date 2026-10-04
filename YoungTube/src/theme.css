@@ -1,0 +1,64 @@
+/**
+ * YoungTube Design System Tokens
+ * 
+ * 1. Single source of truth for colors, radiuses, and shadows across YoungTube.
+ * 2. Change brand identity and theme colors by editing these CSS variables only.
+ * 3. Player dark mode is activated via [data-surface="player"] on the PlayerView root.
+ */
+
+:root {
+  --yt-bg: #FFFFFF;
+  --yt-surface: #FFFFFF;
+  --yt-surface-muted: #F2F2F2;
+  --yt-border: #E5E5E5;
+
+  --yt-text: #0F0F0F;
+  --yt-text-muted: #606060;
+  --yt-text-inverse: #FFFFFF;
+
+  --yt-brand: #FF6115;
+  --yt-brand-hover: #E5550F;
+  --yt-brand-soft: #FFE8DC;
+  --yt-brand-text: #ffffff;
+
+  --yt-danger: #e11d48;
+  --yt-warning: #f59e0b;
+  --yt-success: #059669;
+  --yt-info: #0284c7;
+
+  --yt-radius: 1rem;
+  --yt-radius-sm: 0.75rem;
+  --yt-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme="dark"] {
+  --yt-bg: #0F0F0F;
+  --yt-surface: #212121;
+  --yt-surface-muted: #272727;
+  --yt-border: #303030;
+
+  --yt-text: #F1F1F1;
+  --yt-text-muted: #AAAAAA;
+  --yt-text-inverse: #0F0F0F;
+
+  --yt-brand: #FF6115;
+  --yt-brand-hover: #E5550F;
+  --yt-brand-soft: rgba(255, 97, 21, 0.22);
+  --yt-brand-text: #FFFFFF;
+
+  --yt-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+[data-surface="player"] {
+  --yt-bg: #09090b;
+  --yt-surface: #18181b;
+  --yt-surface-muted: #27272a;
+  --yt-border: #3f3f46;
+  --yt-text: #fafafa;
+  --yt-text-muted: #a1a1aa;
+  --yt-brand: #FF6115;
+  --yt-brand-hover: #E5550F;
+  --yt-brand-soft: rgba(255, 97, 21, 0.22);
+  --yt-brand-text: #ffffff;
+  --yt-warning: #fbbf24;
+}

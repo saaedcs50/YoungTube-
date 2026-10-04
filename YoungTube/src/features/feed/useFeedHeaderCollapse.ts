@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
 // Tuning constants for YouTube-style direction + hysteresis
-export const TOP_EXPAND = 24;       // scrollY <= this threshold always forces expanded state
-export const COLLAPSE_AFTER = 90;   // Minimum scrollY needed before downward collapse can trigger
-export const COLLAPSE_DELTA = 35;   // Accumulated downward scroll delta required to collapse
-export const EXPAND_DELTA = 30;     // Accumulated upward scroll delta required to expand (hysteresis prevents flicker)
-export const MIN_STEP = 5;          // Ignore micro-jitter / tiny scroll increments
-export const COOLDOWN_MS = 320;     // Cooldown duration after state change to absorb layout shift deltas
-export const MAX_FRAME_DELTA = 65;  // Filter out unnatural layout jump spikes
+export const TOP_EXPAND = 16;       // scrollY <= this threshold always forces expanded state
+export const COLLAPSE_AFTER = 56;   // Minimum scrollY needed before downward collapse can trigger
+export const COLLAPSE_DELTA = 18;   // Accumulated downward scroll delta required to collapse
+export const EXPAND_DELTA = 14;     // Accumulated upward scroll delta required to expand (hysteresis prevents flicker)
+export const MIN_STEP = 4;          // Ignore micro-jitter / tiny scroll increments
 
 export interface UseFeedHeaderCollapseOptions {
-  disabled?: boolean;
   topExpand?: number;
   collapseAfter?: number;
   collapseDelta?: number;
@@ -21,14 +18,21 @@ export interface UseFeedHeaderCollapseOptions {
 /**
  * Hook providing YouTube-style direction + hysteresis scroll logic for the kids feed header.
  * 
- * Features:
- * - Prevents flicker via a state-transition cooldown that absorbs DOM layout-shift scroll deltas.
- * - Filters high-delta spikes (> MAX_FRAME_DELTA) caused by component unmounting/collapsing.
- * - Direction-based hysteresis: deliberate downward scroll to collapse, deliberate upward scroll to expand.
- * - Instant expand when scrolled near the top (scrollY <= topExpand).
+ * Returns boolean `collapsed`:
+ * - true  = compact single bar
+ * - false = full header
+ * 
+ * Rules:
+ * 1) scrollY <= TOP_EXPAND (16) -> always collapsed = false
+ * 2) Scroll DOWN: only set collapsed true if scrollY >= COLLAPSE_AFTER (56)
+ *    and accumulated downward delta >= COLLAPSE_DELTA (18)
+ * 3) Scroll UP: only set collapsed false if accumulated upward delta >= EXPAND_DELTA (14)
+ *    (أعلى سرعة رجوع: EXPAND_DELTA أقل من COLLAPSE_DELTA، لتقليل الإحساس بالاهتزاز)
+ * 4) Ignore |diff| < MIN_STEP (4)
+ * 5) Passive window scroll listener throttled with requestAnimationFrame (at most once per frame)
+ * 6) Uses refs for lastScrollY, accumulated delta, and collapsedRef to eliminate redundant setStates
  */
 export function useFeedHeaderCollapse(options?: UseFeedHeaderCollapseOptions): boolean {
-  const disabled = options?.disabled ?? false;
   const topExpand = options?.topExpand ?? TOP_EXPAND;
   const collapseAfter = options?.collapseAfter ?? COLLAPSE_AFTER;
   const collapseDelta = options?.collapseDelta ?? COLLAPSE_DELTA;
@@ -41,22 +45,9 @@ export function useFeedHeaderCollapse(options?: UseFeedHeaderCollapseOptions): b
   const collapsedRef = useRef<boolean>(false);
   const lastScrollYRef = useRef<number>(0);
   const accumulatedDeltaRef = useRef<number>(0); // positive: downward, negative: upward
-  const lastStateChangeRef = useRef<number>(0);
   const rafIdRef = useRef<number | null>(null);
 
-  // Reset collapse when disabled (e.g. search active or favorites view)
   useEffect(() => {
-    if (disabled && collapsedRef.current) {
-      collapsedRef.current = false;
-      setCollapsed(false);
-      accumulatedDeltaRef.current = 0;
-      lastStateChangeRef.current = performance.now();
-    }
-  }, [disabled]);
-
-  useEffect(() => {
-    if (disabled) return;
-
     // Initialize scroll state on mount
     const initialY = typeof window !== 'undefined' ? (window.scrollY || window.pageYOffset || 0) : 0;
     lastScrollYRef.current = initialY;
@@ -68,7 +59,6 @@ export function useFeedHeaderCollapse(options?: UseFeedHeaderCollapseOptions): b
     const updateScroll = () => {
       const scrollY = Math.max(0, window.scrollY || window.pageYOffset || 0);
       const diff = scrollY - lastScrollYRef.current;
-      const now = performance.now();
 
       // Rule 1: Near top -> always expand
       if (scrollY <= topExpand) {
@@ -77,35 +67,17 @@ export function useFeedHeaderCollapse(options?: UseFeedHeaderCollapseOptions): b
         if (collapsedRef.current) {
           collapsedRef.current = false;
           setCollapsed(false);
-          lastStateChangeRef.current = now;
         }
         return;
       }
 
-      // Rule 2: Anti-flicker cooldown:
-      // When the header transitions between collapsed and expanded, the document
-      // height changes which causes browser scroll adjustments. Absorbing deltas
-      // during this window prevents positive feedback loops and flickering.
-      if (now - lastStateChangeRef.current < COOLDOWN_MS) {
-        accumulatedDeltaRef.current = 0;
-        lastScrollYRef.current = scrollY;
-        return;
-      }
-
-      // Rule 3: Ignore micro-steps
+      // Rule 4: Ignore micro-steps
       if (Math.abs(diff) < minStep) {
         lastScrollYRef.current = scrollY;
         return;
       }
 
-      // Rule 4: Filter out layout-shift / programmatic jump spikes
-      if (Math.abs(diff) > MAX_FRAME_DELTA) {
-        accumulatedDeltaRef.current = 0;
-        lastScrollYRef.current = scrollY;
-        return;
-      }
-
-      // Rule 5: Direction tracking and accumulation
+      // Direction tracking and accumulation
       if (diff > 0) {
         // Scrolling DOWN
         if (accumulatedDeltaRef.current < 0) {
@@ -114,6 +86,7 @@ export function useFeedHeaderCollapse(options?: UseFeedHeaderCollapseOptions): b
           accumulatedDeltaRef.current += diff;
         }
 
+        // Rule 2: Scroll DOWN condition
         if (
           !collapsedRef.current &&
           scrollY >= collapseAfter &&
@@ -121,8 +94,6 @@ export function useFeedHeaderCollapse(options?: UseFeedHeaderCollapseOptions): b
         ) {
           collapsedRef.current = true;
           setCollapsed(true);
-          accumulatedDeltaRef.current = 0;
-          lastStateChangeRef.current = now;
         }
       } else if (diff < 0) {
         // Scrolling UP
@@ -133,14 +104,13 @@ export function useFeedHeaderCollapse(options?: UseFeedHeaderCollapseOptions): b
           accumulatedDeltaRef.current -= upDelta;
         }
 
+        // Rule 3: Scroll UP condition (hysteresis)
         if (
           collapsedRef.current &&
           Math.abs(accumulatedDeltaRef.current) >= expandDelta
         ) {
           collapsedRef.current = false;
           setCollapsed(false);
-          accumulatedDeltaRef.current = 0;
-          lastStateChangeRef.current = now;
         }
       }
 
@@ -164,9 +134,9 @@ export function useFeedHeaderCollapse(options?: UseFeedHeaderCollapseOptions): b
         rafIdRef.current = null;
       }
     };
-  }, [disabled, topExpand, collapseAfter, collapseDelta, expandDelta, minStep]);
+  }, [topExpand, collapseAfter, collapseDelta, expandDelta, minStep]);
 
-  return disabled ? false : collapsed;
+  return collapsed;
 }
 
 export default useFeedHeaderCollapse;
