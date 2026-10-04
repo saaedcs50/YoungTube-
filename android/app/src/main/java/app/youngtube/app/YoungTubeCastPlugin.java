@@ -65,19 +65,32 @@ public class YoungTubeCastPlugin extends Plugin {
                         CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID))
                 .addControlCategory(MediaControlIntent.CATEGORY_LIVE_VIDEO)
                 .build();
-        mediaRouterCallback = new MediaRouter.SimpleCallback() {
+        mediaRouterCallback = new MediaRouter.Callback() {
             @Override
-            public void onRouteSelected(@NonNull MediaRouter router, int type, @NonNull MediaRouter.RouteInfo info) {
-                showPresentationIfNeeded(info);
+            public void onRouteSelected(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route) {
+                showPresentationIfNeeded(route);
             }
 
             @Override
-            public void onRoutePresentationDisplayChanged(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo info) {
-                showPresentationIfNeeded(info);
+            public void onRouteSelected(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route, int reason) {
+                showPresentationIfNeeded(route);
             }
 
             @Override
-            public void onRouteUnselected(@NonNull MediaRouter router, int type, @NonNull MediaRouter.RouteInfo info) {
+            public void onRoutePresentationDisplayChanged(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route) {
+                showPresentationIfNeeded(route);
+            }
+
+            @Override
+            public void onRouteUnselected(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route) {
+                if (presentation != null) {
+                    presentation.dismiss();
+                    presentation = null;
+                }
+            }
+
+            @Override
+            public void onRouteUnselected(@NonNull MediaRouter router, @NonNull MediaRouter.RouteInfo route, int reason) {
                 if (presentation != null) {
                     presentation.dismiss();
                     presentation = null;
@@ -225,7 +238,6 @@ public class YoungTubeCastPlugin extends Plugin {
 
     private void showPresentationIfNeeded(@NonNull MediaRouter.RouteInfo route) {
         if (pendingVideoId == null || pendingVideoId.isEmpty()) return;
-        if ((route.getSupportedTypes() & MediaRouter.ROUTE_TYPE_LIVE_VIDEO) == 0) return;
         Display display = route.getPresentationDisplay();
         if (display == null) return;
         try {
@@ -249,7 +261,6 @@ public class YoungTubeCastPlugin extends Plugin {
         java.util.ArrayList<MediaRouter.RouteInfo> candidates = new java.util.ArrayList<>();
         for (MediaRouter.RouteInfo route : routes) {
             if (route == null || !route.isEnabled()) continue;
-            if ((route.getSupportedTypes() & MediaRouter.ROUTE_TYPE_LIVE_VIDEO) == 0) continue;
             if (route.getPresentationDisplay() != null) candidates.add(route);
         }
 
@@ -259,7 +270,7 @@ public class YoungTubeCastPlugin extends Plugin {
         }
 
         String[] names = new String[candidates.size()];
-        for (int i = 0; i < candidates.size(); i++) names[i] = candidates.get(i).getName(getContext()).toString();
+        for (int i = 0; i < candidates.size(); i++) names[i] = candidates.get(i).getName();
 
         new androidx.appcompat.app.AlertDialog.Builder(getActivity())
                 .setTitle("اختار الشاشة")
