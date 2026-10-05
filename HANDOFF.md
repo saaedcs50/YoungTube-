@@ -117,10 +117,58 @@ Use:
 
 Never upgrade SOURCE-OK or BLOCKED to PASS without evidence.
 
+## Recent Change Sessions & Concrete Audit Log
+
+### Session 2026-10-04 (Late-Turn Hardening & Native/Web Fixes)
+
+#### 1. RTL Logo Orientation Fix
+- **File**: `src/components/YoungTubeWordmark.tsx`
+- **What**: Added `dir="ltr"` to the root flex container.
+- **Why**: In RTL document layout, child elements rendered in reverse order (Tube ▶ Young). Forcing `dir="ltr"` ensures the brand reads "Young ▶ Tube".
+- **Verification**: `PASS` (verified DOM layout in browser environment and static TS lint).
+
+#### 2. Mini-Player Close Button Fix
+- **File**: `src/screens/PlayerView.tsx`
+- **What**: Repositioned mini-player close button from `-top-2 -right-2` to `top-2 right-2`, increased dimensions to `34px` (`w-8.5 h-8.5`), enlarged icon to `18px` with `stroke-[2.5]`, high-contrast white with `bg-black/85 backdrop-blur-md` and `border-white/40`.
+- **Why**: The previous `-top-2 -right-2` position was clipped by the container's `overflow-hidden` rounded corners, and the dark grey color on black made it invisible/obscured ("مطموسة وصغيرة").
+- **Verification**: `PASS` (verified visually in browser and static TS lint).
+
+#### 3. Feed Header Collapse Anti-Flicker & Hysteresis
+- **File**: `src/features/feed/useFeedHeaderCollapse.ts`
+- **What**: Implemented `COOLDOWN_MS = 320ms` post-state transition to absorb browser DOM layout shifts, added `MAX_FRAME_DELTA = 65px` spike filter to ignore programmatic layout jumps, tuned hysteresis thresholds (`COLLAPSE_AFTER = 90`, `COLLAPSE_DELTA = 35`, `EXPAND_DELTA = 30`), and disabled auto-collapse while searching or in favorites.
+- **Why**: Collapsing header height jumped from ~158px to 48px, causing browser layout adjustments that were misdetected as upward scroll, creating an infinite oscillation/flickering loop.
+- **Verification**: `PASS` (tested via continuous scrolling and simulated layout shifts; static TS lint clean).
+
+#### 4. Pull-to-Refresh Scope & Active-Player Gating
+- **Files**: `src/components/PullToRefresh.tsx`, `src/features/feed/KidHomeScreen.tsx`, `src/App.tsx`
+- **What**:
+  - Bound touch target detection strictly to `containerRef.current` (the feed content).
+  - Explicitly excluded touches initiating on `#player-video-container`, `#player-view`, mini-player, modals, buttons, or form elements.
+  - Implemented strict top-of-feed check `getScrollTop() <= 1` across all window/document scroll implementations.
+  - Passed `isPlayerOpen={isPlayerOpen && !isPlayerMinimized}` from `App.tsx` to `KidHomeScreen` and disabled `PullToRefresh` whenever a full/portrait player is open.
+- **Why**: The previous global `window` touch listener triggered a pull-to-refresh whenever the user performed a swipe-down gesture on an active video player.
+- **Verification**: `PASS` (tested swipe gestures on player overlays and top-of-feed triggers; static TS lint clean).
+
+#### 5. AndroidX MediaRouter Migration
+- **File**: `android/app/src/main/java/app/youngtube/app/YoungTubeCastPlugin.java`
+- **What**:
+  - Replaced deleted `MediaRouter.SimpleCallback` with `MediaRouter.Callback` implementing all required overrides.
+  - Removed all uses of deprecated framework `getSupportedTypes()` and `ROUTE_TYPE_LIVE_VIDEO`.
+  - Replaced `candidates.get(i).getName(getContext()).toString()` with zero-arg AndroidX `candidates.get(i).getName()`.
+  - Filtered external presentation displays via `route.getPresentationDisplay() != null`.
+- **Why**: Resolves 9 compile failures in GitHub Actions Android build caused by mixing framework `android.media.MediaRouter` APIs with `androidx.mediarouter.media.MediaRouter`.
+- **Verification**: `SOURCE-OK` (verified 0 remaining occurrences of deprecated APIs via regex/AST search; local Gradle build `BLOCKED` due to lack of local Android SDK/Java in container; builds cleanly conceptually for `:app:compileDebugJavaWithJavac`).
+
+#### 6. Operating Documentation Placement
+- **Files**: `PROJECT_CONTEXT.md`, `HANDOFF.md`, `WORKER_CLOUDFLARE.md`, `AI_REVIEW_INSTRUCTIONS.md`
+- **What**: Synchronized and placed the official operating documentation files in the repository root directory as the permanent system of record.
+- **Verification**: `PASS` (file presence, byte integrity, and cross-reference check completed).
+
 ## Next Agent Should Do
 
-1. Read `YoungTube_PROJECT_CONTEXT.md`.
-2. Read this file.
-3. Inspect the current working tree before editing.
-4. Continue from the current code, not from an older ZIP.
-5. After any modification, update this handoff with exact changed files and verification result.
+1. Read `PROJECT_CONTEXT.md`, `HANDOFF.md`, and `AI_REVIEW_INSTRUCTIONS.md` before making any edits.
+2. Inspect the current working tree on disk before planning changes.
+3. Continue from current files; never re-create deleted components or revive older ZIP archives.
+4. Verify any code modification with `lint_applet` and `compile_applet`.
+5. Maintain the invariant: delete `bun.lock` if generated by tooling.
+6. Update this `HANDOFF.md` file immediately upon completing any new modification.
