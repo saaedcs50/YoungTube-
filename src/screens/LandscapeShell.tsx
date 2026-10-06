@@ -7,6 +7,7 @@ import {
   SkipBack,
   SkipForward,
   Heart,
+  ListPlus,
 } from 'lucide-react';
 import { PlayerSeekBar } from '../components/PlayerSeekBar';
 
@@ -22,6 +23,7 @@ export interface LandscapeShellProps {
   onTogglePlay: () => void;
   onToggleLoop: () => void;
   onToggleLove?: () => void;
+  onAddToPlaylist?: () => void;
   onPrev?: () => void;
   onNext?: () => void;
   onSeek?: (time: number) => void;
@@ -46,6 +48,7 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
   onTogglePlay,
   onToggleLoop,
   onToggleLove,
+  onAddToPlaylist,
   onPrev,
   onNext,
   onSeek,
@@ -265,6 +268,24 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
                 >
                   <Repeat className="w-5 h-5" />
                 </button>
+
+                {/* Add to Playlist button */}
+                {onAddToPlaylist && (
+                  <button
+                    type="button"
+                    id="landscape-add-to-playlist-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetHideTimer();
+                      onAddToPlaylist();
+                    }}
+                    className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-black/60 hover:bg-black/80 text-yt-text-muted hover:text-white border border-yt-border flex items-center justify-center transition active:scale-95 cursor-pointer shadow-md"
+                    aria-label="إضافة إلى قائمة تشغيل"
+                    title="إضافة هذا الفيديو إلى قائمة تشغيل"
+                  >
+                    <ListPlus className="w-5 h-5 text-yt-text-muted hover:text-white" />
+                  </button>
+                )}
 
                 {/* Bottom Exit Fullscreen shortcut */}
                 <button

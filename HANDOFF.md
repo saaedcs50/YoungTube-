@@ -213,6 +213,23 @@ Never upgrade SOURCE-OK or BLOCKED to PASS without evidence.
   - `npm run build` (`vite build`): `PASS` (production build compiled cleanly).
   - `bun.lock` absence: `PASS` (enforced invariant).
 
+### Session 2026-10-06 (Player Add-to-Playlist Control & Safe Modal Integration)
+
+- **What**:
+  - **Player Controls Button (`id="player-control-add-to-playlist"`)**: Added "إضافة إلى قائمة تشغيل" button with `ListPlus` icon to Portrait player controls in the secondary group (ordered: Repeat -> Add to Playlist -> Download -> Cast -> Settings -> Love).
+  - **Responsive 6-Column Layout**: Adjusted secondary controls container from flex to `grid grid-cols-6 gap-1 px-1` with `items-start justify-items-center` so all 6 action buttons remain visible, unclipped, and legible on mobile screens without overflowing.
+  - **Landscape Support (`id="landscape-add-to-playlist-btn"`)**: Added `onAddToPlaylist` prop to `LandscapeShellProps` and rendered an add-to-playlist button in landscape mode. When clicked from fullscreen, it gracefully exits fullscreen first via `pendingPlaylistManagerOpen` and immediately opens the modal in portrait.
+  - **Safe Isolated Modal Overlay (`id="player-playlist-manager-modal"`)**: Mounted `PlaylistManager` in `mode="add"` at the root of `PlayerView` (outside `player-portrait-gesture-layer`, `z-[85]`), preventing any touch/gesture conflict with playback, seeking, or video controls.
+  - **Dynamic Video Binding**: Binds directly to `currentVideo.videoId` and `currentVideo.title` at the time of click, ensuring accuracy when navigating playlists or autoplaying subsequent videos.
+  - **Playback Continuity**: Adding a video or creating a playlist from the modal saves directly to Dexie via `PlaylistManager` / `playlistService` with duplicate prevention and does not pause, seek, or restart current video playback.
+- **Files Modified**:
+  - `src/screens/PlayerView.tsx`
+  - `src/screens/LandscapeShell.tsx`
+- **Verification**:
+  - `npm run lint` (`tsc --noEmit`): `PASS` (0 errors).
+  - `npm run build` (`vite build`): `PASS` (production build compiled cleanly).
+  - `bun.lock` absence: `PASS` (enforced invariant).
+
 ## Next Agent Should Do
 
 1. Read `PROJECT_CONTEXT.md`, `HANDOFF.md`, and `AI_REVIEW_INSTRUCTIONS.md` before making any edits.

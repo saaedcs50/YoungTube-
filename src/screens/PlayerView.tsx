@@ -22,8 +22,10 @@ import {
   X,
   AlertTriangle,
   FolderDown,
+  ListPlus,
 } from 'lucide-react';
 import { LandscapeShell } from './LandscapeShell';
+import { PlaylistManager } from '../components/PlaylistManager';
 import { PlayerSeekBar } from '../components/PlayerSeekBar';
 import { PlayerSettingsSheet } from '../components/PlayerSettingsSheet';
 import PinLockModal from '../components/PinLockModal';
@@ -947,6 +949,40 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     performEnterFullscreen();
   }, [onEnterFullscreen, performEnterFullscreen]);
 
+  // Playlist Manager Modal State
+  const [isPlaylistManagerOpen, setIsPlaylistManagerOpen] = useState(false);
+  const [pendingPlaylistManagerOpen, setPendingPlaylistManagerOpen] = useState(false);
+
+  const handleOpenPlaylistManager = useCallback(() => {
+    if (isFullscreenActiveRef.current || isFullscreen) {
+      setPendingPlaylistManagerOpen(true);
+      handleExitFullscreen();
+    } else {
+      setIsPlaylistManagerOpen(true);
+    }
+  }, [isFullscreen, handleExitFullscreen]);
+
+  const handleClosePlaylistManager = useCallback(() => {
+    setIsPlaylistManagerOpen(false);
+    setPendingPlaylistManagerOpen(false);
+  }, []);
+
+  // When exiting fullscreen, open playlist manager if it was requested from fullscreen
+  useEffect(() => {
+    if (!isFullscreen && pendingPlaylistManagerOpen) {
+      setPendingPlaylistManagerOpen(false);
+      setIsPlaylistManagerOpen(true);
+    }
+  }, [isFullscreen, pendingPlaylistManagerOpen]);
+
+  // Close playlist manager if video is minimized or receives forceStop
+  useEffect(() => {
+    if (isMinimized || effectiveForceStop) {
+      setIsPlaylistManagerOpen(false);
+      setPendingPlaylistManagerOpen(false);
+    }
+  }, [isMinimized, effectiveForceStop]);
+
   // Sync if propIsFullscreen changes from outside
   useEffect(() => {
     if (propIsFullscreen === false && isFullscreenActiveRef.current) {
@@ -1723,6 +1759,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               onTogglePlay={handleTogglePlay}
               onToggleLoop={handleToggleLoop}
               onToggleLove={handleToggleLove}
+              onAddToPlaylist={handleOpenPlaylistManager}
               onPrev={handlePrev}
               onNext={handleNext}
               onSeek={handleSeek}
@@ -1908,8 +1945,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               </button>
             </div>
 
-            {/* 3) Secondary group (lower opacity): loop · download · settings · love with text labels */}
-            <div className="relative flex items-center justify-around px-2 border-t border-white/5 pt-2 w-full max-w-sm mx-auto">
+            {/* 3) Secondary group: loop · add-to-playlist · download · cast · settings · love */}
+            <div className="relative grid grid-cols-6 gap-1 px-1 border-t border-white/5 pt-2 w-full max-w-lg mx-auto items-start justify-items-center">
               {/* Floating Download Toast / Notice */}
               {downloadNotice && (
                 <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-yt-brand text-yt-brand-text text-[11px] font-bold shadow-md animate-fade-in pointer-events-none whitespace-nowrap z-20">
@@ -1933,7 +1970,30 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 >
                   <Repeat className="w-5 h-5" />
                 </div>
-                <span className="text-[11px] font-semibold text-yt-text-muted">تكرار</span>
+                <span className="text-[11px] font-semibold text-yt-text-muted text-center">تكرار</span>
+              </button>
+
+              {/* Add to Playlist Control */}
+              <button
+                type="button"
+                id="player-control-add-to-playlist"
+                onClick={handleOpenPlaylistManager}
+                className="flex flex-col items-center gap-1 text-white/70 hover:text-white active:scale-95 transition-all cursor-pointer"
+                aria-label="إضافة إلى قائمة تشغيل"
+                title="إضافة هذا الفيديو إلى قائمة تشغيل"
+              >
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    isPlaylistManagerOpen
+                      ? 'bg-yt-brand-soft text-yt-brand border border-yt-brand/40'
+                      : 'bg-white/5 hover:bg-white/10 text-white/80'
+                  }`}
+                >
+                  <ListPlus className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] sm:text-[11px] font-semibold text-yt-text-muted text-center leading-tight line-clamp-2">
+                  إضافة إلى قائمة تشغيل
+                </span>
               </button>
 
               {/* Download Control */}
@@ -1954,7 +2014,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 >
                   <Download className={`w-5 h-5 ${isDownloadingCurrent ? 'animate-bounce' : ''}`} />
                 </div>
-                <span className="text-[11px] font-semibold text-yt-text-muted">
+                <span className="text-[11px] font-semibold text-yt-text-muted text-center">
                   {isDownloadingCurrent ? 'جاري التحميل' : 'تنزيل'}
                 </span>
               </button>
@@ -1971,7 +2031,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-white/80">
                   <Cast className="w-5 h-5" />
                 </div>
-                <span className="text-[11px] font-semibold text-yt-text-muted">بث</span>
+                <span className="text-[11px] font-semibold text-yt-text-muted text-center">بث</span>
               </button>
 
               {/* Settings */}
@@ -1990,7 +2050,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 >
                   <Settings className="w-5 h-5" />
                 </div>
-                <span className="text-[11px] font-semibold text-yt-text-muted">الإعدادات</span>
+                <span className="text-[11px] font-semibold text-yt-text-muted text-center">الإعدادات</span>
               </button>
 
               {/* Love / Favorite */}
@@ -2013,7 +2073,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                     }`}
                   />
                 </div>
-                <span className="text-[11px] font-semibold text-yt-text-muted">المفضلة</span>
+                <span className="text-[11px] font-semibold text-yt-text-muted text-center">المفضلة</span>
               </button>
             </div>
           </div>
@@ -2068,6 +2128,40 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           onClose={handleCloseSettings}
           player={playerRef.current}
         />
+      )}
+
+      {/* Playlist Manager Modal Overlay */}
+      {isPlaylistManagerOpen && !isMinimized && (
+        <div
+          id="player-playlist-manager-modal"
+          className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4"
+          dir="rtl"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClosePlaylistManager();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+        >
+          <div
+            className="w-full max-w-md bg-yt-surface rounded-2xl shadow-2xl border border-yt-border overflow-hidden animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <PlaylistManager
+              mode="add"
+              video={{
+                videoId: currentVideo.videoId,
+                title: currentVideo.title,
+              }}
+              onClose={handleClosePlaylistManager}
+              onChanged={() => {
+                // Refresh list if needed
+              }}
+            />
+          </div>
+        </div>
       )}
 
       {/* PIN Lock Modal for Disabling / Blocking Channel */}
