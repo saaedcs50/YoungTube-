@@ -11,6 +11,7 @@ import { FeedVideoGrid } from './FeedVideoGrid';
 import { PullToRefresh } from '../../components/PullToRefresh';
 import { PlaylistManager } from '../../components/PlaylistManager';
 import { FeedItem } from '../../db';
+import type { PlaylistPlaybackContext } from '../../services/playlists/playlistTypes';
 
 export interface KidHomeScreenProps {
   onOpenParentDashboard: () => void;
@@ -20,7 +21,7 @@ export interface KidHomeScreenProps {
     title?: string,
     channelName?: string,
     channelId?: string,
-    options?: { localPath?: string; fromDownloads?: boolean }
+    options?: { localPath?: string; fromDownloads?: boolean; playlistContext?: PlaylistPlaybackContext }
   ) => void;
   refreshTrigger?: number;
   suppressedVideoIds?: string[];

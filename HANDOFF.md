@@ -4,8 +4,8 @@
 
 - Repo: `saaedcs50/YoungTube-`
 - Branch: `main`
-- Current HEAD: `29fe861ad8456c7b59b4a7f3354027a3b8b4bdad`
-- Current HEAD change: `fix: update MediaRouter callback implementation`
+- Current HEAD: `7a00cb81ad3491a977ff6642e3b93d63b10461f1`
+- Current HEAD change: `feat: add canonical local-first playlist architecture`
 - Primary source root: repository root
 - Worker source: `worker/`
 - Android project: `android/`
@@ -188,6 +188,30 @@ Never upgrade SOURCE-OK or BLOCKED to PASS without evidence.
 - **Files**: Deleted `YoungTube_PROJECT_CONTEXT.md`, `YoungTube_CLOUDFLARE_WORKER_CONTEXT.md`, `YoungTube_HANDOFF.md`, `IMPLEMENTED_CHANGES.md`, `fix.py`, `server.ts`.
 - **What**: Cleaned obsolete scripts and redundant prefixed markdown files, preserving only the canonical set: `PROJECT_CONTEXT.md`, `HANDOFF.md`, `WORKER_CLOUDFLARE.md`, `AI_REVIEW_INSTRUCTIONS.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CHANNELS_MASTER.md`. Verified HEAD commit updated to `29fe861ad8456c7b59b4a7f3354027a3b8b4bdad`.
 - **Verification**: `PASS` (filesystem verification, zero missing canonical files, preserved all CSVs and assets).
+
+### Session 2026-10-06 (Canonical Local-First Playlist Architecture & Playback Integration)
+
+- **HEAD**: `7a00cb81ad3491a977ff6642e3b93d63b10461f1`
+- **What**:
+  - **Dexie Schema v8**: Introduced normalized `childPlaylistItems` table (with compound index `&[playlistId+videoId]`, `[playlistId+position]`) and `playlistPlaybackSessions` table. Automated backward-compatible migration in `db.version(8).upgrade(...)` converting legacy `childPlaylists.videoIds[]` to individual items.
+  - **Playlist Domain Services (`src/services/playlists/*`)**:
+    - `playlistTypes.ts`: Strong typing for `PlaylistKind`, `PlaylistPlaybackContext`, `ResolvedPlaylistQueue`, `PlaylistItem`.
+    - `playlistRepository.ts`: CRUD, atomic transactions, duplicate membership guard, position reordering (`reorderPlaylistItem`), and cascade deletion (`deletePlaylist`).
+    - `playlistSafety.ts`: Strict child context gating (`canPlayVideoInChildContext`) checking hidden status, blocked channels, disabled channels, portrait mode, 120s duration threshold (with family key), and offline availability.
+    - `playlistSelectors.ts`: Resolves item views (`resolvePlaylistItemViews`) with playable badges, safety reasons, and thumbnails.
+    - `playlistService.ts`: Public API for saving/creating playlists with last-used tracking.
+    - `playlistPlayback.ts`: Builds and resolves ordered playback queues (`resolvePlaylistQueue`) with shuffle support and safety-filtering.
+  - **Player Integration (`src/screens/PlayerView.tsx` & `src/App.tsx`)**:
+    - Full `PlaylistPlaybackContext` support. When launched from a playlist, the player uses the playlist items as the primary queue instead of recommendations.
+    - Supports `loopMode` ('off' | 'item' | 'playlist'), shuffle, prev/next within playlist bounds, and natural end-of-playlist termination.
+    - Passed playlist context down from `App.tsx` and `KidHomeScreen.tsx` to `FavoritesView.tsx` and `PlayerView.tsx`.
+  - **UI Updates (`PlaylistManager.tsx` & `FavoritesView.tsx`)**:
+    - `FavoritesView.tsx` separates Favorites from Playlists, displays item reordering (up/down), reason labels for unavailable items, "Play All", and "Shuffle".
+    - `PlaylistManager.tsx` provides clean create/edit/manage actions backed by the repository.
+- **Verification**:
+  - `npm run lint` (`tsc --noEmit`): `PASS` (0 errors).
+  - `npm run build` (`vite build`): `PASS` (production build compiled cleanly).
+  - `bun.lock` absence: `PASS` (enforced invariant).
 
 ## Next Agent Should Do
 

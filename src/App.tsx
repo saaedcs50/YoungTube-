@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import db, { Settings } from './db';
 import { WORKER_URL } from './config';
+import type { PlaylistPlaybackContext } from './services/playlists/playlistTypes';
 import { checkAndRequestStoragePersistence, StoragePersistenceResult } from './storage';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -153,6 +154,7 @@ export default function App() {
     channelName?: string;
     channelId?: string;
     localPath?: string;
+    playlistContext?: PlaylistPlaybackContext;
   } | null>(null);
   const [devForceStop, setDevForceStop] = useState(false);
   const [suppressedVideoIds, setSuppressedVideoIds] = useState<string[]>([]);
@@ -259,7 +261,7 @@ export default function App() {
     title?: string,
     channelName?: string,
     channelId?: string,
-    options?: { localPath?: string; fromDownloads?: boolean }
+    options?: { localPath?: string; fromDownloads?: boolean; playlistContext?: PlaylistPlaybackContext }
   ) => {
     updatePlayerMinimized(false);
     updatePlayerSheetOpen(false);
@@ -267,7 +269,7 @@ export default function App() {
       window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
       playerHistoryDepthRef.current += 1;
     }
-    setActivePlaybackVideo({ videoId, title, channelName, channelId, localPath: options?.localPath });
+    setActivePlaybackVideo({ videoId, title, channelName, channelId, localPath: options?.localPath, playlistContext: options?.playlistContext });
   }, [updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const handlePlayerEnterFullscreen = useCallback(() => {
@@ -947,6 +949,7 @@ export default function App() {
             channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
             channelId={activePlaybackVideo?.channelId}
             localPath={activePlaybackVideo?.localPath}
+            playlistContext={activePlaybackVideo?.playlistContext}
             onVideoHidden={handleVideoHidden}
             onChannelBlocked={handleBackfillSuccess}
             onClose={handleClosePlayer}

@@ -10,8 +10,8 @@ This file is generated from direct inspection of the current GitHub `main` branc
 
 - Repository: `saaedcs50/YoungTube-`
 - Branch: `main`
-- Current HEAD: `29fe861ad8456c7b59b4a7f3354027a3b8b4bdad`
-- HEAD commit message: `fix: update MediaRouter callback implementation`
+- Current HEAD: `7a00cb81ad3491a977ff6642e3b93d63b10461f1`
+- HEAD commit message: `feat: add canonical local-first playlist architecture`
 - Previous commit: `7e48617b962094cc5950b3ae233a7cdd2e0e2c51`
 - Primary app root: repository root
 - Frontend entry: `src/main.tsx`
@@ -98,7 +98,7 @@ The current parent dashboard navigation does NOT expose a dedicated analytics ta
 
 `src/db.ts` uses Dexie database `KidsYouTubeDB`.
 
-Current schema is version 7.
+Current schema is version 8.
 
 Stores include:
 
@@ -112,6 +112,8 @@ Stores include:
 - `customCategories`
 - `tasteShiftEvents`
 - `childPlaylists`
+- `childPlaylistItems`
+- `playlistPlaybackSessions`
 
 ## 5. Critical Product Rules
 

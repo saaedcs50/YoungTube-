@@ -36,6 +36,8 @@ import { getFamilyYoutubeApiHeaders } from '../services/youtubeApiKey';
 import { startDownload, getDownloadByVideoId } from '../services/downloadManager';
 import { castYouTubeVideo } from '../services/castService';
 import { Capacitor } from '@capacitor/core';
+import { resolvePlaylistQueue } from '../services/playlists/playlistPlayback';
+import type { PlaylistPlaybackContext } from '../services/playlists/playlistTypes';
 
 export interface QueuedVideo {
   videoId: string;
@@ -44,7 +46,7 @@ export interface QueuedVideo {
   channelId?: string;
 }
 
-const DEFAULT_PLAYLIST: QueuedVideo[] = [
+const DEFAULT_DEMO_QUEUE: QueuedVideo[] = [
   {
     videoId: 's6X_Q54_PBs',
     title: 'Alphablocks - مغامرة الحروف والكلمات الإنجليزية',
@@ -95,6 +97,7 @@ interface PlayerViewProps {
   channelTitle?: string;
   channelId?: string;
   localPath?: string;
+  playlistContext?: PlaylistPlaybackContext;
   onVideoHidden?: (videoId: string) => void;
   onChannelBlocked?: () => void;
   onRefreshHomeFeed?: () => void;
@@ -119,6 +122,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   channelTitle,
   channelId: propChannelId,
   localPath: propLocalPath,
+  playlistContext,
   onVideoHidden,
   onChannelBlocked,
   onRefreshHomeFeed,
@@ -153,7 +157,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
   // Primary Player State (declared early to prevent TDZ errors in callbacks & hooks)
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isLooping, setIsLooping] = useState(false);
+  const [loopMode, setLoopMode] = useState<'off' | 'item' | 'playlist'>('off');
+  const isLooping = loopMode !== 'off';
+  const [playlistShuffle, setPlaylistShuffle] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -172,7 +178,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       channelTitle: channelTitle || 'قناة أطفال موثوقة',
       channelId: propChannelId,
     });
-  }, [videoId, videoTitle, channelTitle, propChannelId]);
+  }, [videoId, videoTitle, channelTitle, propChannelId, playlistContext, playlistShuffle]);
 
   // Resolve local path from prop or Dexie catalog for current videoId
   useEffect(() => {
@@ -348,7 +354,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [isFullscreen]);
 
   const [playlist, setPlaylist] = useState<QueuedVideo[]>(() => {
-    const list = [...DEFAULT_PLAYLIST];
+    const list = [...DEFAULT_DEMO_QUEUE];
     if (!list.some((v) => v.videoId === videoId)) {
       list.unshift({
         videoId,
@@ -360,10 +366,36 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     return list;
   });
 
+  const [playlistItemIds, setPlaylistItemIds] = useState<string[]>([]);
+  const currentPlaylistItemIdRef = useRef<string | null>(playlistContext?.playlistItemId ?? null);
+
+  useEffect(() => {
+    currentPlaylistItemIdRef.current = playlistContext?.playlistItemId ?? null;
+  }, [playlistContext?.playlistItemId]);
+
   // Merge with bounded cached feed if present in Dexie (excluding hidden videos)
   useEffect(() => {
     let isCancelled = false;
     async function loadFeedQueue() {
+      if (playlistContext?.source === 'playlist' && playlistContext.playlistId) {
+        try {
+          const resolved = await resolvePlaylistQueue(playlistContext.playlistId, currentPlaylistItemIdRef.current ?? playlistContext.playlistItemId, { shuffle: playlistContext.shuffle ?? playlistShuffle });
+          if (isCancelled) return;
+          setPlaylist(resolved.items);
+          setPlaylistItemIds(resolved.itemIds);
+          const target = resolved.items[resolved.currentIndex] ?? resolved.items[0];
+          if (target) {
+            currentPlaylistItemIdRef.current = resolved.itemIds[resolved.currentIndex] ?? resolved.itemIds[0] ?? null;
+            setCurrentVideo(target);
+            lastSecondRef.current = 0;
+            setCurrentTime(0);
+          }
+        } catch (err) {
+          console.warn('Failed to load playlist queue:', err);
+          if (!isCancelled) { setPlaylist([]); setPlaylistItemIds([]); }
+        }
+        return;
+      }
       try {
         const settings = await db.settings.get('main');
         const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
@@ -434,7 +466,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           currentItem,
           ...sameChannelItems,
           ...recentFeedItems,
-          ...DEFAULT_PLAYLIST,
+          ...DEFAULT_DEMO_QUEUE,
         ]) {
           if (!seen.has(item.videoId)) {
             seen.add(item.videoId);
@@ -450,7 +482,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     return () => {
       isCancelled = true;
     };
-  }, [videoId, videoTitle, channelTitle, propChannelId]);
+  }, [videoId, videoTitle, channelTitle, propChannelId, playlistContext, playlistShuffle]);
 
   // Current Time & Duration tracking (optimizing re-renders: setState at most once per second or on seek/change)
   const lastSecondRef = useRef(-1);
@@ -523,8 +555,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [activeLocalPath, localPlayError]);
 
   // Video switching via loadVideoById (no black flash, same instance)
-  const handlePlayQueuedVideo = useCallback((item: QueuedVideo) => {
+  const handlePlayQueuedVideo = useCallback((item: QueuedVideo, itemId?: string) => {
     checkAndLogSkippedEarly(currentVideo.videoId, currentTime, duration, currentVideo.channelId);
+    if (playlistContext?.source === 'playlist') currentPlaylistItemIdRef.current = itemId ?? currentPlaylistItemIdRef.current;
     setCurrentVideo(item);
     lastSecondRef.current = 0;
     setCurrentTime(0);
@@ -534,27 +567,36 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     } catch (err) {
       console.warn('loadVideoById failed:', err);
     }
-  }, [checkAndLogSkippedEarly, currentVideo, currentTime, duration]);
+  }, [checkAndLogSkippedEarly, currentVideo, currentTime, duration, playlistContext]);
 
   const handlePrev = useCallback(() => {
     if (playlist.length === 0) return;
     const curIdx = playlist.findIndex((v) => v.videoId === currentVideo.videoId);
+    if (playlistContext?.source === 'playlist') {
+      const prevIdx = curIdx > 0 ? curIdx - 1 : loopMode === 'playlist' ? playlist.length - 1 : -1;
+      const prevItem = prevIdx >= 0 ? playlist[prevIdx] : undefined;
+      if (prevItem) handlePlayQueuedVideo(prevItem, playlistItemIds[prevIdx]);
+      return;
+    }
     const prevIdx = curIdx > 0 ? curIdx - 1 : playlist.length - 1;
     const prevItem = playlist[prevIdx];
-    if (prevItem) {
-      handlePlayQueuedVideo(prevItem);
-    }
-  }, [playlist, currentVideo.videoId, handlePlayQueuedVideo]);
+    if (prevItem) handlePlayQueuedVideo(prevItem);
+  }, [playlist, currentVideo.videoId, handlePlayQueuedVideo, playlistContext, loopMode, playlistItemIds]);
 
   const handleNext = useCallback(() => {
     if (playlist.length === 0) return;
     const curIdx = playlist.findIndex((v) => v.videoId === currentVideo.videoId);
+    if (playlistContext?.source === 'playlist') {
+      const nextIdx = curIdx >= 0 && curIdx + 1 < playlist.length ? curIdx + 1 : loopMode === 'playlist' ? 0 : -1;
+      const nextItem = nextIdx >= 0 ? playlist[nextIdx] : undefined;
+      if (nextItem) handlePlayQueuedVideo(nextItem, playlistItemIds[nextIdx]);
+      else onEnded();
+      return;
+    }
     const nextIdx = curIdx >= 0 ? (curIdx + 1) % playlist.length : 0;
     const nextItem = playlist[nextIdx];
-    if (nextItem) {
-      handlePlayQueuedVideo(nextItem);
-    }
-  }, [playlist, currentVideo.videoId, handlePlayQueuedVideo]);
+    if (nextItem) handlePlayQueuedVideo(nextItem);
+  }, [playlist, currentVideo.videoId, handlePlayQueuedVideo, playlistContext, loopMode, playlistItemIds, onEnded]);
 
   // Helper: Resolve channelId robustly
   const resolveChannelId = useCallback(
@@ -823,8 +865,15 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [isPlaying, activeLocalPath, localPlayError]);
 
   const handleToggleLoop = useCallback(() => {
-    setIsLooping((prev) => !prev);
+    setLoopMode((prev) => prev === 'off' ? 'item' : prev === 'item' ? 'playlist' : 'off');
   }, []);
+
+  const handleToggleShuffle = useCallback(() => {
+    if (playlistContext?.source !== 'playlist') return;
+    const idx = playlist.findIndex((v) => v.videoId === currentVideo.videoId);
+    currentPlaylistItemIdRef.current = playlistItemIds[idx] ?? currentPlaylistItemIdRef.current;
+    setPlaylistShuffle((prev) => !prev);
+  }, [playlistContext, playlist, currentVideo.videoId, playlistItemIds]);
 
   const performExitFullscreen = useCallback(async () => {
     setIsFullscreenActive(false);
@@ -1044,7 +1093,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     }
     // 0: ENDED
     else if (event.data === 0) {
-      if (isLooping) {
+      if (loopMode === 'item') {
         try {
           event.target?.seekTo?.(0, true);
           event.target?.playVideo?.();
@@ -1053,6 +1102,18 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         } catch {
           // ignore
         }
+      } else if (playlistContext?.source === 'playlist') {
+        const curIdx = playlist.findIndex((v) => v.videoId === currentVideo.videoId);
+        const nextIdx = curIdx >= 0 && curIdx + 1 < playlist.length ? curIdx + 1 : loopMode === 'playlist' ? 0 : -1;
+        if (nextIdx >= 0 && playlist[nextIdx]) {
+          handlePlayQueuedVideo(playlist[nextIdx], playlistItemIds[nextIdx]);
+          setIsPlaying(true);
+          onPlayingChange?.(true);
+          return;
+        }
+        setIsPlaying(false);
+        onPlayingChange?.(false);
+        onEnded();
       } else {
         setIsPlaying(false);
         onPlayingChange?.(false);
@@ -1576,16 +1637,24 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                   setDuration(e.currentTarget.duration);
                 }}
                 onEnded={() => {
-                  if (isLooping) {
+                  if (loopMode === 'item') {
                     if (localVideoRef.current) {
                       localVideoRef.current.currentTime = 0;
                       localVideoRef.current.play().catch(console.warn);
                     }
-                  } else {
-                    setIsPlaying(false);
-                    onPlayingChange?.(false);
-                    onEnded();
+                    return;
                   }
+                  if (playlistContext?.source === 'playlist') {
+                    const idx = playlist.findIndex((v) => v.videoId === currentVideo.videoId);
+                    const nextIdx = idx >= 0 && idx + 1 < playlist.length ? idx + 1 : loopMode === 'playlist' ? 0 : -1;
+                    if (nextIdx >= 0 && playlist[nextIdx]) {
+                      handlePlayQueuedVideo(playlist[nextIdx], playlistItemIds[nextIdx]);
+                      return;
+                    }
+                  }
+                  setIsPlaying(false);
+                  onPlayingChange?.(false);
+                  onEnded();
                 }}
                 onError={() => {
                   console.error('Local video failed to play:', activeLocalPath);
