@@ -171,17 +171,33 @@ export async function startDownload(video: DownloadVideoParams): Promise<Downloa
       activeListeners.delete(videoId);
     }
 
-    if (result.ok) {
+    if (result.ok && typeof result.path === 'string' && result.path.trim().length > 0) {
+      const cleanPath = result.path.trim();
       await upsertDownload({
         videoId,
         status: 'done',
-        path: result.path,
+        path: cleanPath,
         percent: 100,
         errorMessage: undefined,
       });
-      return result;
+      return {
+        ...result,
+        path: cleanPath,
+      };
+    } else if (result.ok) {
+      const friendlyError = 'تم الإبلاغ عن نجاح التنزيل لكن مسار الملف المحلي غير صالح';
+      await upsertDownload({
+        videoId,
+        status: 'failed',
+        errorMessage: friendlyError,
+      });
+      return {
+        ok: false,
+        code: 'NATIVE_ERROR',
+        message: friendlyError,
+      };
     } else {
-      const failResult = result as { ok: false; code: 'UNSUPPORTED_PLATFORM' | 'NOT_IMPLEMENTED' | 'INVALID' | 'NATIVE_ERROR'; message: string };
+      const failResult = result as { ok: false; code: 'UNSUPPORTED_PLATFORM' | 'NOT_IMPLEMENTED' | 'INVALID' | 'EMPTY_FILE' | 'NATIVE_ERROR'; message: string };
       let friendlyError = failResult.message || 'فشل التنزيل';
       if (failResult.code === 'UNSUPPORTED_PLATFORM') {
         friendlyError = 'ميزة التنزيل متاحة على تطبيق الأندرويد فقط';

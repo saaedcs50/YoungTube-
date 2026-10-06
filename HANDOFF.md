@@ -4,7 +4,7 @@
 
 - Repo: `saaedcs50/YoungTube-`
 - Branch: `main`
-- Current HEAD: `d38e6faae81b00660839d221f501f4c30f5a92c6`
+- Current HEAD: `29fe861ad8456c7b59b4a7f3354027a3b8b4bdad`
 - Current HEAD change: `fix: update MediaRouter callback implementation`
 - Primary source root: repository root
 - Worker source: `worker/`
@@ -163,6 +163,31 @@ Never upgrade SOURCE-OK or BLOCKED to PASS without evidence.
 - **Files**: `PROJECT_CONTEXT.md`, `HANDOFF.md`, `WORKER_CLOUDFLARE.md`, `AI_REVIEW_INSTRUCTIONS.md`
 - **What**: Synchronized and placed the official operating documentation files in the repository root directory as the permanent system of record.
 - **Verification**: `PASS` (file presence, byte integrity, and cross-reference check completed).
+
+### Session 2026-10-06 (Download Integrity & Documentation Cleanup)
+
+#### 1. Native Download Integrity Guard
+- **File**: `android/app/src/main/java/app/youngtube/app/YoungTubeDownloaderPlugin.java`
+- **What**: Added strict file validation after write: checks `bytesDownloaded > 0`, `destinationFile.exists()`, and `destinationFile.length() > 0`. If invalid or empty, cleans up the file and returns `{ ok: false, code: "EMPTY_FILE", message: "..." }`. On success, includes `bytesDownloaded: destinationFile.length()`.
+- **Why**: Prevents reporting partial, corrupted, or 0-byte downloads as `done`.
+- **Verification**: `SOURCE-OK` (syntax and structure verified; Android Gradle build `BLOCKED` due to lack of Java/Android SDK in web container).
+
+#### 2. TypeScript Downloader Plugin Result Contract
+- **File**: `src/plugins/youngtubeDownloader.ts`
+- **What**: Added `'EMPTY_FILE'` to `DownloadResult` error code union.
+- **Why**: Keeps client TypeScript definitions in exact sync with native plugin responses.
+- **Verification**: `PASS` (`tsc --noEmit` and Vite build succeeded).
+
+#### 3. Download Manager Local Path Integrity & Storage Validation
+- **File**: `src/services/downloadManager.ts`
+- **What**: Added path sanity check requiring non-empty trimmed string `cleanPath = result.path.trim()`. If `result.ok === true` but path is missing or empty, records download as `status: 'failed'` with code `'NATIVE_ERROR'` and returns structured failure. Handled `'EMPTY_FILE'` failure code cleanly.
+- **Why**: Ensures Dexie never stores an invalid or blank path for completed downloads.
+- **Verification**: `PASS` (`tsc --noEmit` and Vite build succeeded).
+
+#### 4. Project Cleanup & Redundant Documentation Removal
+- **Files**: Deleted `YoungTube_PROJECT_CONTEXT.md`, `YoungTube_CLOUDFLARE_WORKER_CONTEXT.md`, `YoungTube_HANDOFF.md`, `IMPLEMENTED_CHANGES.md`, `fix.py`, `server.ts`.
+- **What**: Cleaned obsolete scripts and redundant prefixed markdown files, preserving only the canonical set: `PROJECT_CONTEXT.md`, `HANDOFF.md`, `WORKER_CLOUDFLARE.md`, `AI_REVIEW_INSTRUCTIONS.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CHANNELS_MASTER.md`. Verified HEAD commit updated to `29fe861ad8456c7b59b4a7f3354027a3b8b4bdad`.
+- **Verification**: `PASS` (filesystem verification, zero missing canonical files, preserved all CSVs and assets).
 
 ## Next Agent Should Do
 

@@ -9,7 +9,7 @@ export type DownloadResult =
   | { ok: true; status: 'queued' | 'done'; path?: string; message?: string }
   | {
       ok: false;
-      code: 'UNSUPPORTED_PLATFORM' | 'NOT_IMPLEMENTED' | 'INVALID' | 'NATIVE_ERROR';
+      code: 'UNSUPPORTED_PLATFORM' | 'NOT_IMPLEMENTED' | 'INVALID' | 'EMPTY_FILE' | 'NATIVE_ERROR';
       message: string;
     };
 

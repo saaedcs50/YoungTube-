@@ -283,6 +283,23 @@ public class YoungTubeDownloaderPlugin extends Plugin {
 
                     // Final progress 100% notification
                     emitProgress(cleanVideoId, bytesDownloaded, totalBytes, 100);
+
+                    // Integrity check: never report a successful download unless
+                    // bytes were actually written and a non-empty file exists on disk.
+                    if (bytesDownloaded <= 0 || !destinationFile.exists() || destinationFile.length() <= 0) {
+                        if (destinationFile.exists()) {
+                            // Best-effort cleanup of an invalid/empty partial file.
+                            //noinspection ResultOfMethodCallIgnored
+                            destinationFile.delete();
+                        }
+
+                        JSObject res = new JSObject();
+                        res.put("ok", false);
+                        res.put("code", "EMPTY_FILE");
+                        res.put("message", "اكتمل طلب التنزيل دون إنشاء ملف صالح؛ لم يكتمل تنزيل الفيديو");
+                        call.resolve(res);
+                        return;
+                    }
                 }
 
                 // 4. Return success structured result with file path
@@ -290,6 +307,7 @@ public class YoungTubeDownloaderPlugin extends Plugin {
                 res.put("ok", true);
                 res.put("status", "done");
                 res.put("path", destinationFile.getAbsolutePath());
+                res.put("bytesDownloaded", destinationFile.length());
                 res.put("message", "تم التحميل بنجاح في ذاكرة التطبيق (360p تجريبي)");
                 call.resolve(res);
 
