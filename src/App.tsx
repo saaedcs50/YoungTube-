@@ -956,6 +956,9 @@ export default function App() {
               // Channel push is owned by AppShell's navigation layer.
               window.dispatchEvent(new CustomEvent('youngtube-open-channel', { detail: channelId }));
             }}
+            onOpenSearch={() => {
+              window.dispatchEvent(new Event('youngtube-open-search'));
+            }}
             localPath={activePlaybackVideo?.localPath}
             playlistContext={activePlaybackVideo?.playlistContext}
             onVideoHidden={handleVideoHidden}

@@ -14,9 +14,10 @@ interface Props {
   onBack: () => void;
   onSelectVideo: (videoId: string, title?: string, channelName?: string, channelId?: string) => void;
   onOpenPlaylist: (playlistId: string, title: string) => void;
+  onOpenChannel: (channelId: string) => void;
 }
 
-export const ChannelScreen: React.FC<Props> = ({ channelId, onBack, onSelectVideo, onOpenPlaylist }) => {
+export const ChannelScreen: React.FC<Props> = ({ channelId, onBack, onSelectVideo, onOpenPlaylist, onOpenChannel }) => {
   const [channel, setChannel] = useState<RegistryChannel | null>(null);
   const [videos, setVideos] = useState<FeedItem[]>([]);
   const [playlists, setPlaylists] = useState<ChildPlaylist[]>([]);
@@ -80,7 +81,7 @@ export const ChannelScreen: React.FC<Props> = ({ channelId, onBack, onSelectVide
 
         {loading ? <div className="space-y-6 py-6 animate-pulse">{[0,1,2,3].map((i) => <div key={i}><div className="aspect-video rounded-2xl bg-yt-surface-muted" /><div className="h-5 bg-yt-surface-muted rounded mt-3" /></div>)}</div> : tab === 'videos' ? (
           <div className="space-y-6 py-6">
-            {videos.length ? videos.map((video) => <YoungTubeVideoCard key={video.videoId} video={video} channelTitle={channel?.title || 'قناة أطفال'} channelThumbnail={channel?.thumbnail} onSelectVideo={() => onSelectVideo(video.videoId, video.title, channel?.title, channelId)} onChannelSelect={() => {}} onAddToPlaylist={() => setOverflowVideo(video)} onOverflow={setOverflowVideo} />) : <div className="rounded-3xl border border-dashed border-yt-border p-10 text-center text-sm text-yt-text-muted">لا توجد فيديوهات متاحة حاليًا</div>}
+            {videos.length ? videos.map((video) => <YoungTubeVideoCard key={video.videoId} video={video} channelTitle={channel?.title || 'قناة أطفال'} channelThumbnail={channel?.thumbnail} onSelectVideo={() => onSelectVideo(video.videoId, video.title, channel?.title, channelId)} onChannelSelect={() => onOpenChannel(channelId)} onAddToPlaylist={() => setOverflowVideo(video)} onOverflow={setOverflowVideo} />) : <div className="rounded-3xl border border-dashed border-yt-border p-10 text-center text-sm text-yt-text-muted">لا توجد فيديوهات متاحة حاليًا</div>}
           </div>
         ) : (
           <div className="space-y-2 py-6">

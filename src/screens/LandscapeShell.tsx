@@ -8,6 +8,7 @@ import {
   SkipForward,
   Heart,
   ListPlus,
+  Search,
 } from 'lucide-react';
 import { PlayerSeekBar } from '../components/PlayerSeekBar';
 
@@ -28,6 +29,7 @@ export interface LandscapeShellProps {
   onNext?: () => void;
   onSeek?: (time: number) => void;
   onExitFullscreen: () => void;
+  onOpenSearch?: () => void;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
   onPointerMove?: (e: React.PointerEvent<HTMLDivElement>) => void;
   onPointerUp?: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -53,6 +55,7 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
   onNext,
   onSeek,
   onExitFullscreen,
+  onOpenSearch,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -132,6 +135,22 @@ export const LandscapeShell: React.FC<LandscapeShellProps> = ({
                 </p>
               )}
             </div>
+
+            <button
+              type="button"
+              id="landscape-search-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                resetHideTimer();
+                onOpenSearch?.();
+              }}
+              className="p-2.5 sm:p-3 min-w-[44px] min-h-[44px] rounded-2xl bg-black/60 hover:bg-black/80 text-yt-text-muted hover:text-yt-text border border-yt-border shadow-lg transition active:scale-95 cursor-pointer flex items-center gap-2 text-xs font-semibold shrink-0"
+              aria-label="البحث"
+              title="البحث"
+            >
+              <Search className="w-4 h-4 sm:w-5 sm:h-5 text-yt-text" />
+              <span className="hidden sm:inline">البحث</span>
+            </button>
 
             <button
               type="button"

@@ -2,8 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Clock3, ListVideo, Search, X } from 'lucide-react';
 import type { FeedItem, ChildPlaylist } from '../../db';
 import db from '../../db';
-import { useKidFeed } from '../feed/useKidFeed';
-import { normalizeSearchText, searchAndRankVideos } from '../../services/kidSearch';
+import { listRegistryChannels } from '../../data/channelRegistry';
+import { searchAndRankNamedItems, searchAndRankVideos, getAutocompleteSuggestions } from '../../services/kidSearch';
+import { loadCachedBlocks } from '../../services/globalBlocks';
+import { getFamilyYoutubeApiHeaders } from '../../services/youtubeApiKey';
+import { MIN_VIDEO_DURATION_SECONDS } from '../../filtering';
+import { loadBoundedFeed } from '../feed/useKidFeed';
+import { WORKER_URL } from '../../config';
 import { listPlaylists, getPlaylistItems } from '../../services/playlists/playlistRepository';
 import { YoungTubeVideoRow } from '../../components/YoungTubeVideoRow';
 import { YoungTubeVideoCard } from '../../components/YoungTubeVideoCard';
@@ -18,6 +23,24 @@ interface Props {
 
 type ResultTab = 'all' | 'videos' | 'channels' | 'playlists';
 const RECENTS_KEY = 'youngtube_search_recent_v1';
+
+type SearchChannelInfo = {
+  title: string;
+  categories: string[];
+  thumbnail?: string;
+  enabled?: boolean;
+  autoDisabled?: boolean;
+};
+
+type DeepSearchResult = {
+  videoId: string;
+  title: string;
+  publishedAt: string;
+  sourceId: string;
+  videoDuration?: number;
+  isPortrait: boolean;
+  hasMusic: boolean;
+};
 
 function readRecents(): string[] {
   try {
@@ -42,8 +65,15 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
   const [overflowVideo, setOverflowVideo] = useState<FeedItem | null>(null);
   const [playlists, setPlaylists] = useState<ChildPlaylist[]>([]);
   const [playlistCounts, setPlaylistCounts] = useState<Record<string, number>>({});
-
-  const { searchInput, setSearchInput, debouncedSearch, searchSuggestions, videos, favoritesVideos, channelMap, deepSearchResults, isDeepSearching } = useKidFeed({});
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [videos, setVideos] = useState<FeedItem[]>([]);
+  const [favoritesVideos, setFavoritesVideos] = useState<FeedItem[]>([]);
+  const [savedAndLovedVideos, setSavedAndLovedVideos] = useState<FeedItem[]>([]);
+  const [channelMap, setChannelMap] = useState<Map<string, SearchChannelInfo>>(new Map());
+  const [localDataReady, setLocalDataReady] = useState(false);
+  const [deepSearchResults, setDeepSearchResults] = useState<DeepSearchResult[]>([]);
+  const [isDeepSearching, setIsDeepSearching] = useState(false);
 
   useEffect(() => {
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -55,18 +85,253 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
     })();
   }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim().toLowerCase());
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadLocalSearchData = async () => {
+      try {
+        const [settings, registryChannels] = await Promise.all([
+          db.settings.get('main'),
+          listRegistryChannels(),
+        ]);
+        const blocks = loadCachedBlocks();
+        const blockedChannelSet = new Set(blocks.channelIds);
+        const registryMap = new Map(registryChannels.map((channel) => [channel.sourceId, channel]));
+        const nextChannelMap = new Map<string, SearchChannelInfo>();
+        for (const channel of registryChannels) {
+          if (!channel.sourceId) continue;
+          nextChannelMap.set(channel.sourceId, {
+            title: channel.title || 'قناة أطفال موثوقة',
+            categories: Array.isArray(channel.category) ? channel.category : [],
+            thumbnail: channel.thumbnail,
+            enabled: channel.enabled,
+            autoDisabled: channel.autoDisabled,
+          });
+        }
+
+        const enabledChannelIds = registryChannels
+          .filter((channel) => channel.enabled !== false && channel.autoDisabled !== true && !blockedChannelSet.has(channel.sourceId))
+          .map((channel) => channel.sourceId);
+        const hideMusicVideos = settings?.hideMusicVideos === true;
+        const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
+        const safeVideos = await loadBoundedFeed(enabledChannelIds, hideMusicVideos, hasFamilyKey);
+
+        const interactions = await db.interactions
+          .filter(
+            (i) =>
+              i.childLoved === true ||
+              i.childReaction === 'liked' ||
+              i.parentRating === 'liked' ||
+              i.savedByParent === true
+          )
+          .toArray();
+
+        for (const interaction of interactions) {
+          if (interaction.parentRating === 'liked' && !interaction.childLoved) {
+            interaction.childLoved = true;
+            interaction.parentRating = undefined;
+            void db.interactions.update(interaction.videoId, {
+              childLoved: true,
+              parentRating: undefined,
+            });
+          }
+        }
+        interactions.sort((a, b) => (b.lastWatched || 0) - (a.lastWatched || 0));
+
+        const videoIds = interactions.map((interaction) => interaction.videoId);
+        const cachedRows = videoIds.length > 0
+          ? await db.feedCache.where('videoId').anyOf(videoIds).toArray()
+          : [];
+        const cachedMap = new Map(cachedRows.map((row) => [row.videoId, row]));
+        const interMap = new Map(interactions.map((interaction) => [interaction.videoId, interaction]));
+        const safeSavedAndLoved: FeedItem[] = [];
+
+        for (const interaction of interactions) {
+          const cached = cachedMap.get(interaction.videoId);
+          if (!cached || cached.hidden === true || cached.isPortrait === true) continue;
+
+          const targetChannelId = interaction.channelId || cached.channelId;
+          if (!targetChannelId) continue;
+          const registryChannel = registryMap.get(targetChannelId);
+          if (blockedChannelSet.has(targetChannelId)) continue;
+          if (registryChannel?.enabled === false || registryChannel?.autoDisabled === true) continue;
+          if (hideMusicVideos && cached.hasMusic === true) continue;
+          if (hasFamilyKey && (
+            typeof cached.videoDuration !== 'number' ||
+            !Number.isFinite(cached.videoDuration) ||
+            cached.videoDuration < MIN_VIDEO_DURATION_SECONDS
+          )) continue;
+
+          safeSavedAndLoved.push({
+            videoId: interaction.videoId,
+            channelId: targetChannelId,
+            title: interaction.title || cached.title || 'فيديو أطفال',
+            videoDuration: cached.videoDuration,
+            hasMusic: cached.hasMusic,
+            isPortrait: cached.isPortrait,
+            fetchedAt: interaction.lastWatched || Date.now(),
+            hidden: false,
+            viewCount: cached.viewCount,
+            viewCountFetchedAt: cached.viewCountFetchedAt,
+          });
+        }
+
+        const safeLovedVideos = safeSavedAndLoved.filter((item) => {
+          const interaction = interMap.get(item.videoId);
+          return (
+            interaction?.childLoved === true ||
+            interaction?.childReaction === 'liked' ||
+            interaction?.parentRating === 'liked'
+          );
+        });
+
+        if (cancelled) return;
+        setChannelMap(nextChannelMap);
+        setVideos(safeVideos);
+        setSavedAndLovedVideos(safeSavedAndLoved);
+        setFavoritesVideos(safeLovedVideos);
+        setLocalDataReady(true);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load local Search data:', err);
+          setLocalDataReady(true);
+        }
+      }
+    };
+
+    void loadLocalSearchData();
+    return () => { cancelled = true; };
+  }, []);
+
   const query = debouncedSearch.trim();
-  const localVideos = useMemo(() => searchAndRankVideos([...videos, ...favoritesVideos], query, channelMap, { isSavedOrLovedItem: () => false }).filter((item, index, arr) => arr.findIndex((x) => x.videoId === item.videoId) === index), [videos, favoritesVideos, query, channelMap]);
+  const localVideos = useMemo(() => searchAndRankVideos(
+    [...videos, ...favoritesVideos],
+    query,
+    channelMap,
+    { isSavedOrLovedItem: () => false }
+  ).filter((item, index, arr) => arr.findIndex((x) => x.videoId === item.videoId) === index), [videos, favoritesVideos, query, channelMap]);
+
+  const searchSuggestions = useMemo(() => getAutocompleteSuggestions({
+    query: searchInput,
+    channelMap,
+    feedVideos: videos,
+    favoritesVideos,
+    savedAndLovedVideos,
+    limit: 7,
+  }), [searchInput, channelMap, videos, favoritesVideos, savedAndLovedVideos]);
+
   const channelResults = useMemo(() => {
     if (!query) return [];
-    const norm = normalizeSearchText(query);
-    return Array.from(channelMap.entries()).filter(([, info]) => info.enabled !== false && normalizeSearchText(info.title).includes(norm)).slice(0, 20);
+    const candidates = Array.from(channelMap.entries())
+      .filter(([, info]) => info.enabled !== false && info.autoDisabled !== true)
+      .map(([id, info]) => ({ id, name: info.title, channelId: id, info }));
+    return searchAndRankNamedItems(candidates, query, { useChannelAliases: true, maxResults: 20 })
+      .map(({ id, info }) => [id, info] as const);
   }, [channelMap, query]);
   const playlistResults = useMemo(() => {
     if (!query) return [];
-    const norm = normalizeSearchText(query);
-    return playlists.filter((playlist) => normalizeSearchText(playlist.name).includes(norm)).slice(0, 20);
+    return searchAndRankNamedItems(playlists, query, { maxResults: 20 });
   }, [playlists, query]);
+
+  useEffect(() => {
+    if (!localDataReady || !debouncedSearch) {
+      setDeepSearchResults([]);
+      setIsDeepSearching(false);
+      return;
+    }
+
+    if (debouncedSearch.length <= 2 || localVideos.length >= 3) {
+      setDeepSearchResults([]);
+      setIsDeepSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsDeepSearching(true);
+
+    const runDeepSearch = async () => {
+      try {
+        const [familyYoutubeApiHeaders, settings, registryChannels] = await Promise.all([
+          getFamilyYoutubeApiHeaders(),
+          db.settings.get('main'),
+          listRegistryChannels(),
+        ]);
+        const requestInit: RequestInit = { headers: familyYoutubeApiHeaders };
+        let res: Response;
+        try {
+          res = await fetch(
+            `${WORKER_URL}/api/search-archive?q=${encodeURIComponent(debouncedSearch)}`,
+            requestInit
+          );
+        } catch {
+          res = await fetch(
+            `/api/search-archive?q=${encodeURIComponent(debouncedSearch)}`,
+            requestInit
+          );
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (data && Array.isArray(data.results)) {
+          const localIds = new Set(localVideos.map((video) => video.videoId));
+          const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
+          const registryChannelMap = new Map(registryChannels.map((channel) => [channel.sourceId, channel]));
+          const archiveIds = data.results
+            .map((item: any) => item?.videoId)
+            .filter((videoId: unknown): videoId is string => typeof videoId === 'string' && videoId.length > 0);
+          const localRows = archiveIds.length > 0
+            ? await db.feedCache.where('videoId').anyOf(archiveIds).toArray()
+            : [];
+          const locallyHiddenIds = new Set(
+            localRows.filter((row) => row.hidden === true).map((row) => row.videoId)
+          );
+          const hasFamilyKey = Boolean(familyYoutubeApiHeaders['X-Family-Youtube-Key']);
+          const hideMusicVideos = settings?.hideMusicVideos === true;
+
+          const safetyFilteredArchiveResults: DeepSearchResult[] = data.results.filter((item: any) => {
+            if (!item?.videoId || !item?.sourceId) return false;
+            if (blockedChannelSet.has(item.sourceId)) return false;
+            const registryChannel = registryChannelMap.get(item.sourceId);
+            if (registryChannel?.enabled === false || registryChannel?.autoDisabled === true) return false;
+            if (locallyHiddenIds.has(item.videoId)) return false;
+            if (item.isPortrait === true) return false;
+            if (hideMusicVideos && item.hasMusic === true) return false;
+            if (hasFamilyKey && (
+              typeof item.videoDuration !== 'number' ||
+              !Number.isFinite(item.videoDuration) ||
+              item.videoDuration < MIN_VIDEO_DURATION_SECONDS
+            )) return false;
+            return typeof item.hasMusic === 'boolean' && typeof item.isPortrait === 'boolean';
+          });
+
+          const uniqueArchiveResults = safetyFilteredArchiveResults.filter(
+            (item) => !localIds.has(item.videoId)
+          );
+          setDeepSearchResults(uniqueArchiveResults);
+        } else {
+          setDeepSearchResults([]);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to deep search archive:', err);
+          setDeepSearchResults([]);
+        }
+      } finally {
+        if (!cancelled) setIsDeepSearching(false);
+      }
+    };
+
+    void runDeepSearch();
+    return () => { cancelled = true; };
+  }, [localDataReady, debouncedSearch, localVideos]);
 
   const enterResults = useCallback((value: string) => {
     const q = value.trim();
@@ -134,7 +399,7 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
             <button type="button" onClick={handleBack} className="w-10 h-10 rounded-full hover:bg-yt-surface-muted flex items-center justify-center cursor-pointer" aria-label="رجوع"><ArrowRight className="w-5 h-5" /></button>
             <div className="relative flex-1">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-yt-text-muted pointer-events-none" />
-              <input ref={inputRef} value={searchInput} onChange={(e) => handleFieldChange(e.target.value)} onFocus={() => setShowSuggestions(searchInput.trim().length > 0)} onKeyDown={(e) => { if (e.key === 'Enter') submit(searchInput); }} placeholder="ابحث في الفيديوهات المسموحة..." className="w-full h-11 rounded-full bg-yt-surface-muted border border-yt-border pl-10 pr-10 text-sm font-medium outline-none focus:ring-2 focus:ring-yt-brand/25" aria-label="البحث في الفيديوهات المسموحة" />
+              <input ref={inputRef} value={searchInput} onChange={(e) => handleFieldChange(e.target.value)} onFocus={() => setShowSuggestions(searchInput.trim().length > 0)} onKeyDown={(e) => { if (e.key === 'Escape' && !e.isComposing) { e.preventDefault(); setShowSuggestions(false); handleBack(); return; } if (e.key === 'Enter') submit(searchInput); }} placeholder="ابحث في الفيديوهات المسموحة..." className="w-full h-11 rounded-full bg-yt-surface-muted border border-yt-border pl-10 pr-10 text-sm font-medium outline-none focus:ring-2 focus:ring-yt-brand/25" aria-label="البحث في الفيديوهات المسموحة" />
               {searchInput && <button type="button" onClick={clear} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full hover:bg-yt-border/40 flex items-center justify-center cursor-pointer" aria-label="مسح البحث"><X className="w-4 h-4" /></button>}
               {showSuggestions && searchSuggestions.length > 0 && <div className="absolute top-full inset-x-0 mt-2 rounded-2xl border border-yt-border bg-yt-surface shadow-xl p-1 max-h-72 overflow-y-auto z-30">{searchSuggestions.map((item) => <button key={item.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => submit(item.text)} className="w-full flex items-center gap-2 p-2.5 rounded-xl hover:bg-yt-surface-muted text-right cursor-pointer"><Search className="w-4 h-4 text-yt-text-muted shrink-0" /><span className="truncate text-sm font-medium flex-1">{item.text}</span>{item.type === 'channel' && <span className="text-[10px] font-bold text-yt-brand bg-yt-brand-soft rounded-full px-2 py-1">قناة</span>}</button>)}</div>}
             </div>

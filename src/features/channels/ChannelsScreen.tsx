@@ -4,6 +4,7 @@ import type { FeedItem } from '../../db';
 import db from '../../db';
 import { listRegistryChannels, type RegistryChannel } from '../../data/channelRegistry';
 import { loadBoundedFeed } from '../feed/useKidFeed';
+import { loadCachedBlocks } from '../../services/globalBlocks';
 import { useAllCategories } from '../../hooks/useAllCategories';
 import { matchCategory } from '../../data/categoryRegistry';
 import { YoungTubeVideoCard } from '../../components/YoungTubeVideoCard';
@@ -60,9 +61,21 @@ export const ChannelsScreen: React.FC<Props> = ({ onOpenChannel, onSelectVideo }
       const enabled = registry.filter((channel) => channel.sourceType === 'channel' && channel.enabled !== false && channel.autoDisabled !== true);
       setChannels(enabled);
       const lastWatched = new Map(interactions.map((item) => [item.videoId, item.lastWatched || 0]));
+      const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
+      const enabledChannelSet = new Set(enabled.map((channel) => channel.sourceId));
+      const hideMusicVideos = settings?.hideMusicVideos === true;
+      const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
       const unseen = new Set<string>();
       for (const video of cachedRows) {
-        if (video.hidden || !video.channelId || !enabled.some((channel) => channel.sourceId === video.channelId)) continue;
+        if (video.hidden || video.isPortrait || !video.channelId) continue;
+        if (!enabledChannelSet.has(video.channelId) || blockedChannelSet.has(video.channelId)) continue;
+        if (hideMusicVideos && video.hasMusic === true) continue;
+        if (hasFamilyKey && (
+          typeof video.videoDuration !== 'number' ||
+          !Number.isFinite(video.videoDuration) ||
+          video.videoDuration < 120
+        )) continue;
+
         const published = Date.parse(video.publishedAt || '') || video.fetchedAt || 0;
         const watchedAt = lastWatched.get(video.videoId) || 0;
         if (!watchedAt || watchedAt < published) unseen.add(video.channelId);

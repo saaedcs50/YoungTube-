@@ -11,6 +11,8 @@ import db from '../../db';
 import type { PlaylistPlaybackContext } from '../../services/playlists/playlistTypes';
 import { useAllCategories } from '../../hooks/useAllCategories';
 import { matchCategory } from '../../data/categoryRegistry';
+import { listRegistryChannels } from '../../data/channelRegistry';
+import { loadCachedBlocks } from '../../services/globalBlocks';
 import { recordCurrentScroll } from '../../shell/navigationStore';
 
 export interface KidHomeScreenProps {
@@ -76,17 +78,36 @@ export function KidHomeScreen({
     let mounted = true;
     void (async () => {
       try {
-        const rows = await db.interactions
-          .orderBy('lastWatched')
-          .reverse()
-          .filter((item: Interaction) => item.completed !== true && item.watchTime > 10)
-          .limit(8)
-          .toArray();
+        const [rows, settings, registryChannels] = await Promise.all([
+          db.interactions
+            .orderBy('lastWatched')
+            .reverse()
+            .filter((item: Interaction) => item.completed !== true && item.watchTime > 10)
+            .limit(8)
+            .toArray(),
+          db.settings.get('main'),
+          listRegistryChannels(),
+        ]);
+        const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
+        const registryChannelMap = new Map(registryChannels.map((channel) => [channel.sourceId, channel]));
+        const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
+
         for (const interaction of rows) {
           const video = await db.feedCache.get(interaction.videoId);
           if (!mounted || !video || video.hidden || video.isPortrait) continue;
-          const total = interaction.videoDuration || video.videoDuration || 0;
-          const progress = total > 0 ? interaction.watchTime / total : 0;
+
+          const channelId = video.channelId || interaction.channelId;
+          const registryChannel = channelId ? registryChannelMap.get(channelId) : undefined;
+          if (registryChannel?.enabled === false || registryChannel?.autoDisabled === true) continue;
+          if (channelId && blockedChannelSet.has(channelId)) continue;
+          if (settings?.hideMusicVideos === true && video.hasMusic === true) continue;
+
+          const total = interaction.videoDuration || video.videoDuration;
+          if (hasFamilyKey && (typeof total !== 'number' || !Number.isFinite(total) || total < 120)) continue;
+
+          const progress = typeof total === 'number' && Number.isFinite(total) && total > 0
+            ? interaction.watchTime / total
+            : 0;
           if (progress > 0.03 && progress < 0.95) {
             setResumeItem({ video, progress });
             return;

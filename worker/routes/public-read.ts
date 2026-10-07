@@ -26,6 +26,7 @@ import {
   parseYouTubeRss,
   parseStoredYoutubePageToken,
   parseIsoDuration,
+  getJpegDimensions,
 } from '../lib/helpers';
 import {
   fetchPlaylistItemsPage,
@@ -644,7 +645,16 @@ export async function handlePublicReadRoutes(
       const qLower = q.toLowerCase();
       const qNorm = normalize(q);
 
-      const matchedVideos: Array<{ videoId: string; title: string; publishedAt: string; sourceId: string }> = [];
+      const apiKey = resolveFamilyYouTubeApiKey(request);
+      const matchedVideos: Array<{
+        videoId: string;
+        title: string;
+        publishedAt: string;
+        sourceId: string;
+        videoDuration?: number;
+        isPortrait?: boolean;
+        hasMusic: boolean;
+      }> = [];
 
       for (const ch of channels) {
         if (!ch || !ch.sourceId || !Array.isArray(ch.videos)) continue;
@@ -655,11 +665,15 @@ export async function handlePublicReadRoutes(
             const titleLower = titleStr.toLowerCase();
             const titleNorm = normalize(titleStr);
             if (titleLower.includes(qLower) || titleNorm.includes(qNorm)) {
+              const hasNoMusicPhrase =
+                titleLower.includes('no music') || titleLower.includes('بدون موسيقى');
               matchedVideos.push({
-                videoId: v.videoId,
+                videoId: String(v.videoId),
                 title: titleStr,
                 publishedAt: v.publishedAt || '',
                 sourceId,
+                videoDuration: typeof v.videoDuration === 'number' ? v.videoDuration : undefined,
+                hasMusic: !hasNoMusicPhrase,
               });
             }
           }
@@ -672,12 +686,70 @@ export async function handlePublicReadRoutes(
         return timeB - timeA;
       });
 
-      const results = matchedVideos.slice(0, 50);
+      // Keep the portrait/duration inspection bounded to a small candidate set so the public route
+      // never scans the entire archive or spends unbounded subrequests on image inspection.
+      const candidates = matchedVideos.slice(0, 20);
+      const durationById = new Map<string, number>();
+
+      if (apiKey && candidates.length > 0) {
+        const ytRes = await fetchVideos({
+          apiKey,
+          ids: candidates.map((item) => item.videoId),
+          part: 'contentDetails',
+        });
+        if (ytRes.ok) {
+          const ytData: any = await ytRes.json();
+          for (const item of ytData.items || []) {
+            const rawDuration = item.contentDetails?.duration;
+            if (item.id && typeof rawDuration === 'string') {
+              const seconds = parseIsoDuration(rawDuration);
+              if (Number.isFinite(seconds)) {
+                durationById.set(item.id, seconds);
+              }
+            }
+          }
+        }
+      }
+
+      const safeResults: Array<{
+        videoId: string;
+        title: string;
+        publishedAt: string;
+        sourceId: string;
+        videoDuration?: number;
+        isPortrait: boolean;
+        hasMusic: boolean;
+      }> = [];
+
+      for (const candidate of candidates) {
+        const duration = apiKey ? durationById.get(candidate.videoId) : candidate.videoDuration;
+        if (apiKey && (typeof duration !== 'number' || !Number.isFinite(duration) || duration < 120)) {
+          continue;
+        }
+        if (!apiKey && typeof duration === 'number' && !Number.isFinite(duration)) continue;
+
+        const dimensions = await getJpegDimensions(
+          `https://i.ytimg.com/vi/${encodeURIComponent(candidate.videoId)}/hqdefault.jpg`
+        );
+        if (!dimensions || dimensions.height > dimensions.width) {
+          continue;
+        }
+
+        safeResults.push({
+          videoId: candidate.videoId,
+          title: candidate.title,
+          publishedAt: candidate.publishedAt,
+          sourceId: candidate.sourceId,
+          videoDuration: duration,
+          isPortrait: false,
+          hasMusic: candidate.hasMusic,
+        });
+      }
 
       return new Response(
         JSON.stringify({
-          results,
-          count: results.length,
+          results: safeResults,
+          count: safeResults.length,
         }),
         {
           status: 200,

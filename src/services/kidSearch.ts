@@ -261,6 +261,117 @@ export function scoreFeedItem(
  * Filters and ranks a list of FeedItem candidates by query relevance.
  * When query is empty, preserves candidate order untouched.
  */
+
+export interface NamedSearchCandidate {
+  id: string;
+  name: string;
+  channelId?: string;
+}
+
+/**
+ * Scores a named candidate with the same exact/prefix/substring/fuzzy semantics
+ * used by the video search engine. Channel aliases are optional so playlists
+ * never inherit the channel alias relationship.
+ */
+function scoreNamedCandidate(
+  candidate: NamedSearchCandidate,
+  normQuery: string,
+  queryTokens: string[],
+  useChannelAliases: boolean
+): SearchMatchResult {
+  if (!normQuery) {
+    return { matched: true, score: 0 };
+  }
+
+  const normName = normalizeSearchText(candidate.name);
+
+  if (normName === normQuery) {
+    return { matched: true, score: 100, reason: 'title_exact' };
+  }
+
+  if (normName.startsWith(normQuery)) {
+    return { matched: true, score: 90, reason: 'title_prefix' };
+  }
+
+  if (normName.includes(normQuery)) {
+    return { matched: true, score: 75, reason: 'title_substring' };
+  }
+
+  if (useChannelAliases) {
+    const candidateChannelId = candidate.channelId || candidate.id;
+    for (const entry of KID_SEARCH_ALIASES) {
+      const channelMatches = entry.channelId === candidateChannelId ||
+        (entry.canonicalTitle && normName.includes(normalizeSearchText(entry.canonicalTitle)));
+      if (channelMatches && queryMatchesAlias(normQuery, queryTokens, entry)) {
+        return { matched: true, score: 45, reason: 'alias_match' };
+      }
+    }
+  }
+
+  if (queryTokens.length > 0) {
+    const candidateTokens = tokenizeSearchText(candidate.name);
+    let matchedQueryTokens = 0;
+
+    for (const qToken of queryTokens) {
+      if (candidateTokens.some((candidateToken) => isFuzzyTokenMatch(qToken, candidateToken))) {
+        matchedQueryTokens += 1;
+      }
+    }
+
+    const requiredMatches = queryTokens.length <= 2
+      ? queryTokens.length
+      : Math.ceil(queryTokens.length * 0.6);
+
+    if (matchedQueryTokens >= requiredMatches && matchedQueryTokens > 0) {
+      const ratio = matchedQueryTokens / queryTokens.length;
+      const score = Math.round(25 + ratio * 15);
+      return { matched: true, score, reason: 'fuzzy_match' };
+    }
+  }
+
+  return { matched: false, score: 0 };
+}
+
+/**
+ * Filters and ranks named child-facing candidates (channels or playlists).
+ * When query is empty, preserves candidate order. Results are capped and tie-broken
+ * deterministically by candidate ID and then normalized name.
+ */
+export function searchAndRankNamedItems<T extends NamedSearchCandidate>(
+  items: T[],
+  query: string,
+  options?: {
+    useChannelAliases?: boolean;
+    maxResults?: number;
+  }
+): T[] {
+  const normQuery = normalizeSearchText(query);
+  if (!normQuery) {
+    return items.slice(0, options?.maxResults ?? 20);
+  }
+
+  const queryTokens = tokenizeSearchText(query);
+  const useChannelAliases = options?.useChannelAliases === true;
+  const maxResults = options?.maxResults ?? 20;
+  const scored: Array<{ item: T; score: number }> = [];
+
+  for (const item of items) {
+    const result = scoreNamedCandidate(item, normQuery, queryTokens, useChannelAliases);
+    if (result.matched) {
+      scored.push({ item, score: result.score });
+    }
+  }
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const idTie = a.item.id.localeCompare(b.item.id);
+    if (idTie !== 0) return idTie;
+    return normalizeSearchText(a.item.name).localeCompare(normalizeSearchText(b.item.name));
+  });
+
+  return scored.slice(0, maxResults).map(({ item }) => item);
+}
+
 export function searchAndRankVideos(
   items: FeedItem[],
   query: string,

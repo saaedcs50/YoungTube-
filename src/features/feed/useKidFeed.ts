@@ -7,8 +7,10 @@ import {
   ensureChannelsArchiveSynced,
   scheduleBackgroundPortraitCheck,
   migrateUnhidePortraitVideos,
+  MIN_VIDEO_DURATION_SECONDS,
 } from '../../filtering';
 import { loadCachedBlocks, fetchGlobalBlocks } from '../../services/globalBlocks';
+import { getFamilyYoutubeApiHeaders } from '../../services/youtubeApiKey';
 import { enrichFeedItemViewCounts } from '../../services/youtubeViewCounts';
 import {
   computeBaseShare,
@@ -113,6 +115,28 @@ function shuffleVideos(array: FeedItem[]): FeedItem[] {
  * Lightweight diversity constraint: avoids placing 3+ videos from the same channelId
  * consecutively when the pool allows (max-2 streak per channel).
  */
+function filterStarterVideos(
+  starters: FeedItem[],
+  blockedChannelSet: Set<string>,
+  hideMusicVideos: boolean,
+  hasFamilyKey: boolean
+): FeedItem[] {
+  return starters.filter((video) => {
+    if (blockedChannelSet.has(video.channelId)) return false;
+    if (video.isPortrait === true) return false;
+    if (hideMusicVideos && video.hasMusic === true) return false;
+    if (
+      hasFamilyKey &&
+      (typeof video.videoDuration !== 'number' ||
+        !Number.isFinite(video.videoDuration) ||
+        video.videoDuration < MIN_VIDEO_DURATION_SECONDS)
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
 function enforceChannelDiversity(items: FeedItem[], maxConsecutive = 2): FeedItem[] {
   if (items.length <= maxConsecutive) return items;
   const arr = [...items];
@@ -196,7 +220,12 @@ export async function loadBoundedFeed(
     for (const row of rows) {
       if (row.hidden === true) continue;
       if (row.isPortrait === true) continue;
-      if (hasFamilyKey && typeof row.videoDuration === 'number' && row.videoDuration < 120) continue;
+      if (
+        hasFamilyKey &&
+        (typeof row.videoDuration !== 'number' ||
+          !Number.isFinite(row.videoDuration) ||
+          row.videoDuration < MIN_VIDEO_DURATION_SECONDS)
+      ) continue;
       if (hideMusicVideos && row.hasMusic === true) continue;
       if (blockedChannelSet.has(row.channelId)) continue;
       const list = byChannel.get(row.channelId);
@@ -233,7 +262,15 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [deepSearchResults, setDeepSearchResults] = useState<
-    Array<{ videoId: string; title: string; publishedAt: string; sourceId: string }>
+    Array<{
+      videoId: string;
+      title: string;
+      publishedAt: string;
+      sourceId: string;
+      videoDuration?: number;
+      isPortrait: boolean;
+      hasMusic: boolean;
+    }>
   >([]);
   const [isDeepSearching, setIsDeepSearching] = useState(false);
 
@@ -331,11 +368,11 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
       if (availableVideos.length === 0) {
         const totalCacheCount = await db.feedCache.count();
         if (totalCacheCount === 0) {
-          const safeStarters = STARTER_VIDEOS.filter((v) => !blockedChannelSet.has(v.channelId));
-          await db.feedCache.bulkPut(safeStarters);
-          availableVideos = hideMusicVideos
-            ? safeStarters.filter((v) => v.hasMusic !== true)
-            : safeStarters;
+          const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, hideMusicVideos, hasFamilyKey);
+          if (safeStarters.length > 0) {
+            await db.feedCache.bulkPut(safeStarters);
+            availableVideos = safeStarters;
+          }
         }
       }
 
@@ -441,7 +478,22 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
       }
     } catch (err) {
       console.error('Failed to query db in KidHomeScreen:', err);
-      setVideos((prev) => (prev.length > 0 ? prev : enforceChannelDiversity(shuffleVideos(STARTER_VIDEOS))));
+      try {
+        const [settings] = await Promise.all([db.settings.get('main')]);
+        const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
+        const hideMusicVideos = settings?.hideMusicVideos === true;
+        const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
+        const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, hideMusicVideos, hasFamilyKey);
+        setVideos((prev) =>
+          prev.length > 0
+            ? prev
+            : safeStarters.length > 0
+              ? enforceChannelDiversity(shuffleVideos(safeStarters))
+              : []
+        );
+      } catch {
+        setVideos((prev) => (prev.length > 0 ? prev : []));
+      }
     } finally {
       setLoading(false);
     }
@@ -576,7 +628,7 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
   // 2.5 Load favorites videos (liked videos) with strict safety filters
   const loadFavorites = useCallback(async () => {
     try {
-      const [interactions, storedChannels, settings] = await Promise.all([
+      const [interactions, registryChannels, settings] = await Promise.all([
         db.interactions
           .filter(
             (i) =>
@@ -586,7 +638,7 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
               i.savedByParent === true
           )
           .toArray(),
-        db.channels.toArray(),
+        listRegistryChannels(),
         db.settings.get('main'),
       ]);
 
@@ -605,7 +657,9 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
       interactions.sort((a, b) => (b.lastWatched || 0) - (a.lastWatched || 0));
 
       const disabledChannelIds = new Set(
-        storedChannels.filter((c) => c.enabled === false).map((c) => c.sourceId)
+        registryChannels
+          .filter((c) => c.enabled === false || c.autoDisabled === true)
+          .map((c) => c.sourceId)
       );
 
       const cachedBlocks = loadCachedBlocks();
@@ -625,22 +679,34 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
         if (suppressed.has(inter.videoId)) continue;
 
         const cached = cachedMap.get(inter.videoId);
-        if (cached?.hidden === true) continue;
+        if (!cached) continue;
+        if (cached.hidden === true) continue;
+        if (cached.isPortrait === true) continue;
 
-        const targetChannelId = inter.channelId || cached?.channelId;
+        const targetChannelId = inter.channelId || cached.channelId;
         if (targetChannelId && (disabledChannelIds.has(targetChannelId) || blockedChannelSet.has(targetChannelId))) continue;
 
-        if (hideMusicVideos && cached?.hasMusic === true) continue;
+        if (hideMusicVideos && cached.hasMusic === true) continue;
+
+        if (settings?.familyYoutubeApiKey?.trim()) {
+          if (
+            typeof cached.videoDuration !== 'number' ||
+            !Number.isFinite(cached.videoDuration) ||
+            cached.videoDuration < MIN_VIDEO_DURATION_SECONDS
+          ) continue;
+        }
 
         safeList.push({
           videoId: inter.videoId,
           channelId: targetChannelId || 'unknown',
-          title: inter.title || cached?.title || 'فيديو أطفال',
-          hasMusic: cached?.hasMusic,
+          title: inter.title || cached.title || 'فيديو أطفال',
+          videoDuration: cached.videoDuration,
+          hasMusic: cached.hasMusic,
+          isPortrait: cached.isPortrait,
           fetchedAt: inter.lastWatched || Date.now(),
           hidden: false,
-          viewCount: cached?.viewCount,
-          viewCountFetchedAt: cached?.viewCountFetchedAt,
+          viewCount: cached.viewCount,
+          viewCountFetchedAt: cached.viewCountFetchedAt,
         });
       }
 
@@ -757,17 +823,60 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
 
     const runDeepSearch = async () => {
       try {
-        const res = await fetch(
-          `${WORKER_URL}/api/search-archive?q=${encodeURIComponent(debouncedSearch)}`
-        );
+        const [familyYoutubeApiHeaders, settings, registryChannels] = await Promise.all([
+          getFamilyYoutubeApiHeaders(),
+          db.settings.get('main'),
+          listRegistryChannels(),
+        ]);
+        const requestInit: RequestInit = { headers: familyYoutubeApiHeaders };
+        let res: Response;
+        try {
+          res = await fetch(
+            `${WORKER_URL}/api/search-archive?q=${encodeURIComponent(debouncedSearch)}`,
+            requestInit
+          );
+        } catch {
+          res = await fetch(
+            `/api/search-archive?q=${encodeURIComponent(debouncedSearch)}`,
+            requestInit
+          );
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
 
         if (data && Array.isArray(data.results)) {
-          // Exclude videos already shown in local filteredVideos
           const localIds = new Set(filteredVideos.map((v) => v.videoId));
-          const uniqueArchiveResults = data.results.filter(
+          const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
+          const registryChannelMap = new Map(registryChannels.map((channel) => [channel.sourceId, channel]));
+          const archiveIds = data.results
+            .map((item: any) => item?.videoId)
+            .filter((videoId: unknown): videoId is string => typeof videoId === 'string' && videoId.length > 0);
+          const localRows = archiveIds.length > 0
+            ? await db.feedCache.where('videoId').anyOf(archiveIds).toArray()
+            : [];
+          const locallyHiddenIds = new Set(
+            localRows.filter((row) => row.hidden === true).map((row) => row.videoId)
+          );
+          const hasFamilyKey = Boolean(familyYoutubeApiHeaders['X-Family-Youtube-Key']);
+          const hideMusicVideos = settings?.hideMusicVideos === true;
+
+          const safetyFilteredArchiveResults = data.results.filter((item: any) => {
+            if (!item?.videoId || !item?.sourceId) return false;
+            if (blockedChannelSet.has(item.sourceId)) return false;
+            const registryChannel = registryChannelMap.get(item.sourceId);
+            if (registryChannel?.enabled === false || registryChannel?.autoDisabled === true) return false;
+            if (locallyHiddenIds.has(item.videoId)) return false;
+            if (item.isPortrait === true) return false;
+            if (hideMusicVideos && item.hasMusic === true) return false;
+            if (hasFamilyKey && (
+              typeof item.videoDuration !== 'number' ||
+              !Number.isFinite(item.videoDuration) ||
+              item.videoDuration < MIN_VIDEO_DURATION_SECONDS
+            )) return false;
+            return typeof item.hasMusic === 'boolean' && typeof item.isPortrait === 'boolean';
+          });
+          const uniqueArchiveResults = safetyFilteredArchiveResults.filter(
             (item: any) => !localIds.has(item.videoId)
           );
           setDeepSearchResults(uniqueArchiveResults);

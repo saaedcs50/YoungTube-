@@ -119,6 +119,33 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }
   };
 
+  const handleSkipSupportPay = async () => {
+    if (!pendingSetup) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await db.settings.put({
+        id: 'main',
+        pinHash: pendingSetup.pinHash,
+        securityQuestion: pendingSetup.securityQuestion,
+        securityAnswerHash: pendingSetup.securityAnswerHash,
+        blacklistWords: [],
+        scheduleWindow: { start: '00:00', end: '23:59' },
+        sessionLimitMinutes: 60,
+        pinAttempts: 0,
+        preloadedListVersion: 1,
+        supportPayOnboardingSeenAt: Date.now(),
+      });
+
+      trackFunnelEvent('onboarding_completed');
+      onComplete();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ الإعدادات.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const isFormValid =
     pin.length === 6 &&
     confirmPin.length === 6 &&
@@ -277,8 +304,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             <div className="space-y-6">
               <SupportPayPanel />
 
-              {/* Single Confirmation Button */}
-              <div className="pt-4 border-t border-yt-border">
+              {/* Confirmation + local-only Skip */}
+              <div className="pt-4 border-t border-yt-border space-y-2">
                 <button
                   id="onboarding-step2-complete-btn"
                   type="button"
@@ -288,6 +315,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 >
                   <span>{isSubmitting ? 'جاري حفظ الإعدادات...' : 'تمّ الاطلاع وإكمال الإعداد'}</span>
                   <ArrowLeft className="w-4 h-4" />
+                </button>
+                <button
+                  id="onboarding-step2-skip-btn"
+                  type="button"
+                  onClick={handleSkipSupportPay}
+                  disabled={isSubmitting}
+                  className="w-full min-h-[44px] rounded-xl border border-yt-border bg-yt-surface text-yt-text text-sm font-bold flex items-center justify-center transition disabled:opacity-40 cursor-pointer"
+                >
+                  تخطي الدعم الآن
                 </button>
               </div>
             </div>

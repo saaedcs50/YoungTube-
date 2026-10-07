@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   FolderDown,
   ListPlus,
+  Search,
 } from 'lucide-react';
 import { LandscapeShell } from './LandscapeShell';
 import { PlaylistManager } from '../components/PlaylistManager';
@@ -113,6 +114,7 @@ interface PlayerViewProps {
   onVideoHidden?: (videoId: string) => void;
   onChannelBlocked?: () => void;
   onOpenChannel?: (channelId: string) => void;
+  onOpenSearch?: () => void;
   onRefreshHomeFeed?: () => void;
   onClose: () => void;
   onEnded: () => void;
@@ -139,6 +141,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   onVideoHidden,
   onChannelBlocked,
   onOpenChannel,
+  onOpenSearch,
   onRefreshHomeFeed,
   onClose,
   onEnded,
@@ -1640,6 +1643,21 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <ArrowRight className="w-5 h-5" />
             </button>
 
+            <button
+              type="button"
+              id="player-search-btn"
+              onClick={onOpenSearch}
+              disabled={!onOpenSearch}
+              className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 h-10 bg-white/10 hover:bg-white/15 text-white transition active:scale-95 ${
+                showPortraitControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              } ${onOpenSearch ? 'cursor-pointer' : 'cursor-default'}`}
+              aria-label="البحث"
+              title="البحث"
+            >
+              <Search className="w-4 h-4" />
+              <span className="text-xs font-bold">البحث</span>
+            </button>
+
             {/* Title & Channel Info */}
             <div className="flex-1 min-w-0 px-1 flex items-center gap-2.5">
               <button
@@ -1834,6 +1852,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               onNext={handleNext}
               onSeek={handleSeek}
               onExitFullscreen={handleExitFullscreen}
+              onOpenSearch={onOpenSearch}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
@@ -1920,7 +1939,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               aria-label="إغلاق المشغل المصغر"
               title="إغلاق الفيديو"
             >
-              <X className="w-4.5 h-4.5 text-white stroke-[2.5] drop-shadow-xs" />
+              <X className="w-4 h-4 text-white stroke-[2.5] drop-shadow-xs" />
             </button>
           )}
 

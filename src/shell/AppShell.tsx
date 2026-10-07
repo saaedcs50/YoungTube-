@@ -121,6 +121,14 @@ export function AppShell({
     return () => window.removeEventListener('youngtube-open-channel', onOpenChannel as EventListener);
   }, []);
 
+  useEffect(() => {
+    const onOpenSearch = () => {
+      pushOverlay({ type: 'search', fromPlayer: true });
+    };
+    window.addEventListener('youngtube-open-search', onOpenSearch);
+    return () => window.removeEventListener('youngtube-open-search', onOpenSearch);
+  }, []);
+
   const openOverlay = useCallback((overlay: Overlay) => {
     pushOverlay(overlay);
   }, []);
@@ -242,6 +250,7 @@ export function AppShell({
             onBack={closeOverlay}
             onSelectVideo={onSelectVideo}
             onOpenPlaylist={handlePlaylistOpen}
+            onOpenChannel={handleChannelOpen}
           />
         );
       case 'playlist':
