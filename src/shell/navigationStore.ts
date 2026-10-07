@@ -13,6 +13,7 @@ export type Overlay =
 export interface NavigationSnapshot {
   root: RootId;
   stack: Overlay[];
+  overlayStack: Overlay[];
   scrollY: Record<RootId, number>;
 }
 
@@ -21,6 +22,7 @@ const STORAGE_KEY = 'youngtube_navigation_scroll_v1';
 let snapshot: NavigationSnapshot = {
   root: 'home',
   stack: [],
+  overlayStack: [],
   scrollY: {
     home: 0,
     channels: 0,
@@ -85,14 +87,15 @@ export function switchRoot(root: RootId) {
     scrollRootToTop(root);
     return;
   }
-  snapshot = { ...snapshot, root, stack: [] };
+  snapshot = { ...snapshot, root, stack: [], overlayStack: [] };
   emit();
 }
 
 export function pushOverlay(overlay: Overlay) {
   const fromPlayer = typeof window !== 'undefined' && Boolean(window.history.state?.ytPlayer);
   const storedOverlay = { ...overlay, fromPlayer } as Overlay;
-  snapshot = { ...snapshot, stack: [...snapshot.stack, storedOverlay] };
+  const nextStack = [...snapshot.stack, storedOverlay];
+  snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
   if (typeof window !== 'undefined') {
     window.history.pushState({
       ytNavigation: true,
@@ -110,13 +113,15 @@ export function popOverlay() {
     window.history.back();
     return true;
   }
-  snapshot = { ...snapshot, stack: snapshot.stack.slice(0, -1) };
+  const nextStack = snapshot.stack.slice(0, -1);
+  snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
   emit();
   return true;
 }
 
 export function replaceOverlayStack(stack: Overlay[]) {
-  snapshot = { ...snapshot, stack: [...stack] };
+  const nextStack = [...stack];
+  snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
   emit();
 }
 
@@ -127,7 +132,8 @@ export function handleNavigationPopState(event: PopStateEvent, playerOpen = fals
   // Back returns to the player entry; pop the push surface but leave playback intact.
   if (event.state?.ytPlayer) {
     if (top?.fromPlayer) {
-      snapshot = { ...snapshot, stack: snapshot.stack.slice(0, -1) };
+      const nextStack = snapshot.stack.slice(0, -1);
+      snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
       emit();
       return true;
     }
@@ -140,7 +146,8 @@ export function handleNavigationPopState(event: PopStateEvent, playerOpen = fals
     return true;
   }
   if (event.state?.ytNavigation || !event.state) {
-    snapshot = { ...snapshot, stack: snapshot.stack.slice(0, -1) };
+    const nextStack = snapshot.stack.slice(0, -1);
+    snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
     emit();
     return true;
   }

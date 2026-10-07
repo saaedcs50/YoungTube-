@@ -67,7 +67,9 @@ export function AppShell({
   devForceStop = false,
   onToggleDevForceStop,
 }: AppShellProps) {
-  const { root, overlayStack } = useNavigation();
+  const nav = useNavigation();
+  const root = nav?.root ?? 'home';
+  const overlayStack = nav?.overlayStack ?? nav?.stack ?? [];
   const activeOverlay = useMemo(() => overlayStack[overlayStack.length - 1] ?? null, [overlayStack]);
   const previousRootRef = useRef(root);
   const [activeDownloadCount, setActiveDownloadCount] = useState(0);
