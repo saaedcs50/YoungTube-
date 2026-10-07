@@ -101,6 +101,24 @@ public class YoungTubeCastPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void openChooser(PluginCall call) {
+        if (!(getActivity() instanceof FragmentActivity)) {
+            resolve(call, false, "NO_ACTIVITY", "تعذر فتح اختيار الشاشة.");
+            return;
+        }
+        try {
+            MediaRouteChooserDialogFragment chooser =
+                    MediaRouteDialogFactory.getDefault().onCreateChooserDialogFragment();
+            chooser.setRouteSelector(selector);
+            chooser.show(((FragmentActivity) getActivity()).getSupportFragmentManager(),
+                    "YoungTubeCastChooser");
+            resolve(call, true, "CHOOSER_OPEN", "اختار الشاشة التي تريد استخدام YoungTube عليها.");
+        } catch (Exception e) {
+            resolve(call, false, "CAST_UNAVAILABLE", "ميزة البث غير متاحة على هذا الجهاز حالياً.");
+        }
+    }
+
+    @PluginMethod
     public void castVideo(PluginCall call) {
         String videoId = call.getString("videoId", "").trim();
         String title = call.getString("title", "YoungTube video");

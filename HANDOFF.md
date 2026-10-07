@@ -230,6 +230,40 @@ Never upgrade SOURCE-OK or BLOCKED to PASS without evidence.
   - `npm run build` (`vite build`): `PASS` (production build compiled cleanly).
   - `bun.lock` absence: `PASS` (enforced invariant).
 
+### Session 2026-10-06 (Local Typo-Tolerant Ranked Kid Search with Autocomplete)
+
+- **What**:
+  - **Shared Kid Search Service (`src/services/kidSearch.ts`)**:
+    - Complete Arabic/English text normalization: stripping tashkeel/diacritics, unifying alef variants (`[أإآٱ] -> ا`), taa-marbuta (`ة -> ه`), yaa (`ى -> ي`), stripping tatweel, collapsing whitespace, while preserving Latin letters and numbers.
+    - Tokenization & bounded Levenshtein typo tolerance (distance 1 for tokens 3-4 chars, distance 2 for tokens >= 5 chars; no false-positive fuzzy matches on < 3 chars).
+    - Curated explicit alias map (`KID_SEARCH_ALIASES`) for approved kid topics/channels: Cosmic Kids Yoga (يوغا / yoga / يوجا), Numberblocks (نمبر / numberblocks / ارقام / حساب), Alphablocks (حروف / alphablocks / الفابلكس), Art for Kids Hub (رسم / تلوين / art for kids), Arabian Fairy Tales (حكاية / قصة / fairy / قصص), 5-Minute Crafts PLAY, Bluey, Blippi.
+    - Single relevance ranking hierarchy: exact title (100) -> title prefix (90) -> title substring (75) -> channel prefix (65) -> channel substring (55) -> alias match (45) -> bounded fuzzy match (25-40), with +15 boost for saved/loved matches.
+    - Ties broken deterministically by `videoId`.
+    - Empty query preserves exact candidate feed order with zero shuffling or ranking overhead.
+    - Local autocomplete suggestion engine (`getAutocompleteSuggestions`) operating strictly on local approved in-memory content (enabled channels, loaded feed videos, favorites, saved/loved), prioritizing strong channel matches and deduplicating by normalized text (max 7 items).
+  - **Unified Feed Search Integration (`src/features/feed/useKidFeed.ts`)**:
+    - Replaced fragmented `.toLowerCase().includes()` across in-feed search, saved/loved append, and `filteredFavorites` with `searchAndRankVideos`.
+    - Preserved existing deep archive search (`/api/search-archive?q=...` fallback on `< 3` results) and category/suppression safety filters.
+    - Exposed `searchSuggestions` from `useKidFeed`.
+  - **Autocomplete Dropdown in Header (`src/features/feed/KidHeader.tsx`)**:
+    - Implemented compact, RTL-friendly `#kid-search-autocomplete-dropdown` for both collapsed and expanded search views.
+    - Bound to click-outside dismiss, Escape key handling, and immediate search execution upon suggestion selection.
+    - Does not occlude favorites, downloads, or parent dashboard lock buttons.
+  - **Home Screen Wiring (`src/features/feed/KidHomeScreen.tsx`)**:
+    - Connected `searchSuggestions` and `onSelectSuggestion` callback to `KidHeader`.
+- **Files Modified**:
+  - `src/services/kidSearch.ts` (new)
+  - `src/features/feed/useKidFeed.ts`
+  - `src/features/feed/KidHeader.tsx`
+  - `src/features/feed/KidHomeScreen.tsx`
+- **Verification**:
+  - `npm run lint` (`tsc --noEmit`): `PASS` (0 errors).
+  - `npm run build` (`vite build`): `PASS` (production build compiled cleanly).
+  - Focused test assertions via `tsx`: `PASS` (all normalization, Levenshtein, alias, ranking, and autocomplete assertions passed).
+  - External search/suggest safety grep: `PASS` (zero external YouTube Search or Suggest endpoints introduced).
+  - Worker unchanged: `PASS` (no edits to `worker/`).
+  - `bun.lock` absence: `PASS` (enforced invariant).
+
 ## Next Agent Should Do
 
 1. Read `PROJECT_CONTEXT.md`, `HANDOFF.md`, and `AI_REVIEW_INSTRUCTIONS.md` before making any edits.

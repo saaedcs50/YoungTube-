@@ -19,6 +19,11 @@ import {
 } from '../../tasteShiftEngine';
 import { logImpressedBatch } from '../../tasteShiftStorage';
 import type { TasteShiftConfig } from '../../tasteShiftTypes';
+import {
+  searchAndRankVideos,
+  getAutocompleteSuggestions,
+  type AutocompleteSuggestion,
+} from '../../services/kidSearch';
 
 // Built-in starter videos mapped to actual curated channels from registry
 // Guarantees immediate, visually vibrant content even on fresh install or offline
@@ -174,7 +179,7 @@ const CACHE_TRIM_ABOVE = 40;
 const CACHE_KEEP = 30;
 
 /** Bounded, recency-sorted load of enabled-channel videos (chunked anyOf, not 196 parallel queries). */
-async function loadBoundedFeed(
+export async function loadBoundedFeed(
   enabledChannelIds: string[],
   hideMusicVideos: boolean,
   hasFamilyKey = false
@@ -679,20 +684,17 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
 
     // In-feed search (searches approved cached videos, plus saved and loved videos)
     if (debouncedSearch) {
-      result = result.filter((video) => {
-        const channelInfo = channelMap.get(video.channelId);
-        const titleMatch = video.title.toLowerCase().includes(debouncedSearch);
-        const channelMatch = channelInfo?.title.toLowerCase().includes(debouncedSearch);
-        return titleMatch || channelMatch;
-      });
+      // Build candidate list: category-filtered feed videos + qualifying saved/loved videos (deduplicated)
+      const existingIds = new Set(result.map((v) => v.videoId));
+      const pool: FeedItem[] = [...result];
+      const savedIds = new Set<string>();
 
-      // Append matching saved/loved results without duplicating any videoId
       if (savedAndLovedVideos.length > 0) {
-        const existingIds = new Set(result.map((v) => v.videoId));
-        const matchingSavedLoved: FeedItem[] = [];
-
         for (const item of savedAndLovedVideos) {
-          if (existingIds.has(item.videoId)) continue;
+          if (existingIds.has(item.videoId)) {
+            savedIds.add(item.videoId);
+            continue;
+          }
           if (suppressedSet.has(item.videoId)) continue;
 
           // Category filter if active
@@ -702,35 +704,39 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
             if (!matchCategory(channelCats, selectedCategory)) continue;
           }
 
-          const channelInfo = channelMap.get(item.channelId);
-          const titleMatch = item.title.toLowerCase().includes(debouncedSearch);
-          const channelMatch = channelInfo?.title.toLowerCase().includes(debouncedSearch);
-
-          if (titleMatch || channelMatch) {
-            existingIds.add(item.videoId);
-            matchingSavedLoved.push(item);
-          }
-        }
-
-        if (matchingSavedLoved.length > 0) {
-          result = [...result, ...matchingSavedLoved];
+          existingIds.add(item.videoId);
+          savedIds.add(item.videoId);
+          pool.push(item);
         }
       }
+
+      // Rank candidate pool using shared kidSearch helper with typo tolerance, aliases, and saved/loved boost
+      result = searchAndRankVideos(pool, debouncedSearch, channelMap, {
+        isSavedOrLovedItem: (id) => savedIds.has(id),
+      });
     }
 
     return result;
   }, [videos, selectedCategory, debouncedSearch, channelMap, suppressedSet, savedAndLovedVideos]);
 
-  // 3.5 Filter favorites by search query
+  // 3.5 Filter favorites by search query using shared kidSearch helper
   const filteredFavorites = useMemo(() => {
-    if (!debouncedSearch) return favoritesVideos;
-    return favoritesVideos.filter((video) => {
-      const channelInfo = channelMap.get(video.channelId);
-      const titleMatch = video.title.toLowerCase().includes(debouncedSearch);
-      const channelMatch = channelInfo?.title.toLowerCase().includes(debouncedSearch);
-      return titleMatch || channelMatch;
+    return searchAndRankVideos(favoritesVideos, debouncedSearch, channelMap, {
+      isSavedOrLovedItem: () => true,
     });
   }, [favoritesVideos, debouncedSearch, channelMap]);
+
+  // 3.6 Autocomplete suggestions from local approved content only
+  const searchSuggestions = useMemo(() => {
+    return getAutocompleteSuggestions({
+      query: searchInput,
+      channelMap,
+      feedVideos: videos,
+      favoritesVideos,
+      savedAndLovedVideos,
+      limit: 7,
+    });
+  }, [searchInput, channelMap, videos, favoritesVideos, savedAndLovedVideos]);
 
   // 3.8 Deep search fallback: if local filteredVideos has fewer than 3 results and debouncedSearch has > 2 chars
   useEffect(() => {
@@ -797,12 +803,12 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
     setSearchInput,
     debouncedSearch,
     setDebouncedSearch,
+    searchSuggestions,
     deepSearchResults,
     setDeepSearchResults,
     isDeepSearching,
     showFavorites,
     setShowFavorites,
-    favoritesVideos,
     filteredFavorites,
     favoritesCount,
     tasteShiftConfig,
@@ -810,6 +816,9 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
     showWeeklyChoiceCard,
     channelMap,
     filteredVideos,
+    registryChannelsList,
+    favoritesVideos,
+    savedAndLovedVideos,
     loadVideos,
     loadFavorites,
   };

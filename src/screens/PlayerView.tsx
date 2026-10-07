@@ -48,6 +48,16 @@ export interface QueuedVideo {
   channelId?: string;
 }
 
+function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    : `${minutes}:${String(secs).padStart(2, '0')}`;
+}
+
 const DEFAULT_DEMO_QUEUE: QueuedVideo[] = [
   {
     videoId: 's6X_Q54_PBs',
@@ -102,6 +112,7 @@ interface PlayerViewProps {
   playlistContext?: PlaylistPlaybackContext;
   onVideoHidden?: (videoId: string) => void;
   onChannelBlocked?: () => void;
+  onOpenChannel?: (channelId: string) => void;
   onRefreshHomeFeed?: () => void;
   onClose: () => void;
   onEnded: () => void;
@@ -127,6 +138,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   playlistContext,
   onVideoHidden,
   onChannelBlocked,
+  onOpenChannel,
   onRefreshHomeFeed,
   onClose,
   onEnded,
@@ -164,6 +176,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   const [playlistShuffle, setPlaylistShuffle] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [showEndedCard, setShowEndedCard] = useState(false);
 
   // Video Queue & Current Video State
   const [currentVideo, setCurrentVideo] = useState<QueuedVideo>({
@@ -180,6 +193,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       channelTitle: channelTitle || 'قناة أطفال موثوقة',
       channelId: propChannelId,
     });
+    setShowEndedCard(false);
   }, [videoId, videoTitle, channelTitle, propChannelId, playlistContext, playlistShuffle]);
 
   // Resolve local path from prop or Dexie catalog for current videoId
@@ -232,19 +246,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [onExitMinimized]);
 
   const handleExpandFromMinimized = useCallback(() => {
-    if (typeof window !== 'undefined' && window.history.state?.minimized) {
-      window.history.back();
-    } else {
-      performExpandFromMinimized();
-    }
+    performExpandFromMinimized();
   }, [performExpandFromMinimized]);
 
   const handleEnterMinimized = useCallback(() => {
     setIsMinimizedLocal(true);
     if (onEnterMinimized) {
       onEnterMinimized();
-    } else if (typeof window !== 'undefined' && !window.history.state?.minimized) {
-      window.history.pushState({ ytPlayer: true, fullscreen: false, minimized: true }, '');
     }
   }, [onEnterMinimized]);
 
@@ -463,19 +471,20 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         if (isCancelled) return;
 
         const seen = new Set<string>();
-        const merged: QueuedVideo[] = [];
-        for (const item of [
-          currentItem,
-          ...sameChannelItems,
-          ...recentFeedItems,
-          ...DEFAULT_DEMO_QUEUE,
-        ]) {
+        const fallback = sameChannelItems.length > 0
+          ? sameChannelItems
+          : recentFeedItems.length > 0
+            ? recentFeedItems
+            : DEFAULT_DEMO_QUEUE;
+        const bounded: QueuedVideo[] = [];
+        for (const item of [currentItem, ...fallback]) {
           if (!seen.has(item.videoId)) {
             seen.add(item.videoId);
-            merged.push(item);
+            bounded.push(item);
           }
+          if (bounded.length >= 9) break;
         }
-        setPlaylist(merged.slice(0, 50));
+        setPlaylist(bounded);
       } catch (err) {
         console.warn('Failed to load bounded feed queue:', err);
       }
@@ -561,6 +570,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     checkAndLogSkippedEarly(currentVideo.videoId, currentTime, duration, currentVideo.channelId);
     if (playlistContext?.source === 'playlist') currentPlaylistItemIdRef.current = itemId ?? currentPlaylistItemIdRef.current;
     setCurrentVideo(item);
+    setShowEndedCard(false);
     lastSecondRef.current = 0;
     setCurrentTime(0);
     try {
@@ -592,7 +602,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       const nextIdx = curIdx >= 0 && curIdx + 1 < playlist.length ? curIdx + 1 : loopMode === 'playlist' ? 0 : -1;
       const nextItem = nextIdx >= 0 ? playlist[nextIdx] : undefined;
       if (nextItem) handlePlayQueuedVideo(nextItem, playlistItemIds[nextIdx]);
-      else onEnded();
+      else {
+        setShowEndedCard(true);
+        setIsPlaying(false);
+        onPlayingChange?.(false);
+        onEnded();
+      }
       return;
     }
     const nextIdx = curIdx >= 0 ? (curIdx + 1) % playlist.length : 0;
@@ -800,9 +815,11 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
   // Settings Bottom Sheet State (delegated to App.tsx history manager when provided)
   const [isSettingsOpenLocal, setIsSettingsOpenLocal] = useState(false);
+  const [activeSheet, setActiveSheet] = useState<'settings' | 'description' | null>(null);
   const isSettingsOpen = (propIsSheetOpen !== undefined) ? propIsSheetOpen : isSettingsOpenLocal;
 
-  const handleOpenSettings = useCallback(() => {
+  const openSheet = useCallback((sheet: 'settings' | 'description') => {
+    setActiveSheet(sheet);
     if (onOpenSheet) {
       onOpenSheet();
     } else {
@@ -812,6 +829,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       setIsSettingsOpenLocal(true);
     }
   }, [onOpenSheet]);
+
+  const handleOpenSettings = useCallback(() => openSheet('settings'), [openSheet]);
+  const handleOpenDescription = useCallback(() => openSheet('description'), [openSheet]);
 
   const handleCastVideo = useCallback(async () => {
     const result = await castYouTubeVideo(videoId, videoTitle);
@@ -824,9 +844,14 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       window.history.back();
     } else {
       setIsSettingsOpenLocal(false);
+      setActiveSheet(null);
       onCloseSheet?.();
     }
   }, [onCloseSheet]);
+
+  useEffect(() => {
+    if (!isSettingsOpen) setActiveSheet(null);
+  }, [isSettingsOpen]);
 
   // Close sheet if video enters fullscreen, is minimized, or receives forceStop
   useEffect(() => {
@@ -1149,10 +1174,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         }
         setIsPlaying(false);
         onPlayingChange?.(false);
+        setShowEndedCard(true);
         onEnded();
       } else {
         setIsPlaying(false);
         onPlayingChange?.(false);
+        setShowEndedCard(true);
         const vId = currentVideo.videoId;
         if (!completedVideoIdsRef.current.has(vId)) {
           completedVideoIdsRef.current.add(vId);
@@ -1171,6 +1198,29 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       }
     }
   };
+
+  const handleReplay = useCallback(() => {
+    setShowEndedCard(false);
+    setCurrentTime(0);
+    if (activeLocalPath && localVideoRef.current) {
+      localVideoRef.current.currentTime = 0;
+      localVideoRef.current.play().catch(() => {});
+      setIsPlaying(true);
+      onPlayingChange?.(true);
+      return;
+    }
+    try {
+      playerRef.current?.seekTo?.(0, true);
+      playerRef.current?.playVideo?.();
+      setIsPlaying(true);
+      onPlayingChange?.(true);
+    } catch {}
+  }, [activeLocalPath, onPlayingChange]);
+
+  const hasPlaylistNext = playlistContext?.source === 'playlist' && (() => {
+    const idx = playlist.findIndex((v) => v.videoId === currentVideo.videoId);
+    return idx >= 0 && idx + 1 < playlist.length;
+  })();
 
   const handleClose = useCallback(() => {
     checkAndLogSkippedEarly(currentVideo.videoId, currentTime, duration, currentVideo.channelId);
@@ -1562,8 +1612,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       dir="rtl"
       className={
         isMinimized
-          ? 'fixed inset-0 z-50 pointer-events-none bg-transparent select-none'
-          : 'fixed inset-0 z-50 bg-yt-bg text-white flex flex-col h-screen w-screen overflow-hidden select-none'
+          ? 'fixed inset-0 z-[80] pointer-events-none bg-transparent select-none'
+          : 'fixed inset-0 z-50 bg-yt-bg text-white w-screen overflow-y-auto overscroll-contain select-none'
       }
     >
       {/* ================= TOP HALF / VIDEO AREA (Portrait: 50% height) ================= */}
@@ -1572,13 +1622,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           isFullscreen
             ? 'fixed inset-0 z-50 w-full h-full bg-black overflow-hidden'
             : isMinimized
-            ? 'fixed bottom-5 right-5 z-50 pointer-events-auto w-[160px] h-[90px] sm:w-[200px] sm:h-[112px] rounded-2xl shadow-2xl shadow-black/90 ring-1 ring-white/20 bg-black flex items-center justify-center transition-all duration-300'
-            : 'w-full h-1/2 flex flex-col bg-yt-surface border-b border-yt-border'
+            ? 'fixed bottom-[calc(56px+env(safe-area-inset-bottom)+8px)] right-3 sm:right-5 z-[60] pointer-events-auto w-[176px] h-[99px] sm:w-[216px] sm:h-[122px] rounded-2xl shadow-2xl shadow-black/90 ring-1 ring-white/20 bg-black flex items-center justify-center transition-all duration-[220ms]'
+            : 'w-full max-w-3xl mx-auto flex flex-col bg-yt-surface border-b border-yt-border'
         }
       >
         {/* Top Quarter (25% of top half): Meta & Parent Actions (Portrait only) */}
         {!isFullscreen && !isMinimized && (
-          <div className="h-[25%] px-3.5 pt-3 bg-yt-surface flex items-center justify-between border-b border-yt-border gap-2 shrink-0">
+          <div className="order-2 px-4 py-3 bg-yt-surface flex items-center justify-between border-t border-yt-border gap-3 shrink-0">
             {/* Back/Close button (top-left / start in RTL) */}
             <button
               type="button"
@@ -1590,14 +1640,33 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <ArrowRight className="w-5 h-5" />
             </button>
 
-            {/* Title & Channel Info (1 line) */}
-            <div className="flex-1 min-w-0 px-1">
-              <h2 className="font-bold text-xs sm:text-sm text-yt-text truncate">
-                {currentVideo.title}
-              </h2>
-              <p className="text-[11px] text-yt-text-muted truncate">
-                {currentVideo.channelTitle}
-              </p>
+            {/* Title & Channel Info */}
+            <div className="flex-1 min-w-0 px-1 flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => currentVideo.channelId && onOpenChannel?.(currentVideo.channelId)}
+                className={`w-10 h-10 rounded-full bg-yt-surface-muted border border-yt-border shrink-0 flex items-center justify-center text-xs font-black text-yt-text-muted overflow-hidden ${currentVideo.channelId && onOpenChannel ? 'cursor-pointer' : 'cursor-default'}`}
+                aria-label={`فتح قناة ${currentVideo.channelTitle}`}
+              >
+                <span>{currentVideo.channelTitle?.trim().charAt(0) || 'ق'}</span>
+              </button>
+              <div className="min-w-0">
+                <h2 className="font-bold text-sm sm:text-base text-yt-text line-clamp-2 leading-snug">
+                  {currentVideo.title}
+                </h2>
+                {currentVideo.channelId && onOpenChannel ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenChannel(currentVideo.channelId!)}
+                    className="text-[11px] text-yt-text-muted hover:text-yt-brand truncate text-right cursor-pointer"
+                    aria-label={`فتح قناة ${currentVideo.channelTitle}`}
+                  >
+                    {currentVideo.channelTitle}
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-yt-text-muted truncate">{currentVideo.channelTitle}</p>
+                )}
+              </div>
             </div>
 
             {/* Parent Action Pill Container */}
@@ -1646,7 +1715,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               ? 'w-full h-full relative bg-black flex items-center justify-center overflow-hidden'
               : isMinimized
               ? 'w-full h-full relative bg-black rounded-2xl overflow-hidden flex items-center justify-center'
-              : 'h-[75%] relative bg-black w-full p-0 rounded-none flex items-center justify-center overflow-hidden'
+              : 'order-1 aspect-video relative bg-black w-full p-0 rounded-none flex items-center justify-center overflow-hidden'
           }
         >
           {activeLocalPath && !localPlayError ? (
@@ -1690,6 +1759,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                   }
                   setIsPlaying(false);
                   onPlayingChange?.(false);
+                  setShowEndedCard(true);
                   onEnded();
                 }}
                 onError={() => {
@@ -1854,6 +1924,20 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             </button>
           )}
 
+          {showEndedCard && !effectiveForceStop && (
+            <div className="absolute inset-0 z-40 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center p-5 text-center">
+              <div className="w-full max-w-sm rounded-3xl border border-white/15 bg-black/60 p-5 shadow-2xl">
+                <h3 className="text-base font-black text-white">انتهى الفيديو</h3>
+                <p className="text-xs text-white/65 mt-1 line-clamp-2">{currentVideo.title}</p>
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button type="button" onClick={handleReplay} className="min-h-11 rounded-2xl bg-white text-black text-xs font-black cursor-pointer active:scale-95 transition">إعادة التشغيل</button>
+                  {hasPlaylistNext && <button type="button" onClick={handleNext} className="min-h-11 rounded-2xl bg-yt-brand text-yt-brand-text text-xs font-black cursor-pointer active:scale-95 transition">التالي في القائمة</button>}
+                  <button type="button" onClick={onClose} className="min-h-11 rounded-2xl bg-white/10 text-white text-xs font-bold border border-white/10 cursor-pointer active:scale-95 transition">رجوع</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ForceStop Visual Banner */}
           {effectiveForceStop && (
             <div className="absolute inset-0 z-30 bg-black/80 flex flex-col items-center justify-center p-4 text-center select-none backdrop-blur-sm">
@@ -1890,7 +1974,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
       {/* ================= BOTTOM HALF (Portrait only: 50% height, bg-yt-bg) ================= */}
       {!isFullscreen && !isMinimized && (
-        <div className="h-1/2 flex flex-col justify-between p-4 sm:p-5 bg-yt-bg min-h-0 overflow-y-auto overscroll-contain gap-3">
+        <div className="w-full max-w-3xl mx-auto flex flex-col p-4 sm:p-5 bg-yt-bg gap-4">
           {/* 1) Seek bar dir="ltr" + remaining / total time */}
           <div className="w-full">
             <PlayerSeekBar
@@ -1902,7 +1986,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           </div>
 
           {/* 2) Primary group centered (not spread full width): Prev small · Play/Pause 64px circle · Next small */}
-          <div className="flex flex-col items-center justify-center gap-3 my-auto py-1">
+          <div className="flex flex-col items-center justify-center gap-3 py-1">
             <div
               dir="ltr"
               className="flex items-center justify-center gap-6 sm:gap-8"
@@ -2078,6 +2162,21 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             </div>
           </div>
 
+          <button
+            type="button"
+            onClick={handleOpenDescription}
+            className="w-full rounded-2xl border border-yt-border bg-yt-surface px-4 py-3 text-right hover:bg-yt-surface-muted active:scale-[0.995] transition cursor-pointer"
+            aria-label="عرض تفاصيل الفيديو"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-black text-yt-text">تفاصيل الفيديو</div>
+                <div className="text-[11px] text-yt-text-muted mt-1 line-clamp-1">{currentVideo.title}</div>
+              </div>
+              <span className="shrink-0 text-[11px] font-bold text-yt-brand">عرض</span>
+            </div>
+          </button>
+
           {/* 4) Label "التالي في قائمة الأمان" + existing UpNextStrip */}
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between px-1">
@@ -2121,13 +2220,46 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         </div>
       )}
 
-      {/* Portrait Playback Settings Bottom Sheet */}
-      {!isFullscreen && !isMinimized && (
+      {/* Portrait Playback Sheets */}
+      {!isFullscreen && !isMinimized && activeSheet === 'settings' && (
         <PlayerSettingsSheet
           isOpen={isSettingsOpen}
           onClose={handleCloseSettings}
           player={playerRef.current}
         />
+      )}
+      {!isFullscreen && !isMinimized && activeSheet === 'description' && isSettingsOpen && (
+        <div
+          id="player-description-sheet"
+          className="fixed inset-x-0 bottom-0 z-[82] h-[min(72vh,560px)] bg-yt-bg/70 backdrop-blur-[2px] flex flex-col justify-end animate-in fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="تفاصيل الفيديو"
+          onClick={(event) => { if (event.target === event.currentTarget) handleCloseSettings(); }}
+        >
+          <div dir="rtl" className="w-full h-full bg-yt-surface border-t border-yt-border rounded-t-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-full">
+            <div className="pt-2.5 pb-3 px-5 border-b border-yt-border shrink-0">
+              <div className="w-10 h-1 bg-yt-border rounded-full mx-auto mb-3" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-base font-black text-yt-text line-clamp-2">{currentVideo.title}</h2>
+                  <p className="text-xs text-yt-text-muted mt-1">{currentVideo.channelTitle}</p>
+                </div>
+                <button type="button" onClick={handleCloseSettings} className="w-10 h-10 rounded-full hover:bg-yt-surface-muted text-yt-text-muted flex items-center justify-center cursor-pointer" aria-label="إغلاق التفاصيل">×</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-yt-surface-muted p-3"><div className="text-[10px] text-yt-text-muted">القناة</div><div className="text-sm font-bold mt-1 truncate">{currentVideo.channelTitle}</div></div>
+                <div className="rounded-2xl bg-yt-surface-muted p-3"><div className="text-[10px] text-yt-text-muted">المدة</div><div className="text-sm font-bold mt-1">{duration > 0 ? formatDuration(duration) : '—'}</div></div>
+              </div>
+              <div className="rounded-2xl border border-yt-border bg-yt-bg/40 p-4">
+                <div className="text-xs font-black text-yt-text mb-2">الوصف</div>
+                <p className="text-xs leading-6 text-yt-text-muted">لا تحتوي بيانات الفيديو المحلية الحالية على نص وصف مستقل لهذا الفيديو. تم إبقاء شاشة التفاصيل متاحة لتوحيد تجربة المشاهدة، من دون اختلاق وصف غير موجود.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Playlist Manager Modal Overlay */}

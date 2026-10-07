@@ -232,6 +232,38 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
     [player]
   );
 
+  const dragStartYRef = useRef<number | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragStartYRef.current = e.clientY;
+    setIsDragging(true);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const handleDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartYRef.current === null) return;
+    setDragOffset(Math.max(0, e.clientY - dragStartYRef.current));
+  };
+
+  const handleDragEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartYRef.current === null) return;
+    const offset = Math.max(0, e.clientY - dragStartYRef.current);
+    dragStartYRef.current = null;
+    setIsDragging(false);
+    setDragOffset(0);
+    if (offset > Math.min(window.innerHeight * 0.22, 180)) onClose();
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      dragStartYRef.current = null;
+      setDragOffset(0);
+      setIsDragging(false);
+    }
+  }, [isOpen]);
+
   // Backdrop dismiss pattern: target === currentTarget dismisses the sheet
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
@@ -246,17 +278,25 @@ export const PlayerSettingsSheet: React.FC<PlayerSettingsSheetProps> = ({
       id="player-settings-backdrop"
       data-surface="player"
       onClick={handleBackdropClick}
-      className="fixed inset-x-0 bottom-0 h-1/2 z-40 flex flex-col justify-end bg-yt-bg/70 backdrop-blur-[2px] transition-opacity duration-200 select-none animate-in fade-in"
+      className="fixed inset-x-0 bottom-0 h-[min(72vh,680px)] z-40 flex flex-col justify-end bg-yt-bg/70 backdrop-blur-[2px] transition-opacity duration-200 select-none animate-in fade-in"
       aria-label="خلفية إعدادات التشغيل"
     >
       {/* Slide-Up Bottom Sheet Panel (covers lower half of screen) */}
       <div
         id="player-settings-sheet"
         dir="rtl"
-        className="w-full h-full bg-yt-surface border-t border-yt-border rounded-t-2xl shadow-2xl flex flex-col overflow-hidden text-yt-text transition-transform duration-250 ease-out animate-in slide-in-from-bottom-full"
+        className={`w-full h-full bg-yt-surface border-t border-yt-border rounded-t-2xl shadow-2xl flex flex-col overflow-hidden text-yt-text ${isDragging ? '' : 'transition-transform duration-200 ease-out'} animate-in slide-in-from-bottom-full`}
+        style={{ transform: `translateY(${dragOffset}px)` }}
       >
         {/* Top Header & Drag handle */}
-        <div className="pt-2.5 pb-2 px-5 border-b border-yt-border shrink-0 bg-yt-surface/90">
+        <div
+          className="pt-2.5 pb-2 px-5 border-b border-yt-border shrink-0 bg-yt-surface/90 touch-none"
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+          aria-label="اسحب لإغلاق ورقة الإعدادات"
+        >
           <div className="w-10 h-1 bg-yt-border rounded-full mx-auto mb-3" />
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">

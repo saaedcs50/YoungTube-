@@ -7,7 +7,8 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { useSessionTimer } from './hooks/useSessionTimer';
 import { ensureChannelsArchiveSynced } from './filtering';
-import KidHomeScreen from './screens/KidHomeScreen';
+import { AppShell } from './shell/AppShell';
+import { openCastPicker } from './services/castService';
 import { startParentSession, endParentSession, endChildSession, createSessionId } from './services/telemetry';
 import {
   fetchAnnouncements,
@@ -217,18 +218,16 @@ export default function App() {
     setParentAnnouncements((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
-  // Fix 2: Player fullscreen, mini-player, and settings sheet states tracked in App.tsx
+  // Player history uses browser entries only for actual Watch layers:
+  // level 1 = Watch, level 2 = fullscreen, level 3 = settings sheet.
+  // Miniplayer is playback state, not a history entry.
   const isPlayerFullscreenRef = useRef(false);
   const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
-
   const isPlayerMinimizedRef = useRef(false);
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(false);
-
   const isPlayerSheetOpenRef = useRef(false);
   const [isPlayerSheetOpen, setIsPlayerSheetOpen] = useState(false);
-
-  // Depth tracking & closing guard for player history entries
-  const playerHistoryDepthRef = useRef(0);
+  const playerHistoryLevelRef = useRef(0);
   const closingRef = useRef(false);
 
   const updatePlayerFullscreen = useCallback((val: boolean) => {
@@ -246,15 +245,24 @@ export default function App() {
     isPlayerSheetOpenRef.current = val;
   }, []);
 
+  const pushPlayerHistory = useCallback((level: number, state: Record<string, unknown> = {}) => {
+    if (typeof window === 'undefined') return;
+    window.history.pushState(
+      { ...state, ytPlayer: true, playerLevel: level },
+      ''
+    );
+    playerHistoryLevelRef.current = level;
+  }, []);
+
   const handleOpenDemoPlayer = useCallback(() => {
     updatePlayerMinimized(false);
     updatePlayerSheetOpen(false);
+    updatePlayerFullscreen(false);
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
-      window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
-      playerHistoryDepthRef.current += 1;
+      pushPlayerHistory(1, { fullscreen: false, sheetOpen: false });
     }
     setShowDemoPlayer(true);
-  }, [updatePlayerMinimized, updatePlayerSheetOpen]);
+  }, [pushPlayerHistory, updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const handleSelectVideo = useCallback((
     videoId: string,
@@ -265,51 +273,67 @@ export default function App() {
   ) => {
     updatePlayerMinimized(false);
     updatePlayerSheetOpen(false);
+    updatePlayerFullscreen(false);
     if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
-      window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
-      playerHistoryDepthRef.current += 1;
+      pushPlayerHistory(1, { fullscreen: false, sheetOpen: false });
+    } else if (typeof window !== 'undefined' && window.history.state?.ytPlayer) {
+      playerHistoryLevelRef.current = Number(window.history.state?.playerLevel || 1);
     }
     setActivePlaybackVideo({ videoId, title, channelName, channelId, localPath: options?.localPath, playlistContext: options?.playlistContext });
-  }, [updatePlayerMinimized, updatePlayerSheetOpen]);
+  }, [pushPlayerHistory, updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const handlePlayerEnterFullscreen = useCallback(() => {
     if (typeof window !== 'undefined' && !window.history.state?.fullscreen) {
-      window.history.pushState({ ytPlayer: true, fullscreen: true }, '');
-      playerHistoryDepthRef.current += 1;
+      pushPlayerHistory(2, { fullscreen: true, sheetOpen: false });
     }
     updatePlayerFullscreen(true);
-  }, [updatePlayerFullscreen]);
+  }, [pushPlayerHistory, updatePlayerFullscreen]);
 
   const handlePlayerExitFullscreen = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.state?.ytPlayer && window.history.state?.fullscreen) {
+      window.history.back();
+      return;
+    }
     updatePlayerFullscreen(false);
   }, [updatePlayerFullscreen]);
 
   const handlePlayerEnterMinimized = useCallback(() => {
-    if (typeof window !== 'undefined' && !window.history.state?.minimized) {
-      window.history.pushState({ ytPlayer: true, fullscreen: false, minimized: true }, '');
-      playerHistoryDepthRef.current += 1;
-    }
     updatePlayerMinimized(true);
-  }, [updatePlayerMinimized]);
+    updatePlayerSheetOpen(false);
+    updatePlayerFullscreen(false);
+    if (typeof window !== 'undefined' && window.history.state?.ytPlayer) {
+      // Back consumes the Watch entry and lands on the underlying root/overlay,
+      // while playback remains mounted in the miniplayer.
+      window.history.back();
+    }
+  }, [updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const handlePlayerExitMinimized = useCallback(() => {
     updatePlayerMinimized(false);
-  }, [updatePlayerMinimized]);
+    if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
+      pushPlayerHistory(1, { fullscreen: false, sheetOpen: false });
+    }
+  }, [pushPlayerHistory, updatePlayerMinimized]);
 
   const handlePlayerOpenSheet = useCallback(() => {
+    const nextLevel = 3;
     if (typeof window !== 'undefined' && !window.history.state?.sheetOpen) {
-      window.history.pushState({ ...window.history.state, ytPlayer: true, sheetOpen: true }, '');
-      playerHistoryDepthRef.current += 1;
+      pushPlayerHistory(nextLevel, { fullscreen: false, sheetOpen: true });
     }
     updatePlayerSheetOpen(true);
-  }, [updatePlayerSheetOpen]);
+  }, [pushPlayerHistory, updatePlayerSheetOpen]);
 
   const handlePlayerCloseSheet = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.state?.ytPlayer && window.history.state?.sheetOpen) {
+      window.history.back();
+      return;
+    }
     updatePlayerSheetOpen(false);
   }, [updatePlayerSheetOpen]);
 
   const handleClosePlayer = useCallback(() => {
     closingRef.current = true;
+    const level = playerHistoryLevelRef.current;
 
     updatePlayerMinimized(false);
     updatePlayerFullscreen(false);
@@ -317,113 +341,93 @@ export default function App() {
     setActivePlaybackVideo(null);
     setShowDemoPlayer(false);
 
-    const n = playerHistoryDepthRef.current;
-
-    if (n > 0 && typeof window !== 'undefined') {
-      window.history.go(-n);
+    if (level > 0 && typeof window !== 'undefined') {
+      window.history.go(-level);
     } else {
-      if (typeof window !== 'undefined' && window.history.state) {
-        const { ytPlayer, fullscreen, minimized, sheetOpen, ...restState } = window.history.state;
-        if (ytPlayer || fullscreen || minimized || sheetOpen) {
-          window.history.replaceState(restState, '');
-        }
-      }
-      playerHistoryDepthRef.current = 0;
+      playerHistoryLevelRef.current = 0;
       closingRef.current = false;
     }
+  }, [updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
-    setTimeout(() => {
-      if (closingRef.current) {
-        closingRef.current = false;
-        playerHistoryDepthRef.current = 0;
-      }
-    }, 300);
-  }, [updatePlayerMinimized, updatePlayerFullscreen, updatePlayerSheetOpen]);
-
-  // Fix 2: Ensure Level 1 history entry exists when PlayerView opens
+  // Ensure the browser state is recoverable after direct state restoration.
   useEffect(() => {
-    if (
-      (activePlaybackVideo || showDemoPlayer) &&
-      typeof window !== 'undefined' &&
-      !window.history.state?.ytPlayer
-    ) {
-      window.history.pushState({ ytPlayer: true, fullscreen: false }, '');
-      playerHistoryDepthRef.current += 1;
+    if ((activePlaybackVideo || showDemoPlayer) && typeof window !== 'undefined') {
+      if (window.history.state?.ytPlayer) {
+        playerHistoryLevelRef.current = Number(window.history.state?.playerLevel || 1);
+      } else {
+        pushPlayerHistory(1, { fullscreen: false, sheetOpen: false });
+      }
     }
-  }, [activePlaybackVideo, showDemoPlayer]);
+  }, [activePlaybackVideo, showDemoPlayer, pushPlayerHistory]);
 
-  // Fix: Single popstate listener (only ONE home for popstate across the entire app)
-  // Unwinds all five layers in exact hierarchical order:
-  // Layer 5 (sheet open) -> Layer 4 (minimized) -> Layer 3 (fullscreen) -> Layer 2 (player open) -> Layer 1 (closed)
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
+      const targetLevel = Number(e.state?.playerLevel || 0);
+      const currentLevel = playerHistoryLevelRef.current;
+
       if (closingRef.current) {
-        playerHistoryDepthRef.current = Math.max(0, playerHistoryDepthRef.current - 1);
-        if (playerHistoryDepthRef.current === 0) {
-          closingRef.current = false;
-        }
+        playerHistoryLevelRef.current = targetLevel;
+        if (targetLevel === 0) closingRef.current = false;
         return;
       }
 
-      playerHistoryDepthRef.current = Math.max(0, playerHistoryDepthRef.current - 1);
-
-      // 1. Layer 5: Settings bottom sheet open -> close sheet first
-      const wasSheetOpen = isPlayerSheetOpenRef.current;
-      const isSheetExit = wasSheetOpen && !e.state?.sheetOpen;
-
-      if (isSheetExit) {
-        updatePlayerSheetOpen(false);
-        return;
-      }
-
-      // 2. Layer 4: Hardware Back while minimized -> expand back to full Portrait
-      const wasMinimized = isPlayerMinimizedRef.current;
-      const isMiniExpand = wasMinimized && Boolean(e.state?.ytPlayer && !e.state?.minimized);
-
-      if (isMiniExpand) {
-        updatePlayerMinimized(false);
-        return;
-      }
-
-      // 3. Layer 3: Hardware Back while fullscreen -> exit fullscreen only
-      const wasFullscreen = isPlayerFullscreenRef.current;
-      const isFullscreenExit = wasFullscreen && !e.state?.fullscreen;
-
-      if (isFullscreenExit) {
-        // Exit fullscreen only: stay on PlayerView in Portrait. Do NOT close the player.
+      // Fullscreen Back: exit fullscreen, keep Watch at level 1.
+      if (isPlayerFullscreenRef.current && targetLevel < currentLevel) {
+        playerHistoryLevelRef.current = targetLevel;
         updatePlayerFullscreen(false);
         try {
           if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-            if (typeof document.exitFullscreen === 'function') {
-              document.exitFullscreen().catch(() => {});
-            } else if ((document as any).webkitExitFullscreen) {
-              (document as any).webkitExitFullscreen();
-            }
+            if (typeof document.exitFullscreen === 'function') document.exitFullscreen().catch(() => {});
+            else (document as any).webkitExitFullscreen?.();
           }
         } catch {}
-        try {
-          if (screen.orientation && typeof (screen.orientation as any).unlock === 'function') {
-            (screen.orientation as any).unlock();
-          }
-        } catch {}
+        try { (screen.orientation as any)?.unlock?.(); } catch {}
         return;
       }
 
-      // 4. Layer 2 & 1: Close the player entirely: clear playing video, return to KidHomeScreen
-      if (!e.state?.ytPlayer) {
-        setActivePlaybackVideo(null);
-        setShowDemoPlayer(false);
-        updatePlayerFullscreen(false);
-        updatePlayerMinimized(false);
+      // Settings sheet Back: close only the sheet.
+      if (isPlayerSheetOpenRef.current && targetLevel < currentLevel) {
+        playerHistoryLevelRef.current = targetLevel;
         updatePlayerSheetOpen(false);
+        return;
+      }
+
+      // Returning from a navigation push opened on top of Watch: keep playback.
+      if (e.state?.ytPlayer && targetLevel === currentLevel) {
+        return;
+      }
+
+      // Re-expanded mini-player has a fresh level-1 Watch entry; no action needed.
+      if (e.state?.ytPlayer && targetLevel > 0) {
+        playerHistoryLevelRef.current = targetLevel;
+        updatePlayerMinimized(false);
+        return;
+      }
+
+      // Watch portrait Back: minimize, never stop playback. The browser has already
+      // returned to the underlying root/overlay history entry.
+      if (activePlaybackVideo || showDemoPlayer) {
+        playerHistoryLevelRef.current = 0;
+        updatePlayerMinimized(true);
+        updatePlayerFullscreen(false);
+        updatePlayerSheetOpen(false);
+        return;
       }
     };
 
     window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activePlaybackVideo, showDemoPlayer, updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
+
+  const [castNotice, setCastNotice] = useState<string | null>(null);
+
+  const handleOpenCastPicker = useCallback(async () => {
+    const result = await openCastPicker();
+    if (!result.ok && result.message) {
+      setCastNotice(result.message);
+      window.setTimeout(() => setCastNotice(null), 4000);
+    }
+  }, []);
 
   // Track if YouTube player is actively playing (prevents billing paused/idle time)
   const [isPlayerPlaying, setIsPlayerPlaying] = useState(false);
@@ -948,6 +952,10 @@ export default function App() {
             videoTitle={activePlaybackVideo?.title || 'Alphablocks - مغامرة الحروف الإنجليزية والكلمات السحرية للأطفال'}
             channelTitle={activePlaybackVideo?.channelName || 'Alphablocks'}
             channelId={activePlaybackVideo?.channelId}
+            onOpenChannel={(channelId) => {
+              // Channel push is owned by AppShell's navigation layer.
+              window.dispatchEvent(new CustomEvent('youngtube-open-channel', { detail: channelId }));
+            }}
             localPath={activePlaybackVideo?.localPath}
             playlistContext={activePlaybackVideo?.playlistContext}
             onVideoHidden={handleVideoHidden}
@@ -987,54 +995,24 @@ export default function App() {
         </Suspense>
       ) : viewMode === 'kids' ? (
         <>
-          {/* VIEW 0: REAL KID-FACING UI (Default View) */}
-          <KidHomeScreen
-            onOpenParentDashboard={handleOpenDashboard}
-            onOpenDemoPlayer={handleOpenDemoPlayer}
-            onSelectVideo={handleSelectVideo}
-            refreshTrigger={channelsRefreshTrigger}
-            suppressedVideoIds={suppressedVideoIds}
-            isPlayerOpen={isPlayerOpen && !isPlayerMinimized}
-          />
-
-          {/* If ?dev=1 was present in URL, provide quick dev switch floating badge */}
-          {isDevModeParam && (
-            <div className="fixed bottom-3 left-3 z-30 flex items-center gap-2">
-              <button
-                type="button"
-                id="floating-open-demo-player-btn"
-                onClick={handleOpenDemoPlayer}
-                className="px-3 py-1.5 rounded-full bg-indigo-900/90 hover:bg-indigo-900 text-indigo-200 text-xs font-medium shadow-md backdrop-blur-sm transition cursor-pointer"
-                title="شاشة المشغل التجريبية"
-              >
-                ▶ شاشة المشغل التجريبية
-              </button>
-              <button
-                type="button"
-                id="floating-force-stop-toggle-btn"
-                onClick={() => setDevForceStop((prev) => !prev)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium shadow-md backdrop-blur-sm transition cursor-pointer ${
-                  devForceStop
-                    ? 'bg-rose-600 text-white'
-                    : 'bg-black/80 hover:bg-black/90 text-yt-brand'
-                }`}
-                title="اختبار إشارة إيقاف المشغل forceStop"
-              >
-                {devForceStop ? '⛔ forceStop: مفعّل' : '🧪 اختبار forceStop'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDashboardSection('tools');
-                  setViewMode('dashboard');
-                }}
-                className="px-3 py-1.5 rounded-full bg-black/80 hover:bg-black/90 text-yt-brand text-xs font-mono shadow-md backdrop-blur-sm transition cursor-pointer"
-                title="لوحة المطور وفحص الأنظمة (?dev=1)"
-              >
-                ⚙️ لوحة الفحص (?dev=1)
-              </button>
-            </div>
-          )}
+        <AppShell
+          onOpenDemoPlayer={handleOpenDemoPlayer}
+          onSelectVideo={handleSelectVideo}
+          onOpenParentDashboard={handleOpenDashboard}
+          onCast={handleOpenCastPicker}
+          refreshTrigger={channelsRefreshTrigger}
+          suppressedVideoIds={suppressedVideoIds}
+          isPlayerOpen={isPlayerOpen}
+          isPlayerMinimized={isPlayerMinimized}
+          isDevModeParam={isDevModeParam}
+          devForceStop={devForceStop}
+          onToggleDevForceStop={() => setDevForceStop((prev) => !prev)}
+        />
+        {castNotice && (
+          <div className="fixed top-[calc(env(safe-area-inset-top)+4.5rem)] left-1/2 -translate-x-1/2 z-[80] max-w-[calc(100vw-2rem)] rounded-2xl border border-yt-border bg-yt-surface px-4 py-3 text-xs font-semibold text-yt-text shadow-xl">
+            {castNotice}
+          </div>
+        )}
         </>
       ) : (
         <Suspense

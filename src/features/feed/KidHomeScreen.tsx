@@ -1,20 +1,20 @@
-import React, { useState, useCallback } from 'react';
-import ChannelVideosModal from '../../components/ChannelVideosModal';
-import DownloadsModal from '../../components/DownloadsModal';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, Play, RefreshCw } from 'lucide-react';
 import { useKidFeed } from './useKidFeed';
-import { useColumnCount } from './useColumnCount';
-import { useFeedHeaderCollapse } from './useFeedHeaderCollapse';
-import { KidHeader } from './KidHeader';
 import { CategoryChips } from './CategoryChips';
-import { FavoritesView } from './FavoritesView';
-import { FeedVideoGrid } from './FeedVideoGrid';
 import { PullToRefresh } from '../../components/PullToRefresh';
-import { PlaylistManager } from '../../components/PlaylistManager';
-import { FeedItem } from '../../db';
+import { WeeklyChoiceCard } from '../../components/WeeklyChoiceCard';
+import { YoungTubeVideoCard } from '../../components/YoungTubeVideoCard';
+import { VideoOverflowSheet } from '../../components/VideoOverflowSheet';
+import type { FeedItem, Interaction } from '../../db';
+import db from '../../db';
 import type { PlaylistPlaybackContext } from '../../services/playlists/playlistTypes';
+import { useAllCategories } from '../../hooks/useAllCategories';
+import { matchCategory } from '../../data/categoryRegistry';
+import { recordCurrentScroll } from '../../shell/navigationStore';
 
 export interface KidHomeScreenProps {
-  onOpenParentDashboard: () => void;
+  onOpenParentDashboard?: () => void;
   onOpenDemoPlayer?: () => void;
   onSelectVideo?: (
     videoId: string,
@@ -23,198 +23,252 @@ export interface KidHomeScreenProps {
     channelId?: string,
     options?: { localPath?: string; fromDownloads?: boolean; playlistContext?: PlaylistPlaybackContext }
   ) => void;
+  onChannelSelect?: (channelId: string, channelTitle: string) => void;
   refreshTrigger?: number;
   suppressedVideoIds?: string[];
   isPlayerOpen?: boolean;
 }
 
+interface ResumeItem {
+  video: FeedItem;
+  progress: number;
+}
+
+function SkeletonCard() {
+  return (
+    <div className="space-y-3 animate-pulse">
+      <div className="aspect-video rounded-2xl bg-yt-surface-muted" />
+      <div className="flex gap-3 px-1">
+        <div className="w-9 h-9 rounded-full bg-yt-surface-muted shrink-0" />
+        <div className="flex-1 space-y-2 py-1"><div className="h-4 rounded bg-yt-surface-muted" /><div className="h-3 rounded bg-yt-surface-muted w-2/3" /></div>
+      </div>
+    </div>
+  );
+}
+
 export function KidHomeScreen({
-  onOpenParentDashboard,
-  onOpenDemoPlayer,
   onSelectVideo,
+  onChannelSelect,
+  onOpenDemoPlayer,
   refreshTrigger = 0,
   suppressedVideoIds = [],
   isPlayerOpen = false,
 }: KidHomeScreenProps) {
-  const columnCount = useColumnCount();
-  const [viewingChannelId, setViewingChannelId] = useState<{ id: string; title: string } | null>(null);
-  const [showDownloads, setShowDownloads] = useState(false);
-  const [playlistActionVideo, setPlaylistActionVideo] = useState<FeedItem | null>(null);
-
-  const handleChannelSelect = useCallback((id: string, title: string) => {
-    setViewingChannelId({ id, title });
-  }, []);
+  const { kidCategories } = useAllCategories();
+  const [resumeItem, setResumeItem] = useState<ResumeItem | null>(null);
+  const [overflowVideo, setOverflowVideo] = useState<FeedItem | null>(null);
 
   const {
+    videos,
     loading,
-    childName,
     selectedCategory,
     setSelectedCategory,
-    searchInput,
-    setSearchInput,
-    debouncedSearch,
-    setDebouncedSearch,
-    deepSearchResults,
-    setDeepSearchResults,
-    isDeepSearching,
-    showFavorites,
-    setShowFavorites,
-    filteredFavorites,
     tasteShiftConfig,
     tasteTargetSet,
     showWeeklyChoiceCard,
     channelMap,
     filteredVideos,
+    registryChannelsList,
     loadVideos,
-    loadFavorites,
   } = useKidFeed({ refreshTrigger, suppressedVideoIds });
 
-  const collapsed = useFeedHeaderCollapse({
-    disabled: Boolean(searchInput.trim()) || showFavorites,
-  });
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const rows = await db.interactions
+          .orderBy('lastWatched')
+          .reverse()
+          .filter((item: Interaction) => item.completed !== true && item.watchTime > 10)
+          .limit(8)
+          .toArray();
+        for (const interaction of rows) {
+          const video = await db.feedCache.get(interaction.videoId);
+          if (!mounted || !video || video.hidden || video.isPortrait) continue;
+          const total = interaction.videoDuration || video.videoDuration || 0;
+          const progress = total > 0 ? interaction.watchTime / total : 0;
+          if (progress > 0.03 && progress < 0.95) {
+            setResumeItem({ video, progress });
+            return;
+          }
+        }
+        if (mounted) setResumeItem(null);
+      } catch {
+        if (mounted) setResumeItem(null);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [refreshTrigger, videos.length]);
 
-  const handleRefreshFeed = useCallback(async () => {
-    // Full feed refresh intentionally re-shuffles the current approved pool.
+  const categoryShelfData = useMemo(() => {
+    const result: Array<{ id: string; label: string; videos: FeedItem[] }> = [];
+    for (const category of kidCategories) {
+      const rows = videos.filter((video) => {
+        const info = channelMap.get(video.channelId);
+        const categories = info?.categories || (video as any).categories || (video as any).category || [];
+        return matchCategory(categories, category.id);
+      }).slice(0, 8);
+      if (rows.length >= 3) result.push({ id: category.id, label: category.label, videos: rows });
+    }
+    return result;
+  }, [kidCategories, videos, channelMap]);
+
+  const channelShelf = useMemo(
+    () => registryChannelsList.filter((ch) => ch.enabled !== false && ch.autoDisabled !== true && ch.sourceType === 'channel').slice(0, 16),
+    [registryChannelsList]
+  );
+
+  const handleRefresh = useCallback(async () => {
     await loadVideos(false);
   }, [loadVideos]);
 
-  const handleClearSearch = useCallback(() => {
-    setSearchInput('');
-    setDebouncedSearch('');
-    setDeepSearchResults([]);
-  }, [setSearchInput, setDebouncedSearch, setDeepSearchResults]);
+  const handleCategory = useCallback((categoryId: string) => {
+    recordCurrentScroll();
+    setSelectedCategory(categoryId);
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  }, [setSelectedCategory]);
 
-  const handleResetCategory = useCallback(() => {
-    setSelectedCategory('all');
-    void loadVideos(false);
-  }, [setSelectedCategory, loadVideos]);
+  const openVideo = useCallback((video: FeedItem) => {
+    onSelectVideo?.(video.videoId, video.title, channelMap.get(video.channelId)?.title, video.channelId);
+  }, [onSelectVideo, channelMap]);
 
-  const handleSelectCategory = useCallback(
-    (catId: string) => {
-      setShowFavorites(false);
-      setSelectedCategory(catId);
-      void loadVideos(false);
-    },
-    [setShowFavorites, setSelectedCategory, loadVideos]
-  );
+  const heroChannelTitle = resumeItem ? (channelMap.get(resumeItem.video.channelId)?.title || 'قناة أطفال') : '';
 
   return (
-    <div
-      id="kid-home-screen"
-      className="min-h-screen bg-yt-bg text-yt-text flex flex-col select-none font-sans"
-    >
-      {/* 1. Sticky Header Shell: Switches between full header + chips and collapsed single bar */}
-      <div className="sticky top-0 z-40 bg-yt-bg/95 backdrop-blur-md border-b border-yt-border shadow-xs">
-        {collapsed ? (
-          <KidHeader
-            collapsed={true}
-            selectedCategory={selectedCategory}
-            showFavorites={showFavorites}
-            onSelectCategory={handleSelectCategory}
-            searchInput={searchInput}
-            onSearchChange={setSearchInput}
-            onClearSearch={handleClearSearch}
-            onToggleFavorites={() => setShowFavorites((prev) => !prev)}
-            onOpenDownloads={() => setShowDownloads(true)}
-            onOpenParentDashboard={onOpenParentDashboard}
-          />
-        ) : (
-          <>
-            <KidHeader
-              collapsed={false}
-              childName={childName}
-              showFavorites={showFavorites}
-              onToggleFavorites={() => setShowFavorites((prev) => !prev)}
-              onOpenDownloads={() => setShowDownloads(true)}
-              onOpenParentDashboard={onOpenParentDashboard}
-              searchInput={searchInput}
-              onSearchChange={setSearchInput}
-              onClearSearch={handleClearSearch}
-            />
-            <CategoryChips
-              selectedCategory={selectedCategory}
-              showFavorites={showFavorites}
-              onSelectCategory={handleSelectCategory}
-            />
-          </>
-        )}
+    <div id="kid-home-screen" dir="rtl" className="min-h-screen bg-yt-bg text-yt-text select-none font-sans">
+      <div className="sticky top-[calc(56px+env(safe-area-inset-top))] z-30 border-b border-yt-border bg-yt-bg/96 backdrop-blur-md">
+        <CategoryChips selectedCategory={selectedCategory} showFavorites={false} onSelectCategory={handleCategory} />
       </div>
 
-      {/* 2. Main Content: Favorites View OR Main Feed Video Grid */}
-      <PullToRefresh onRefresh={handleRefreshFeed} disabled={loading || showFavorites || isPlayerOpen}>
-      <main className="grow w-full py-2 sm:py-6">
-        {showFavorites ? (
-          <FavoritesView
-            filteredFavorites={filteredFavorites}
-            debouncedSearch={debouncedSearch}
-            channelMap={channelMap}
-            onSelectVideo={onSelectVideo}
-            onOpenDemoPlayer={onOpenDemoPlayer}
-            onChannelSelect={handleChannelSelect}
-            onCloseFavorites={() => setShowFavorites(false)}
-            onClearSearch={handleClearSearch}
-            onFavoritesChanged={() => void loadFavorites()}
-            onAddToPlaylist={(video) => setPlaylistActionVideo(video)}
-          />
-        ) : (
-          <FeedVideoGrid
-            loading={loading}
-            filteredVideos={filteredVideos}
-            debouncedSearch={debouncedSearch}
-            deepSearchResults={deepSearchResults}
-            isDeepSearching={isDeepSearching}
-            showWeeklyChoiceCard={showWeeklyChoiceCard}
-            tasteShiftConfig={tasteShiftConfig}
-            tasteTargetSet={tasteTargetSet}
-            channelMap={channelMap}
-            columnCount={columnCount}
-            onSelectVideo={onSelectVideo}
-            onOpenDemoPlayer={onOpenDemoPlayer}
-            onChannelSelect={handleChannelSelect}
-            onClearSearch={handleClearSearch}
-            onResetCategory={handleResetCategory}
-            onTasteReacted={() => void loadVideos(true)}
-            onChoiceMade={() => void loadVideos(true)}
-            onAddToPlaylist={(video) => setPlaylistActionVideo(video)}
-          />
-        )}
-      </main>
+      <PullToRefresh onRefresh={handleRefresh} disabled={loading || isPlayerOpen}>
+        <main className="w-full max-w-3xl mx-auto px-4 sm:px-6 pb-28 pt-3 sm:pt-5 space-y-7">
+          {showWeeklyChoiceCard && tasteShiftConfig && (
+            <WeeklyChoiceCard targetCategories={tasteShiftConfig.targetCategories} currentWeek={tasteShiftConfig.currentWeek} onChoiceMade={() => void loadVideos(true)} />
+          )}
+
+          {resumeItem && (
+            <section className="rounded-3xl border border-yt-border bg-yt-surface p-3 shadow-sm">
+              <div className="flex items-center justify-between gap-3 px-1 pb-2">
+                <div>
+                  <p className="text-[11px] text-yt-text-muted font-bold">متابعة المشاهدة</p>
+                  <h2 className="text-sm font-black text-yt-text">كمّل من حيث وقفت</h2>
+                </div>
+                <span className="text-[10px] font-bold text-yt-brand">{Math.round(resumeItem.progress * 100)}%</span>
+              </div>
+              <YoungTubeVideoCard
+                video={resumeItem.video}
+                channelTitle={heroChannelTitle}
+                channelThumbnail={channelMap.get(resumeItem.video.channelId)?.thumbnail}
+                onSelectVideo={() => openVideo(resumeItem.video)}
+                onChannelSelect={() => onChannelSelect?.(resumeItem.video.channelId, heroChannelTitle)}
+                onAddToPlaylist={() => setOverflowVideo(resumeItem.video)}
+                onOverflow={setOverflowVideo}
+              />
+            </section>
+          )}
+
+          {loading && videos.length === 0 ? (
+            <div className="space-y-7">
+              {[0, 1, 2, 3].map((id) => <SkeletonCard key={id} />)}
+            </div>
+          ) : filteredVideos.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-yt-border bg-yt-surface p-10 text-center space-y-3">
+              <RefreshCw className="w-8 h-8 mx-auto text-yt-text-muted" />
+              <h2 className="text-base font-black">لا توجد فيديوهات هنا حالياً</h2>
+              <p className="text-xs text-yt-text-muted">جرّب قسمًا آخر أو حدّث الفيد.</p>
+              <button type="button" onClick={() => void handleRefresh()} className="px-4 py-2.5 rounded-full bg-yt-brand text-yt-brand-text text-xs font-bold cursor-pointer">تحديث الفيديوهات</button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {filteredVideos.map((video, index) => {
+                const info = channelMap.get(video.channelId);
+                const cats = info?.categories || (video as any).categories || (video as any).category || [];
+                const tasteTarget = Boolean(tasteTargetSet && (Array.isArray(cats) ? cats : [cats]).some((cat: string) => tasteTargetSet.has(cat)));
+                return (
+                  <React.Fragment key={video.videoId}>
+                    <YoungTubeVideoCard
+                      video={video}
+                      channelTitle={info?.title || 'قناة أطفال'}
+                      channelThumbnail={info?.thumbnail}
+                      isTasteShiftTarget={tasteTarget}
+                      activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
+                      onSelectVideo={() => openVideo(video)}
+                      onChannelSelect={() => onChannelSelect?.(video.channelId, info?.title || 'قناة أطفال')}
+                      onAddToPlaylist={() => setOverflowVideo(video)}
+                      onOverflow={setOverflowVideo}
+                    />
+
+                    {index === 5 && channelShelf.length > 0 && (
+                      <section className="pt-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h2 className="text-sm font-black">من القنوات</h2>
+                          <span className="text-[10px] text-yt-text-muted">قنوات مفعّلة</span>
+                        </div>
+                        <div className="flex gap-4 overflow-x-auto scrollbar-none pb-1">
+                          {channelShelf.map((channel) => (
+                            <button key={channel.sourceId} type="button" onClick={() => onChannelSelect?.(channel.sourceId, channel.title)} className="w-16 shrink-0 flex flex-col items-center gap-1.5 cursor-pointer">
+                              <span className="relative w-14 h-14 rounded-full border border-yt-border bg-yt-surface-muted overflow-hidden flex items-center justify-center text-xs font-bold text-yt-text-muted">
+                                {channel.thumbnail ? <img src={channel.thumbnail} alt={channel.title} className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : channel.title.charAt(0)}
+                                <span className="absolute top-0 end-0 w-2.5 h-2.5 rounded-full bg-yt-brand border-2 border-yt-bg" />
+                              </span>
+                              <span className="w-full text-center text-[10px] font-semibold text-yt-text line-clamp-2">{channel.title}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
+                    {index === 11 && categoryShelfData[0] && (
+                      <section className="rounded-2xl border border-yt-border bg-yt-surface p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <h2 className="text-sm font-black">من {categoryShelfData[0].label}</h2>
+                          <button type="button" onClick={() => handleCategory(categoryShelfData[0].id)} className="text-xs font-bold text-yt-brand inline-flex items-center gap-1 cursor-pointer">عرض الكل<ChevronLeft className="w-4 h-4" /></button>
+                        </div>
+                        <div className="flex gap-3 overflow-x-auto scrollbar-none">
+                          {categoryShelfData[0].videos.map((shelfVideo) => {
+                            const info = channelMap.get(shelfVideo.channelId);
+                            return (
+                              <button key={shelfVideo.videoId} type="button" onClick={() => openVideo(shelfVideo)} className="w-44 shrink-0 text-right cursor-pointer">
+                                <div className="relative aspect-video rounded-xl overflow-hidden bg-yt-surface-muted">
+                                  <img src={`https://i.ytimg.com/vi/${shelfVideo.videoId}/mqdefault.jpg`} alt={shelfVideo.title} className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                                  <span className="absolute bottom-1 end-1 rounded bg-black/80 text-white px-1.5 py-0.5 text-[10px] font-mono"><Play className="inline w-3 h-3" /></span>
+                                </div>
+                                <span className="block mt-1 text-[11px] font-semibold line-clamp-2 leading-snug">{shelfVideo.title}</span>
+                                <span className="block mt-0.5 text-[10px] text-yt-text-muted truncate">{info?.title || 'قناة أطفال'}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+
+              {categoryShelfData.slice(1).map((shelf) => (
+                <section key={shelf.id} className="rounded-2xl border border-yt-border bg-yt-surface p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-sm font-black">من {shelf.label}</h2>
+                    <button type="button" onClick={() => handleCategory(shelf.id)} className="text-xs font-bold text-yt-brand inline-flex items-center gap-1 cursor-pointer">عرض الكل<ChevronLeft className="w-4 h-4" /></button>
+                  </div>
+                  <div className="flex gap-3 overflow-x-auto scrollbar-none">
+                    {shelf.videos.map((shelfVideo) => (
+                      <button key={shelfVideo.videoId} type="button" onClick={() => openVideo(shelfVideo)} className="w-44 shrink-0 text-right cursor-pointer">
+                        <img src={`https://i.ytimg.com/vi/${shelfVideo.videoId}/mqdefault.jpg`} alt={shelfVideo.title} className="w-full aspect-video rounded-xl object-cover bg-yt-surface-muted" loading="lazy" referrerPolicy="no-referrer" />
+                        <span className="block mt-1 text-[11px] font-semibold line-clamp-2">{shelfVideo.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </main>
       </PullToRefresh>
 
-      {playlistActionVideo && (
-        <div className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" onMouseDown={() => setPlaylistActionVideo(null)}>
-          <div className="w-full max-w-md bg-yt-surface rounded-3xl border border-yt-border shadow-2xl p-4 sm:p-5 max-h-[80vh] overflow-y-auto" onMouseDown={(e) => e.stopPropagation()}>
-            <PlaylistManager
-              mode="add"
-              video={playlistActionVideo}
-              onClose={() => setPlaylistActionVideo(null)}
-              onChanged={() => setPlaylistActionVideo(null)}
-            />
-          </div>
-        </div>
+      {overflowVideo && (
+        <VideoOverflowSheet video={overflowVideo} channelTitle={channelMap.get(overflowVideo.channelId)?.title} onClose={() => setOverflowVideo(null)} />
       )}
-
-      {/* 3. Friendly Bottom Footer */}
-      <footer className="py-5 border-t border-yt-border text-center text-xs font-medium text-yt-text-muted">
-        مساحة ترفيهية وتعليمية آمنة للصغار 🌟
-      </footer>
-
-      {/* 4. Channel Videos Modal */}
-      {viewingChannelId && (
-        <ChannelVideosModal
-          sourceId={viewingChannelId.id}
-          channelTitle={viewingChannelId.title}
-          onClose={() => setViewingChannelId(null)}
-          onSelectVideo={onSelectVideo || (() => {})}
-        />
-      )}
-
-      {/* 5. Downloads List Modal */}
-      <DownloadsModal
-        isOpen={showDownloads}
-        onClose={() => setShowDownloads(false)}
-        onSelectVideo={onSelectVideo}
-      />
     </div>
   );
 }
