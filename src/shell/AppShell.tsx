@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { listDownloads } from '../services/downloadManager';
 import type { PlaylistPlaybackContext } from '../services/playlists/playlistTypes';
 import KidHomeScreen from '../features/feed/KidHomeScreen';
+import { useKidFeed } from '../features/feed/useKidFeed';
 import { ChannelsScreen } from '../features/channels/ChannelsScreen';
 import { PlaylistsScreen } from '../features/playlists/PlaylistsScreen';
 import { YouScreen } from '../features/you/YouScreen';
@@ -73,6 +74,8 @@ export function AppShell({
   const activeOverlay = useMemo(() => overlayStack[overlayStack.length - 1] ?? null, [overlayStack]);
   const previousRootRef = useRef(root);
   const [activeDownloadCount, setActiveDownloadCount] = useState(0);
+  // AppShell owns the single child feed instance; refreshTrigger/suppressedVideoIds belong to App.
+  const kidFeed = useKidFeed({ refreshTrigger, suppressedVideoIds });
 
   const refreshDownloadCount = useCallback(async () => {
     setActiveDownloadCount(await calculateDownloadCount());
@@ -223,9 +226,8 @@ export function AppShell({
           <KidHomeScreen
             onOpenDemoPlayer={onOpenDemoPlayer}
             onSelectVideo={onSelectVideo}
-            refreshTrigger={refreshTrigger}
-            suppressedVideoIds={suppressedVideoIds}
             isPlayerOpen={isPlayerOpen && !isPlayerMinimized}
+            feed={kidFeed}
           />
         );
     }
@@ -267,6 +269,7 @@ export function AppShell({
             onBack={closeOverlay}
             onSelectVideo={onSelectVideo}
             onOpenChannel={handleChannelOpen}
+            feed={kidFeed}
           />
         );
       case 'history':

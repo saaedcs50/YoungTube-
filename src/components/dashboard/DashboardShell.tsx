@@ -84,10 +84,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       <header className="sticky top-0 z-40 bg-yt-bg/90 backdrop-blur-md border-b border-yt-border px-3.5 sm:px-8 py-3 shadow-sm overflow-x-clip">
         <div className="max-w-6xl w-full mx-auto flex flex-wrap items-center justify-between gap-2.5 min-w-0">
           {/* Logo & Title */}
-          <div
-            className="flex items-center gap-2.5 select-none cursor-pointer min-w-0"
+          <button
+            type="button"
+            id="z2hyuf"
+            className="flex items-center gap-2.5 select-none cursor-pointer min-w-0 border-0 bg-transparent p-0 m-0 font-inherit text-inherit text-right"
             onClick={handleTitleTap}
             title="لوحة الأهل (اضغط 5 مرات لتغيير وضع أدوات النظام)"
+            aria-label="لوحة الأهل (اضغط 5 مرات لتغيير وضع أدوات النظام)"
           >
             <div className="w-9 h-9 rounded-xl bg-yt-brand text-yt-brand-text flex items-center justify-center shadow-sm shrink-0">
               <ShieldCheck className="w-5 h-5" />
@@ -97,7 +100,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 {title}
               </h1>
             </div>
-          </div>
+          </button>
 
           {/* Top Actions: الوضع الليلي · قفل · شاشة الأطفال */}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end max-w-full">

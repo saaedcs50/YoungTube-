@@ -30,13 +30,31 @@ export const ChannelScreen: React.FC<Props> = ({ channelId, onBack, onSelectVide
     try {
       const [found, settings, allPlaylists] = await Promise.all([getChannelBySourceId(channelId), db.settings.get('main'), listPlaylists()]);
       setChannel(found);
+      if (
+        !found ||
+        found.enabled === false ||
+        found.autoDisabled === true ||
+        found.status === 'disabled'
+      ) {
+        setVideos([]);
+        setPlaylists([]);
+        return;
+      }
       const blocks = loadCachedBlocks();
       const rows = await db.feedCache.where('channelId').equals(channelId).toArray();
+      const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
       const safe = rows.filter((row) => {
-        if (row.hidden || row.isPortrait) return false;
+        if (row.hidden || row.isPortrait !== false) return false;
         if (blocks.channelIds.includes(row.channelId)) return false;
         if (settings?.hideMusicVideos && row.hasMusic === true) return false;
-        if (settings?.familyYoutubeApiKey && typeof row.videoDuration === 'number' && row.videoDuration < 120) return false;
+        if (
+          hasFamilyKey &&
+          (typeof row.videoDuration !== 'number' ||
+            !Number.isFinite(row.videoDuration) ||
+            row.videoDuration < 120)
+        ) {
+          return false;
+        }
         return true;
       }).sort((a, b) => Date.parse(b.publishedAt || '') - Date.parse(a.publishedAt || '') || b.fetchedAt - a.fetchedAt);
       setVideos(safe);

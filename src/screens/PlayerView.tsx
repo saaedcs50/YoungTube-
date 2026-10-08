@@ -40,6 +40,7 @@ import { startDownload, getDownloadByVideoId } from '../services/downloadManager
 import { castYouTubeVideo } from '../services/castService';
 import { Capacitor } from '@capacitor/core';
 import { resolvePlaylistQueue } from '../services/playlists/playlistPlayback';
+import { canPlayVideoInChildContext } from '../services/playlists/playlistSafety';
 import type { PlaylistPlaybackContext } from '../services/playlists/playlistTypes';
 
 export interface QueuedVideo {
@@ -410,9 +411,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         return;
       }
       try {
-        const settings = await db.settings.get('main');
-        const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
-
         const currentItem: QueuedVideo = {
           videoId,
           title: videoTitle || 'فيديو أطفال ممتع',
@@ -423,6 +421,28 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         const channelIdToQuery = propChannelId;
         let sameChannelItems: QueuedVideo[] = [];
 
+        const toQueuedVideo = (f: { videoId: string; title: string; channelId?: string }, fallbackTitle: string) => ({
+          videoId: f.videoId,
+          title: f.title,
+          channelTitle: fallbackTitle,
+          channelId: f.channelId,
+        });
+
+        const filterSafeQueueItems = async (
+          items: Array<{ videoId: string; title: string; channelId?: string }>,
+          fallbackTitle: string,
+        ): Promise<QueuedVideo[]> => {
+          const decisions = await Promise.all(
+            items.map(async (item) => ({
+              item,
+              decision: await canPlayVideoInChildContext(item.videoId),
+            }))
+          );
+          return decisions
+            .filter(({ decision }) => decision.allowed)
+            .map(({ item }) => toQueuedVideo(item, fallbackTitle));
+        };
+
         // 1. Fetch videos from the same channel if channelId is available, sorted by fetchedAt desc
         if (channelIdToQuery) {
           try {
@@ -431,20 +451,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               .equals(channelIdToQuery)
               .toArray();
             (rawSame || []).sort((a, b) => (b.fetchedAt || 0) - (a.fetchedAt || 0));
-            sameChannelItems = (rawSame || [])
-              .filter(
-                (f) =>
-                  !f.hidden &&
-                  f.isPortrait !== true &&
-                  !(hasFamilyKey && typeof f.videoDuration === 'number' && f.videoDuration < 120)
-              )
-              .slice(0, 20)
-              .map((f) => ({
-                videoId: f.videoId,
-                title: f.title,
-                channelTitle: channelTitle || 'قناة أطفال موثوقة',
-                channelId: f.channelId,
-              }));
+            sameChannelItems = await filterSafeQueueItems(
+              (rawSame || []).slice(0, 20),
+              channelTitle || 'قناة أطفال موثوقة',
+            );
           } catch (e) {
             console.warn('Channel query fallback:', e);
           }
@@ -454,19 +464,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         let recentFeedItems: QueuedVideo[] = [];
         try {
           const rawRecent = await db.feedCache.orderBy('fetchedAt').reverse().limit(30).toArray();
-          recentFeedItems = (rawRecent || [])
-            .filter(
-              (f) =>
-                !f.hidden &&
-                f.isPortrait !== true &&
-                !(hasFamilyKey && typeof f.videoDuration === 'number' && f.videoDuration < 120)
-            )
-            .map((f) => ({
-              videoId: f.videoId,
-              title: f.title,
-              channelTitle: 'قناة أطفال موثوقة',
-              channelId: f.channelId,
-            }));
+            recentFeedItems = await filterSafeQueueItems(
+              rawRecent || [],
+              'قناة أطفال موثوقة',
+            );
         } catch (e) {
           console.warn('Recent feed query fallback:', e);
         }
@@ -478,7 +479,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           ? sameChannelItems
           : recentFeedItems.length > 0
             ? recentFeedItems
-            : DEFAULT_DEMO_QUEUE;
+            : await filterSafeQueueItems(DEFAULT_DEMO_QUEUE, 'قناة أطفال موثوقة');
         const bounded: QueuedVideo[] = [];
         for (const item of [currentItem, ...fallback]) {
           if (!seen.has(item.videoId)) {

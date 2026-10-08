@@ -73,56 +73,66 @@ export function isLikelyShortsTitle(title: string): boolean {
  * and checking if naturalHeight > naturalWidth.
  *
  * Uses frame0.jpg (YouTube's un-letterboxed raw frame) with a fallback to hqdefault.jpg.
- * Wraps in a ~3s timeout and defaults to NOT excluding (fail-open: returns false) on error/timeout.
+ * Wraps in a ~3s timeout and returns unknown on error/timeout.
  */
-export function checkIsPortraitVideo(videoId: string): Promise<boolean> {
+export function checkIsPortraitVideo(videoId: string): Promise<boolean | undefined> {
   if (typeof window === 'undefined' || typeof Image === 'undefined') {
-    return Promise.resolve(false);
+    return Promise.resolve(undefined);
   }
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<boolean | undefined>((resolve) => {
     let resolved = false;
-    const finish = (isPortrait: boolean) => {
+    const finish = (isPortrait: boolean | undefined) => {
       if (!resolved) {
         resolved = true;
         resolve(isPortrait);
       }
     };
 
-    // ~3s timeout: fail-open
+    // ~3s timeout: unknown
     const timer = setTimeout(() => {
-      finish(false);
+      finish(undefined);
     }, 3000);
 
-    const img = new Image();
-    img.onload = () => {
-      clearTimeout(timer);
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        finish(img.naturalHeight > img.naturalWidth);
-      } else {
-        finish(false);
-      }
-    };
-
-    img.onerror = () => {
-      // If frame0.jpg fails or is missing, try fallback thumbnail
-      const fallbackImg = new Image();
-      fallbackImg.onload = () => {
+    try {
+      const img = new Image();
+      img.onload = () => {
         clearTimeout(timer);
-        if (fallbackImg.naturalWidth > 0 && fallbackImg.naturalHeight > 0) {
-          finish(fallbackImg.naturalHeight > fallbackImg.naturalWidth);
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          finish(img.naturalHeight > img.naturalWidth);
         } else {
-          finish(false);
+          finish(undefined);
         }
       };
-      fallbackImg.onerror = () => {
-        clearTimeout(timer);
-        finish(false);
-      };
-      fallbackImg.src = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-    };
 
-    img.src = `https://i.ytimg.com/vi/${videoId}/frame0.jpg`;
+      img.onerror = () => {
+        // If frame0.jpg fails or is missing, try fallback thumbnail
+        try {
+          const fallbackImg = new Image();
+          fallbackImg.onload = () => {
+            clearTimeout(timer);
+            if (fallbackImg.naturalWidth > 0 && fallbackImg.naturalHeight > 0) {
+              finish(fallbackImg.naturalHeight > fallbackImg.naturalWidth);
+            } else {
+              finish(undefined);
+            }
+          };
+          fallbackImg.onerror = () => {
+            clearTimeout(timer);
+            finish(undefined);
+          };
+          fallbackImg.src = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        } catch {
+          clearTimeout(timer);
+          finish(undefined);
+        }
+      };
+
+      img.src = `https://i.ytimg.com/vi/${videoId}/frame0.jpg`;
+    } catch {
+      clearTimeout(timer);
+      finish(undefined);
+    }
   });
 }
 
@@ -206,7 +216,7 @@ let isProcessingPortraitQueue = false;
 /**
  * Background queue to detect portrait/vertical videos without blocking initial feed load or archive sync.
  * Concurrency is capped at 4.
- * Updates FeedItem in Dexie with `isPortrait: boolean` metadata.
+ * Updates FeedItem in Dexie with verified portrait metadata only.
  */
 export async function processBackgroundPortraitQueue(): Promise<void> {
   if (isProcessingPortraitQueue) return;
@@ -237,11 +247,11 @@ export async function processBackgroundPortraitQueue(): Promise<void> {
           const isPortrait = await checkIsPortraitVideo(item.videoId);
           if (isPortrait) {
             await db.feedCache.delete(item.videoId);
-          } else {
+          } else if (isPortrait === false) {
             await db.feedCache.update(item.videoId, { isPortrait: false });
           }
         } catch {
-          await db.feedCache.update(item.videoId, { isPortrait: false });
+          // Leave unknown detector results unchanged; never persist failure as false.
         }
       }
     };
@@ -862,3 +872,5 @@ export async function syncSingleChannelRss(
     };
   }
 }
+
+export { canPlayVideoInChildContext } from './services/playlists/playlistSafety';

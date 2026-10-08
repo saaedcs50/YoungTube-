@@ -37,6 +37,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
+    isPortrait: false,
   },
   {
     videoId: 'u7e33WnUf0A',
@@ -45,6 +46,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
+    isPortrait: false,
   },
   {
     videoId: 'x1rB6E1oTss',
@@ -53,6 +55,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
+    isPortrait: false,
   },
   {
     videoId: 'w_gWvL8fN8g',
@@ -61,6 +64,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
+    isPortrait: false,
   },
   {
     videoId: '02E1468SdHg',
@@ -69,6 +73,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
+    isPortrait: false,
   },
   {
     videoId: 'UeF09e7hDbg',
@@ -77,6 +82,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: false,
     fetchedAt: Date.now(),
     hidden: false,
+    isPortrait: false,
   },
   {
     videoId: 'tbCjkPlsaes',
@@ -85,6 +91,7 @@ const STARTER_VIDEOS: FeedItem[] = [
     hasMusic: true,
     fetchedAt: Date.now(),
     hidden: false,
+    isPortrait: false,
   },
 ];
 
@@ -123,7 +130,7 @@ function filterStarterVideos(
 ): FeedItem[] {
   return starters.filter((video) => {
     if (blockedChannelSet.has(video.channelId)) return false;
-    if (video.isPortrait === true) return false;
+    if (video.isPortrait !== false) return false;
     if (hideMusicVideos && video.hasMusic === true) return false;
     if (
       hasFamilyKey &&
@@ -219,7 +226,7 @@ export async function loadBoundedFeed(
     const byChannel = new Map<string, FeedItem[]>();
     for (const row of rows) {
       if (row.hidden === true) continue;
-      if (row.isPortrait === true) continue;
+      if (row.isPortrait !== false) continue;
       if (
         hasFamilyKey &&
         (typeof row.videoDuration !== 'number' ||
@@ -315,8 +322,16 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
   const channelMap = useMemo(() => {
     const map = new Map<
       string,
-      { title: string; categories: string[]; thumbnail?: string; enabled?: boolean }
+      {
+        title: string;
+        categories: string[];
+        thumbnail?: string;
+        enabled?: boolean;
+        autoDisabled?: boolean;
+        blocked?: boolean;
+      }
     >();
+    const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
     for (const ch of registryChannelsList) {
       if (ch.sourceId) {
         map.set(ch.sourceId, {
@@ -324,6 +339,8 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           categories: Array.isArray(ch.category) ? ch.category : [],
           thumbnail: ch.thumbnail,
           enabled: ch.enabled,
+          autoDisabled: ch.autoDisabled,
+          blocked: blockedChannelSet.has(ch.sourceId),
         });
       }
     }
@@ -932,3 +949,5 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
     loadFavorites,
   };
 }
+
+export type UseKidFeedResult = ReturnType<typeof useKidFeed>;

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, Play, RefreshCw } from 'lucide-react';
-import { useKidFeed } from './useKidFeed';
 import { CategoryChips } from './CategoryChips';
 import { PullToRefresh } from '../../components/PullToRefresh';
 import { WeeklyChoiceCard } from '../../components/WeeklyChoiceCard';
@@ -14,6 +13,7 @@ import { matchCategory } from '../../data/categoryRegistry';
 import { listRegistryChannels } from '../../data/channelRegistry';
 import { loadCachedBlocks } from '../../services/globalBlocks';
 import { recordCurrentScroll } from '../../shell/navigationStore';
+import type { UseKidFeedResult } from './useKidFeed';
 
 export interface KidHomeScreenProps {
   onOpenParentDashboard?: () => void;
@@ -26,9 +26,8 @@ export interface KidHomeScreenProps {
     options?: { localPath?: string; fromDownloads?: boolean; playlistContext?: PlaylistPlaybackContext }
   ) => void;
   onChannelSelect?: (channelId: string, channelTitle: string) => void;
-  refreshTrigger?: number;
-  suppressedVideoIds?: string[];
   isPlayerOpen?: boolean;
+  feed: UseKidFeedResult;
 }
 
 interface ResumeItem {
@@ -52,9 +51,8 @@ export function KidHomeScreen({
   onSelectVideo,
   onChannelSelect,
   onOpenDemoPlayer,
-  refreshTrigger = 0,
-  suppressedVideoIds = [],
   isPlayerOpen = false,
+  feed,
 }: KidHomeScreenProps) {
   const { kidCategories } = useAllCategories();
   const [resumeItem, setResumeItem] = useState<ResumeItem | null>(null);
@@ -72,7 +70,7 @@ export function KidHomeScreen({
     filteredVideos,
     registryChannelsList,
     loadVideos,
-  } = useKidFeed({ refreshTrigger, suppressedVideoIds });
+  } = feed;
 
   useEffect(() => {
     let mounted = true;
@@ -119,7 +117,7 @@ export function KidHomeScreen({
       }
     })();
     return () => { mounted = false; };
-  }, [refreshTrigger, videos.length]);
+  }, [videos.length, isPlayerOpen]);
 
   const categoryShelfData = useMemo(() => {
     const result: Array<{ id: string; label: string; videos: FeedItem[] }> = [];

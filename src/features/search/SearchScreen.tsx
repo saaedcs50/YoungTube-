@@ -3,7 +3,7 @@ import { ArrowRight, Clock3, ListVideo, Search, X } from 'lucide-react';
 import type { FeedItem, ChildPlaylist } from '../../db';
 import db from '../../db';
 import { listRegistryChannels } from '../../data/channelRegistry';
-import { searchAndRankNamedItems, searchAndRankVideos, getAutocompleteSuggestions } from '../../services/kidSearch';
+import { searchAndRankNamedItems, searchAndRankVideos, getAutocompleteSuggestions, normalizeSearchText } from '../../services/kidSearch';
 import { loadCachedBlocks } from '../../services/globalBlocks';
 import { getFamilyYoutubeApiHeaders } from '../../services/youtubeApiKey';
 import { MIN_VIDEO_DURATION_SECONDS } from '../../filtering';
@@ -30,6 +30,7 @@ type SearchChannelInfo = {
   thumbnail?: string;
   enabled?: boolean;
   autoDisabled?: boolean;
+  blocked?: boolean;
 };
 
 type DeepSearchResult = {
@@ -113,6 +114,7 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
             thumbnail: channel.thumbnail,
             enabled: channel.enabled,
             autoDisabled: channel.autoDisabled,
+            blocked: blockedChannelSet.has(channel.sourceId),
           });
         }
 

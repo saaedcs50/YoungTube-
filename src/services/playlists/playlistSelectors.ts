@@ -24,7 +24,6 @@ export async function resolvePlaylistItemViews(playlistId: string, options: { on
     if (decision.allowed) {
       return { item, feed: decision.feed, playable: true, localPath: decision.localPath };
     }
-    if (decision.allowed) return { item, feed: decision.feed, playable: true, localPath: decision.localPath };
     return { item, feed: decision.feed, playable: false, reason: decision.reason };
   }));
 }

@@ -5,6 +5,7 @@ import {
   removeDownloads,
   startDownload,
 } from '../services/downloadManager';
+import { canPlayVideoInChildContext } from '../services/playlists/playlistSafety';
 import {
   Download,
   Trash2,
@@ -113,7 +114,20 @@ export const DownloadsModal: React.FC<DownloadsModalProps> = ({
   const fetchDownloads = useCallback(async () => {
     try {
       const items = await listDownloads();
-      setDownloads(items);
+      const decisions = await Promise.all(
+        items.map(async (item) => ({
+          item,
+          decision: await canPlayVideoInChildContext(item.videoId, { online: true }),
+        }))
+      );
+      const safeItems = decisions
+        .filter(({ decision }) => decision.allowed)
+        .map(({ item }) => item);
+      setDownloads(safeItems);
+      setSelectedVideoIds((prev) => {
+        const visibleIds = new Set(safeItems.map((item) => item.videoId));
+        return prev.filter((videoId) => visibleIds.has(videoId));
+      });
     } catch (err) {
       console.warn('Failed to load downloads list:', err);
     }
@@ -191,8 +205,13 @@ export const DownloadsModal: React.FC<DownloadsModalProps> = ({
 
   const handleRetryDownload = async (item: DownloadItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    showFeedback('جاري إعادة محاولة التحميل...');
     try {
+      const decision = await canPlayVideoInChildContext(item.videoId, { online: true });
+      if (!decision.allowed) {
+        showFeedback('لا يمكن إعادة تحميل هذا الفيديو حاليًا');
+        return;
+      }
+      showFeedback('جاري إعادة محاولة التحميل...');
       await startDownload({
         videoId: item.videoId,
         title: item.title,
@@ -202,6 +221,27 @@ export const DownloadsModal: React.FC<DownloadsModalProps> = ({
       });
     } catch (err: any) {
       showFeedback(err?.message || 'فشلت إعادة التحميل');
+    }
+  };
+
+  const handlePlayDownload = async (item: DownloadItem) => {
+    if (item.status !== 'done') return;
+    try {
+      const decision = await canPlayVideoInChildContext(item.videoId, {
+        online: false,
+        requireDownloaded: true,
+      });
+      if (!decision.allowed || !decision.localPath?.trim()) {
+        showFeedback('لا يمكن تشغيل هذا الفيديو حاليًا');
+        return;
+      }
+      onSelectVideo?.(item.videoId, item.title, item.channelTitle, item.channelId, {
+        localPath: decision.localPath.trim(),
+        fromDownloads: true,
+      });
+      onClose();
+    } catch {
+      showFeedback('لا يمكن تشغيل هذا الفيديو حاليًا');
     }
   };
 
@@ -336,11 +376,7 @@ export const DownloadsModal: React.FC<DownloadsModalProps> = ({
                     if (isSelectionMode) {
                       handleToggleSelectVideo(item.videoId);
                     } else if (item.status === 'done') {
-                      onSelectVideo?.(item.videoId, item.title, item.channelTitle, item.channelId, {
-                        localPath: item.path,
-                        fromDownloads: true,
-                      });
-                      onClose();
+                      void handlePlayDownload(item);
                     }
                   }}
                   className={`p-3 sm:p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 group ${

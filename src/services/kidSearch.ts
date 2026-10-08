@@ -425,7 +425,10 @@ export interface AutocompleteSuggestion {
  */
 export function getAutocompleteSuggestions(options: {
   query: string;
-  channelMap: Map<string, { title: string; enabled?: boolean; categories?: string[] }>;
+  channelMap: Map<
+    string,
+    { title: string; enabled?: boolean; autoDisabled?: boolean; blocked?: boolean; categories?: string[] }
+  >;
   feedVideos: FeedItem[];
   favoritesVideos?: FeedItem[];
   savedAndLovedVideos?: FeedItem[];
@@ -444,7 +447,7 @@ export function getAutocompleteSuggestions(options: {
 
   // 1. Channel suggestions from enabled channelMap
   channelMap.forEach((info, channelId) => {
-    if (info.enabled === false) return;
+    if (info.enabled === false || info.autoDisabled === true || info.blocked === true) return;
     const channelTitle = info.title;
     if (!channelTitle) return;
 
@@ -491,11 +494,11 @@ export function getAutocompleteSuggestions(options: {
     if (!video || !video.videoId || seenVideoIds.has(video.videoId)) continue;
     seenVideoIds.add(video.videoId);
 
-    // Skip hidden/portrait videos if present
-    if (video.hidden === true || video.isPortrait === true) continue;
+    // Fail closed: only videos explicitly confirmed as non-portrait (isPortrait === false) are allowed
+    if (video.hidden === true || video.isPortrait !== false) continue;
 
     const channelInfo = channelMap.get(video.channelId);
-    if (channelInfo?.enabled === false) continue;
+    if (channelInfo && (channelInfo.enabled === false || channelInfo.autoDisabled === true || channelInfo.blocked === true)) continue;
 
     const res = scoreFeedItem(video, channelInfo?.title, normQuery, queryTokens, false);
     if (res.matched && res.score >= 50) {

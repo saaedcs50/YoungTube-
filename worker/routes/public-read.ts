@@ -41,6 +41,55 @@ function resolveYoutubeApiKeyForPublicRoute(request: Request, env: Env): string 
   return (isAdmin ? resolveYouTubeApiKey(request, env) : resolveFamilyYouTubeApiKey(request)).trim();
 }
 
+function serializePublicChannel(channel: any) {
+  if (!channel?.sourceId) return null;
+
+  const rawCategories = channel.categories ?? channel.category;
+  const categories = Array.isArray(rawCategories)
+    ? rawCategories.map((value: any) => String(value || '').trim()).filter(Boolean)
+    : typeof rawCategories === 'string' && rawCategories.trim()
+      ? [rawCategories.trim()]
+      : [];
+
+  const rawVideos = Array.isArray(channel.videos) ? channel.videos : [];
+  const videos = rawVideos
+    .map((video: any) => {
+      const videoId = typeof video?.videoId === 'string' ? video.videoId.trim() : '';
+      const title = typeof video?.title === 'string' ? video.title : '';
+      const publishedAt = typeof video?.publishedAt === 'string' ? video.publishedAt : undefined;
+      if (!videoId || !title) return null;
+
+      const result: { videoId: string; title: string; publishedAt?: string; videoDuration?: number } = {
+        videoId,
+        title,
+      };
+      if (publishedAt) result.publishedAt = publishedAt;
+      if (typeof video?.videoDuration === 'number' && Number.isFinite(video.videoDuration)) {
+        result.videoDuration = video.videoDuration;
+      }
+      return result;
+    })
+    .filter(Boolean);
+
+  return {
+    sourceId: String(channel.sourceId).trim(),
+    sourceType: channel.sourceType === 'playlist' ? 'playlist' : 'channel',
+    title: String(channel.title ?? channel.name ?? 'قناة أطفال'),
+    thumbnail:
+      typeof channel.thumbnail === 'string'
+        ? channel.thumbnail
+        : typeof channel.avatar === 'string'
+          ? channel.avatar
+          : undefined,
+    categories,
+    videoCount:
+      typeof channel.videoCount === 'number' && Number.isFinite(channel.videoCount)
+        ? channel.videoCount
+        : rawVideos.length,
+    videos: videos.slice(0, 10),
+  };
+}
+
 export async function handlePublicReadRoutes(
   request: Request,
   env: Env,
@@ -125,20 +174,18 @@ export async function handlePublicReadRoutes(
             try {
               const parsed = JSON.parse(rawMerged);
               if (Array.isArray(parsed)) {
-                const compact = parsed.map((channel: any) => {
-                  const fullVideos = Array.isArray(channel?.videos) ? channel.videos : [];
-                  return {
-                    ...channel,
-                    videoCount: typeof channel?.videoCount === 'number' ? channel.videoCount : fullVideos.length,
-                    videos: fullVideos.slice(0, 10),
-                  };
-                });
+                const compact = parsed.map(serializePublicChannel).filter(Boolean);
                 return new Response(JSON.stringify(compact), {
                   status: 200,
                   headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600' }
                 });
               }
             } catch {}
+            const publicSeed = (channelsSeed as any[]).map(serializePublicChannel).filter(Boolean);
+            return new Response(JSON.stringify(publicSeed), {
+              status: 200,
+              headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=60' },
+            });
           }
           return new Response(rawMerged, {
             status: 200,
@@ -154,7 +201,8 @@ export async function handlePublicReadRoutes(
       }
 
       const isAdminRequest = checkAdminAuth(request, env);
-      return new Response(JSON.stringify(channelsSeed), {
+      const publicSeed = (channelsSeed as any[]).map(serializePublicChannel).filter(Boolean);
+      return new Response(JSON.stringify(isAdminRequest ? channelsSeed : publicSeed), {
         status: 200,
         headers: {
           ...corsHeaders,
@@ -164,7 +212,8 @@ export async function handlePublicReadRoutes(
       });
     } catch {
       const isAdminRequest = checkAdminAuth(request, env);
-      return new Response(JSON.stringify(channelsSeed), {
+      const publicSeed = (channelsSeed as any[]).map(serializePublicChannel).filter(Boolean);
+      return new Response(JSON.stringify(isAdminRequest ? channelsSeed : publicSeed), {
         status: 200,
         headers: {
           ...corsHeaders,
@@ -759,12 +808,12 @@ export async function handlePublicReadRoutes(
           },
         }
       );
-    } catch (err: any) {
+    } catch {
       return new Response(
         JSON.stringify({
           results: [],
           count: 0,
-          error: err instanceof Error ? err.message : String(err),
+          error: 'search_failed',
         }),
         {
           status: 200,
@@ -837,9 +886,10 @@ export async function handlePublicReadRoutes(
           },
         }
       );
-    } catch (err: any) {
+    } catch (err) {
+      console.error('Error looking up video:', err);
       return new Response(
-        JSON.stringify({ error: err?.message || 'Error looking up video' }),
+        JSON.stringify({ error: 'Error looking up video' }),
         { status: 500, headers: corsHeaders }
       );
     }
@@ -925,9 +975,10 @@ export async function handlePublicReadRoutes(
           },
         }
       );
-    } catch (err: any) {
+    } catch (err) {
+      console.error('Error looking up playlist:', err);
       return new Response(
-        JSON.stringify({ error: err?.message || 'Error looking up playlist' }),
+        JSON.stringify({ error: 'Error looking up playlist' }),
         { status: 500, headers: corsHeaders }
       );
     }
@@ -991,9 +1042,10 @@ export async function handlePublicReadRoutes(
         },
       });
     } catch (err) {
+      console.error('Failed to fetch video statistics:', err);
       return new Response(
         JSON.stringify({
-          error: err instanceof Error ? err.message : 'Failed to fetch video statistics',
+          error: 'Failed to fetch video statistics',
         }),
         { status: 502, headers: corsHeaders }
       );
@@ -1061,9 +1113,10 @@ export async function handlePublicReadRoutes(
         },
       });
     } catch (err) {
+      console.error('Failed to fetch video durations:', err);
       return new Response(
         JSON.stringify({
-          error: err instanceof Error ? err.message : 'Failed to fetch video durations',
+          error: 'Failed to fetch video durations',
         }),
         { status: 502, headers: corsHeaders }
       );
@@ -1386,9 +1439,10 @@ export async function handlePublicReadRoutes(
           },
         }
       );
-    } catch (err: any) {
+    } catch (err) {
+      console.error('Failed to resolve channel handle:', err);
       return new Response(
-        JSON.stringify({ error: err?.message || 'Failed to resolve channel handle' }),
+        JSON.stringify({ error: 'Failed to resolve channel handle' }),
         { status: 500, headers: corsHeaders }
       );
     }
