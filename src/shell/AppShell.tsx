@@ -17,6 +17,7 @@ import {
   handleNavigationPopState,
   popOverlay,
   pushOverlay,
+  replaceOverlayStack,
   recordCurrentScroll,
   restoreRootScroll,
   scrollRootToTop,
@@ -149,6 +150,19 @@ export function AppShell({
     if (overlayStack.length > 0) popOverlay();
   }, [overlayStack.length]);
 
+  const handleOverlaySelectVideo = useCallback((
+    videoId: string,
+    title?: string,
+    channelName?: string,
+    channelId?: string,
+    options?: { localPath?: string; fromDownloads?: boolean; playlistContext?: PlaylistPlaybackContext }
+  ) => {
+    // Selecting a video transfers screen ownership from the overlay to Watch.
+    // Clear the visual overlay stack before App creates the level-1 player history entry.
+    if (overlayStack.length > 0) replaceOverlayStack([]);
+    onSelectVideo(videoId, title, channelName, channelId, options);
+  }, [onSelectVideo, overlayStack.length]);
+
   const handleChannelOpen = useCallback((channelId: string) => {
     openOverlay({ type: 'channel', channelId });
   }, [openOverlay]);
@@ -226,6 +240,7 @@ export function AppShell({
           <KidHomeScreen
             onOpenDemoPlayer={onOpenDemoPlayer}
             onSelectVideo={onSelectVideo}
+            onChannelSelect={(channelId) => handleChannelOpen(channelId)}
             isPlayerOpen={isPlayerOpen && !isPlayerMinimized}
             feed={kidFeed}
           />
@@ -240,7 +255,7 @@ export function AppShell({
         return (
           <SearchScreen
             onBack={closeOverlay}
-            onSelectVideo={onSelectVideo}
+            onSelectVideo={handleOverlaySelectVideo}
             onOpenChannel={handleChannelOpen}
             onOpenPlaylist={handlePlaylistOpen}
           />
@@ -250,7 +265,7 @@ export function AppShell({
           <ChannelScreen
             channelId={activeOverlay.channelId}
             onBack={closeOverlay}
-            onSelectVideo={onSelectVideo}
+            onSelectVideo={handleOverlaySelectVideo}
             onOpenPlaylist={handlePlaylistOpen}
             onOpenChannel={handleChannelOpen}
           />
@@ -260,14 +275,14 @@ export function AppShell({
           <PlaylistDetailScreen
             playlistId={activeOverlay.playlistId}
             onBack={closeOverlay}
-            onSelectVideo={onSelectVideo}
+            onSelectVideo={handleOverlaySelectVideo}
           />
         );
       case 'favorites':
         return (
           <FavoritesScreen
             onBack={closeOverlay}
-            onSelectVideo={onSelectVideo}
+            onSelectVideo={handleOverlaySelectVideo}
             onOpenChannel={handleChannelOpen}
             feed={kidFeed}
           />
@@ -276,7 +291,7 @@ export function AppShell({
         return (
           <HistoryScreen
             onBack={closeOverlay}
-            onSelectVideo={onSelectVideo}
+            onSelectVideo={handleOverlaySelectVideo}
             onOpenChannel={handleChannelOpen}
           />
         );
@@ -285,7 +300,7 @@ export function AppShell({
           <DownloadsModal
             isOpen
             onClose={handleDownloadsClose}
-            onSelectVideo={onSelectVideo}
+            onSelectVideo={handleOverlaySelectVideo}
           />
         );
       default:
@@ -305,7 +320,7 @@ export function AppShell({
         />
       )}
 
-      <main key={root} className={showGlobalChrome ? bottomPaddingClass : ''} style={{ animation: 'yt-root-crossfade 120ms ease-out both' }}>{renderRoot()}</main>
+      <main className={showGlobalChrome ? bottomPaddingClass : ''} style={{ animation: 'yt-root-crossfade 120ms ease-out both' }}>{renderRoot()}</main>
 
       {showGlobalChrome && (
         <BottomNav
@@ -316,7 +331,7 @@ export function AppShell({
       )}
 
       {activeOverlay && (
-        <div className="fixed inset-0 z-[70] bg-yt-bg text-yt-text overflow-hidden">
+        <div className="fixed inset-0 z-[70] h-full min-h-0 overflow-y-auto overscroll-contain bg-yt-bg text-yt-text">
           {renderOverlay()}
         </div>
       )}

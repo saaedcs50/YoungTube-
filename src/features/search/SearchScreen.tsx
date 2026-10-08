@@ -52,7 +52,7 @@ function readRecents(): string[] {
 
 function saveRecent(value: string) {
   const q = value.trim();
-  if (!q) return;
+  if (Array.from(q).length < 2) return;
   const next = [q, ...readRecents().filter((item) => normalizeSearchText(item) !== normalizeSearchText(q))].slice(0, 8);
   try { localStorage.setItem(RECENTS_KEY, JSON.stringify(next)); } catch {}
 }
@@ -344,26 +344,28 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
     } else if (window.history.state?.searchStage === 'results') {
       window.history.replaceState({ ...window.history.state, query: q }, '');
     }
-    saveRecent(q);
-    setRecent(readRecents());
   }, [searchStage]);
 
   const submit = useCallback((value: string) => {
     const q = value.trim();
     setSearchInput(value);
     setShowSuggestions(false);
-    if (q) enterResults(value);
+    if (!q) return;
+    enterResults(value);
+    saveRecent(q);
+    setRecent(readRecents());
   }, [enterResults, setSearchInput]);
 
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
-      if (event.state?.searchStage === 'landing') {
-        setSearchStage('landing');
-        return;
-      }
-      if (!event.state?.searchStage && searchStage === 'results') {
-        setSearchStage('landing');
-      }
+      if (event.state?.searchStage === 'results') return;
+      if (searchStage !== 'results') return;
+
+      // Back from results returns to the landing UI, so normalize the field too.
+      setSearchStage('landing');
+      setSearchInput('');
+      setShowSuggestions(false);
+      setTab('all');
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -372,7 +374,6 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
   const handleFieldChange = (value: string) => {
     setSearchInput(value);
     setShowSuggestions(value.trim().length > 0);
-    if (value.trim() && searchStage !== 'results') enterResults(value);
   };
 
   const handleBack = () => {

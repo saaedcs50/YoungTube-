@@ -57,6 +57,7 @@ export function KidHomeScreen({
   const { kidCategories } = useAllCategories();
   const [resumeItem, setResumeItem] = useState<ResumeItem | null>(null);
   const [overflowVideo, setOverflowVideo] = useState<FeedItem | null>(null);
+  const [overflowMode, setOverflowMode] = useState<'menu' | 'playlist'>('menu');
 
   const {
     videos,
@@ -144,7 +145,7 @@ export function KidHomeScreen({
   const handleCategory = useCallback((categoryId: string) => {
     recordCurrentScroll();
     setSelectedCategory(categoryId);
-    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'auto' }));
   }, [setSelectedCategory]);
 
   const openVideo = useCallback((video: FeedItem) => {
@@ -155,11 +156,11 @@ export function KidHomeScreen({
 
   return (
     <div id="kid-home-screen" dir="rtl" className="min-h-screen bg-yt-bg text-yt-text select-none font-sans">
-      <div className="sticky top-[calc(56px+env(safe-area-inset-top))] z-30 border-b border-yt-border bg-yt-bg/96 backdrop-blur-md">
+      <div className="sticky z-30 border-b border-yt-border bg-yt-bg/96 backdrop-blur-md" style={{ top: 'var(--yt-top-app-bar-offset, calc(56px + env(safe-area-inset-top)))' }}>
         <CategoryChips selectedCategory={selectedCategory} showFavorites={false} onSelectCategory={handleCategory} />
       </div>
 
-      <PullToRefresh onRefresh={handleRefresh} disabled={loading || isPlayerOpen}>
+      <PullToRefresh onRefresh={handleRefresh} disabled={isPlayerOpen}>
         <main className="w-full max-w-3xl mx-auto px-4 sm:px-6 pb-28 pt-3 sm:pt-5 space-y-7">
           {showWeeklyChoiceCard && tasteShiftConfig && (
             <WeeklyChoiceCard targetCategories={tasteShiftConfig.targetCategories} currentWeek={tasteShiftConfig.currentWeek} onChoiceMade={() => void loadVideos(true)} />
@@ -180,8 +181,8 @@ export function KidHomeScreen({
                 channelThumbnail={channelMap.get(resumeItem.video.channelId)?.thumbnail}
                 onSelectVideo={() => openVideo(resumeItem.video)}
                 onChannelSelect={() => onChannelSelect?.(resumeItem.video.channelId, heroChannelTitle)}
-                onAddToPlaylist={() => setOverflowVideo(resumeItem.video)}
-                onOverflow={setOverflowVideo}
+                onAddToPlaylist={() => { setOverflowMode('playlist'); setOverflowVideo(resumeItem.video); }}
+                onOverflow={(video) => { setOverflowMode('menu'); setOverflowVideo(video); }}
               />
             </section>
           )}
@@ -213,8 +214,8 @@ export function KidHomeScreen({
                       activeTasteShiftCategory={tasteShiftConfig?.activeCategoryThisWeek}
                       onSelectVideo={() => openVideo(video)}
                       onChannelSelect={() => onChannelSelect?.(video.channelId, info?.title || 'قناة أطفال')}
-                      onAddToPlaylist={() => setOverflowVideo(video)}
-                      onOverflow={setOverflowVideo}
+                      onAddToPlaylist={() => { setOverflowMode('playlist'); setOverflowVideo(video); }}
+                      onOverflow={(video) => { setOverflowMode('menu'); setOverflowVideo(video); }}
                     />
 
                     {index === 5 && channelShelf.length > 0 && (
@@ -286,7 +287,7 @@ export function KidHomeScreen({
       </PullToRefresh>
 
       {overflowVideo && (
-        <VideoOverflowSheet video={overflowVideo} channelTitle={channelMap.get(overflowVideo.channelId)?.title} onClose={() => setOverflowVideo(null)} />
+        <VideoOverflowSheet video={overflowVideo} channelTitle={channelMap.get(overflowVideo.channelId)?.title} initialMode={overflowMode} avoidBottomNav={true} onClose={() => setOverflowVideo(null)} />
       )}
     </div>
   );

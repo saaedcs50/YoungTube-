@@ -24,13 +24,11 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
   const [refreshing, setRefreshing] = useState(false);
   const [completed, setCompleted] = useState(false);
 
-  // Helper to reliably check scroll position across all mobile webviews & browsers
+  // Prefer the actual document scroll owner on Android WebView, with legacy fallbacks.
   const getScrollTop = () => {
     if (typeof window === 'undefined') return 0;
-    return Math.max(
-      0,
-      window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
-    );
+    const scrollingElement = document.scrollingElement || document.documentElement || document.body;
+    return Math.max(0, scrollingElement?.scrollTop || window.scrollY || window.pageYOffset || 0);
   };
 
   // Reset any active pull state immediately when disabled
@@ -58,12 +56,12 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
         return;
       }
 
-      // 4. Exclude touches on player, modals, dialogs, buttons, or form controls
+      // 4. Exclude only known player surfaces or explicitly protected targets.
+      // Generic buttons/links are allowed so the gesture remains reachable on mobile.
       const el = event.target as HTMLElement | null;
       if (
-        el &&
-        el.closest(
-          '#player-video-container, #player-view, #mini-player-body-tap, #mini-player-close-btn, .player-view, [data-prevent-pull-to-refresh], button, a, input, textarea, select'
+        el?.closest(
+          '#player-video-container, #player-view, #mini-player-body-tap, #mini-player-close-btn, .player-view, [data-prevent-pull-to-refresh]'
         )
       ) {
         return;
@@ -161,6 +159,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
     <div ref={containerRef} className="relative">
       <div
         className={`pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center transition-opacity duration-150 ${visible ? 'opacity-100' : 'opacity-0'}`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
         aria-hidden="true"
       >
         <div

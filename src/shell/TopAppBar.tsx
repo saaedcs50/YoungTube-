@@ -1,6 +1,7 @@
 import React from 'react';
 import { Cast, Lock, Search } from 'lucide-react';
 import { YoungTubeWordmark } from '../components/YoungTubeWordmark';
+import { useFeedHeaderCollapse } from '../features/feed/useFeedHeaderCollapse';
 
 export interface TopAppBarProps {
   root?: string;
@@ -11,12 +12,29 @@ export interface TopAppBarProps {
 }
 
 export const TopAppBar: React.FC<TopAppBarProps> = ({ root = 'home', onHome, onSearch, onCast, onParentLock }) => {
+  const collapsed = useFeedHeaderCollapse({ disabled: root !== 'home' });
+
+  React.useEffect(() => {
+    const offset = collapsed
+      ? 'env(safe-area-inset-top)'
+      : 'calc(56px + env(safe-area-inset-top))';
+    document.documentElement.style.setProperty('--yt-top-app-bar-offset', offset);
+
+    return () => {
+      document.documentElement.style.removeProperty('--yt-top-app-bar-offset');
+    };
+  }, [collapsed]);
+
   return (
     <header
       id="youngtube-top-app-bar"
       dir="rtl"
-      className="sticky top-0 z-40 bg-yt-bg/95 backdrop-blur-md border-b border-yt-border"
-      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      className={`sticky top-0 z-40 bg-yt-bg/95 backdrop-blur-md border-b border-yt-border overflow-hidden transition-[height,opacity] duration-200 ${collapsed ? 'border-transparent' : ''}`}
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+        height: collapsed ? 'env(safe-area-inset-top)' : 'calc(56px + env(safe-area-inset-top))',
+        opacity: collapsed ? 0 : 1,
+      }}
     >
       <div className="h-14 px-3 sm:px-4 flex items-center justify-between gap-2">
         <button

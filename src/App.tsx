@@ -392,20 +392,28 @@ export default function App() {
         return;
       }
 
-      // Returning from a navigation push opened on top of Watch: keep playback.
+      // A Back that lands on another Watch entry means an overlay opened from Watch
+      // was dismissed. Keep the current playback; there is no player-level change.
       if (e.state?.ytPlayer && targetLevel === currentLevel) {
         return;
       }
 
-      // Re-expanded mini-player has a fresh level-1 Watch entry; no action needed.
+      // Already minimized: this Back closes playback. Do not enter the minimize branch
+      // again, even when a stale player history entry is underneath an overlay.
+      if (isPlayerMinimizedRef.current && (activePlaybackVideo || showDemoPlayer)) {
+        handleClosePlayer();
+        return;
+      }
+
+      // Re-expanded mini-player has a fresh level-1 Watch entry; keep it expanded.
       if (e.state?.ytPlayer && targetLevel > 0) {
         playerHistoryLevelRef.current = targetLevel;
         updatePlayerMinimized(false);
         return;
       }
 
-      // Watch portrait Back: minimize, never stop playback. The browser has already
-      // returned to the underlying root/overlay history entry.
+      // Watch portrait Back: minimize exactly once. The browser has already returned
+      // to the underlying root/overlay history entry; playback remains mounted in mini.
       if (activePlaybackVideo || showDemoPlayer) {
         playerHistoryLevelRef.current = 0;
         updatePlayerMinimized(true);
@@ -417,7 +425,7 @@ export default function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [activePlaybackVideo, showDemoPlayer, updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
+  }, [activePlaybackVideo, showDemoPlayer, updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen, handleClosePlayer]);
 
   const [castNotice, setCastNotice] = useState<string | null>(null);
 

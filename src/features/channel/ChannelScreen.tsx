@@ -24,6 +24,7 @@ export const ChannelScreen: React.FC<Props> = ({ channelId, onBack, onSelectVide
   const [tab, setTab] = useState<'videos' | 'playlists'>('videos');
   const [loading, setLoading] = useState(true);
   const [overflowVideo, setOverflowVideo] = useState<FeedItem | null>(null);
+  const [overflowMode, setOverflowMode] = useState<'menu' | 'playlist'>('menu');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,7 +100,7 @@ export const ChannelScreen: React.FC<Props> = ({ channelId, onBack, onSelectVide
 
         {loading ? <div className="space-y-6 py-6 animate-pulse">{[0,1,2,3].map((i) => <div key={i}><div className="aspect-video rounded-2xl bg-yt-surface-muted" /><div className="h-5 bg-yt-surface-muted rounded mt-3" /></div>)}</div> : tab === 'videos' ? (
           <div className="space-y-6 py-6">
-            {videos.length ? videos.map((video) => <YoungTubeVideoCard key={video.videoId} video={video} channelTitle={channel?.title || 'قناة أطفال'} channelThumbnail={channel?.thumbnail} onSelectVideo={() => onSelectVideo(video.videoId, video.title, channel?.title, channelId)} onChannelSelect={() => onOpenChannel(channelId)} onAddToPlaylist={() => setOverflowVideo(video)} onOverflow={setOverflowVideo} />) : <div className="rounded-3xl border border-dashed border-yt-border p-10 text-center text-sm text-yt-text-muted">لا توجد فيديوهات متاحة حاليًا</div>}
+            {videos.length ? videos.map((video) => <YoungTubeVideoCard key={video.videoId} video={video} channelTitle={channel?.title || 'قناة أطفال'} channelThumbnail={channel?.thumbnail} onSelectVideo={() => onSelectVideo(video.videoId, video.title, channel?.title, channelId)} onChannelSelect={() => onOpenChannel(channelId)} onAddToPlaylist={() => { setOverflowMode('playlist'); setOverflowVideo(video); }} onOverflow={(video) => { setOverflowMode('menu'); setOverflowVideo(video); }} />) : <div className="rounded-3xl border border-dashed border-yt-border p-10 text-center text-sm text-yt-text-muted">لا توجد فيديوهات متاحة حاليًا</div>}
           </div>
         ) : (
           <div className="space-y-2 py-6">
@@ -107,7 +108,7 @@ export const ChannelScreen: React.FC<Props> = ({ channelId, onBack, onSelectVide
           </div>
         )}
       </div>
-      <VideoOverflowSheet video={overflowVideo} channelTitle={channel?.title} onClose={() => setOverflowVideo(null)} />
+      <VideoOverflowSheet video={overflowVideo} channelTitle={channel?.title} initialMode={overflowMode} onClose={() => setOverflowVideo(null)} />
     </div>
   );
 };

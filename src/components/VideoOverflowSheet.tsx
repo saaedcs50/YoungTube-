@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Download, ListPlus, Share2, X } from 'lucide-react';
 import type { FeedItem } from '../db';
 import { getDownloadByVideoId, startDownload } from '../services/downloadManager';
@@ -8,12 +8,19 @@ interface VideoOverflowSheetProps {
   video: FeedItem | null;
   channelTitle?: string;
   onClose: () => void;
+  initialMode?: 'menu' | 'playlist';
+  avoidBottomNav?: boolean;
 }
 
-export const VideoOverflowSheet: React.FC<VideoOverflowSheetProps> = ({ video, channelTitle, onClose }) => {
-  const [playlistOpen, setPlaylistOpen] = useState(false);
+export const VideoOverflowSheet: React.FC<VideoOverflowSheetProps> = ({ video, channelTitle, onClose, initialMode = 'menu', avoidBottomNav = false }) => {
+  const [mode, setMode] = useState<'menu' | 'playlist'>(initialMode);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMode(initialMode);
+    setMessage(null);
+  }, [video?.videoId, initialMode]);
 
   if (!video) return null;
 
@@ -61,7 +68,7 @@ export const VideoOverflowSheet: React.FC<VideoOverflowSheetProps> = ({ video, c
 
   return (
     <div className="fixed inset-0 z-[90] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" dir="rtl" onMouseDown={onClose}>
-      <div className="w-full max-w-md rounded-3xl border border-yt-border bg-yt-surface shadow-2xl overflow-hidden" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-3xl border border-yt-border bg-yt-surface shadow-2xl overflow-hidden" style={avoidBottomNav ? { paddingBottom: 'calc(56px + env(safe-area-inset-bottom))' } : undefined} onMouseDown={(e) => e.stopPropagation()}>
         <div className="p-4 border-b border-yt-border flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-sm font-black text-yt-text truncate">خيارات الفيديو</h3>
@@ -72,9 +79,9 @@ export const VideoOverflowSheet: React.FC<VideoOverflowSheetProps> = ({ video, c
 
         {message && <div className="px-4 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 border-b border-emerald-200">{message}</div>}
 
-        {!playlistOpen ? (
+        {mode === 'menu' ? (
           <div className="p-3 space-y-1">
-            <button type="button" onClick={() => setPlaylistOpen(true)} className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-yt-surface-muted text-right cursor-pointer">
+            <button type="button" onClick={() => setMode('playlist')} className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-yt-surface-muted text-right cursor-pointer">
               <span className="w-10 h-10 rounded-full bg-yt-brand-soft text-yt-brand flex items-center justify-center"><ListPlus className="w-5 h-5" /></span>
               <span><span className="block text-sm font-bold text-yt-text">حفظ إلى قائمة تشغيل</span><span className="block text-[10px] text-yt-text-muted">أضف الفيديو إلى إحدى قوائمك</span></span>
             </button>
@@ -89,7 +96,7 @@ export const VideoOverflowSheet: React.FC<VideoOverflowSheetProps> = ({ video, c
           </div>
         ) : (
           <div className="p-3">
-            <PlaylistManager mode="add" video={{ videoId: video.videoId, title: video.title }} onClose={() => setPlaylistOpen(false)} onChanged={() => { setMessage('تمت الإضافة إلى القائمة'); setPlaylistOpen(false); }} />
+            <PlaylistManager mode="add" video={{ videoId: video.videoId, title: video.title }} onClose={() => setMode('menu')} onChanged={() => { setMessage('تمت الإضافة إلى القائمة'); setMode('menu'); }} />
           </div>
         )}
       </div>

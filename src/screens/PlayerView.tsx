@@ -172,6 +172,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   const isMinimized = (propIsMinimized ?? false) || isMinimizedLocal;
   const isMinimizedRef = useRef(isMinimized);
   isMinimizedRef.current = isMinimized;
+  const [showPortraitControls, setShowPortraitControls] = useState(true);
 
   // Primary Player State (declared early to prevent TDZ errors in callbacks & hooks)
   const [isPlaying, setIsPlaying] = useState(true);
@@ -314,10 +315,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     onClose();
   }, [checkAndLogSkippedEarly, currentVideo, currentTime, duration, onClose, onExitMinimized]);
 
-  // When isMinimized transitions from true -> false, auto-resume video
+  // When isMinimized transitions from true -> false, auto-resume video and restore
+  // persistent portrait navigation chrome. Transient gesture controls may still hide.
   const prevMinimizedRef = useRef(isMinimized);
   useEffect(() => {
     if (prevMinimizedRef.current && !isMinimized) {
+      setShowPortraitControls(true);
       try {
         playerRef.current?.playVideo?.();
         setIsPlaying(true);
@@ -1360,7 +1363,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [currentVideo, propChannelId, resolveChannelId, onChannelBlocked, onRefreshHomeFeed, handleClose]);
 
   // ================= PORTRAIT GESTURE LAYER (Unified Pointer-Event State Machine) =================
-  const [showPortraitControls, setShowPortraitControls] = useState(true);
   const [seekFeedback, setSeekFeedback] = useState<{
     direction: 'forward' | 'backward';
     key: number;
@@ -1630,97 +1632,104 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
             : 'w-full max-w-3xl mx-auto flex flex-col bg-yt-surface border-b border-yt-border'
         }
       >
-        {/* Top Quarter (25% of top half): Meta & Parent Actions (Portrait only) */}
+        {/* Compact portrait top chrome: navigation + identity above the video stage */}
         {!isFullscreen && !isMinimized && (
-          <div className="order-2 px-4 py-3 bg-yt-surface flex items-center justify-between border-t border-yt-border gap-3 shrink-0">
-            {/* Back/Close button (top-left / start in RTL) */}
-            <button
-              type="button"
-              id="player-close-btn"
-              onClick={handleClose}
-              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white transition shrink-0 cursor-pointer active:scale-95"
-              aria-label="إغلاق المشغل"
-            >
-              <ArrowRight className="w-5 h-5" />
-            </button>
-
-            <button
-              type="button"
-              id="player-search-btn"
-              onClick={onOpenSearch}
-              disabled={!onOpenSearch}
-              className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 h-10 bg-white/10 hover:bg-white/15 text-white transition active:scale-95 ${
-                showPortraitControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-              } ${onOpenSearch ? 'cursor-pointer' : 'cursor-default'}`}
-              aria-label="البحث"
-              title="البحث"
-            >
-              <Search className="w-4 h-4" />
-              <span className="text-xs font-bold">البحث</span>
-            </button>
-
-            {/* Title & Channel Info */}
-            <div className="flex-1 min-w-0 px-1 flex items-center gap-2.5">
+          <div
+            className="order-1 bg-yt-surface border-b border-yt-border shrink-0 px-3"
+            style={{ paddingTop: 'env(safe-area-inset-top)' }}
+          >
+            <div className="min-h-11 py-1.5 flex items-center justify-between gap-2">
+              {/* Back/Close button (top-left / start in RTL) */}
               <button
                 type="button"
-                onClick={() => currentVideo.channelId && onOpenChannel?.(currentVideo.channelId)}
-                className={`w-10 h-10 rounded-full bg-yt-surface-muted border border-yt-border shrink-0 flex items-center justify-center text-xs font-black text-yt-text-muted overflow-hidden ${currentVideo.channelId && onOpenChannel ? 'cursor-pointer' : 'cursor-default'}`}
-                aria-label={`فتح قناة ${currentVideo.channelTitle}`}
+                id="player-close-btn"
+                onClick={handleClose}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white transition shrink-0 cursor-pointer active:scale-95"
+                aria-label="إغلاق المشغل"
               >
-                <span>{currentVideo.channelTitle?.trim().charAt(0) || 'ق'}</span>
+                <ArrowRight className="w-5 h-5" />
               </button>
-              <div className="min-w-0">
-                <h2 className="font-bold text-sm sm:text-base text-yt-text line-clamp-2 leading-snug">
-                  {currentVideo.title}
-                </h2>
-                {currentVideo.channelId && onOpenChannel ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenChannel(currentVideo.channelId!)}
-                    className="text-[11px] text-yt-text-muted hover:text-yt-brand truncate text-right cursor-pointer"
-                    aria-label={`فتح قناة ${currentVideo.channelTitle}`}
-                  >
-                    {currentVideo.channelTitle}
-                  </button>
-                ) : (
-                  <p className="text-[11px] text-yt-text-muted truncate">{currentVideo.channelTitle}</p>
-                )}
+
+              <button
+                type="button"
+                id="player-search-btn"
+                onClick={onOpenSearch}
+                disabled={!onOpenSearch}
+                className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 h-10 bg-white/10 hover:bg-white/15 text-white transition active:scale-95 ${
+                  onOpenSearch ? 'cursor-pointer' : 'cursor-default'
+                }`}
+                aria-label="البحث"
+                title="البحث"
+              >
+                <Search className="w-4 h-4" />
+                <span className="text-xs font-bold">البحث</span>
+              </button>
+
+              {/* Title & Channel Info */}
+              <div className="flex-1 min-w-0 px-1 flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => currentVideo.channelId && onOpenChannel?.(currentVideo.channelId)}
+                  className={`w-10 h-10 rounded-full bg-yt-surface-muted border border-yt-border shrink-0 flex items-center justify-center text-xs font-black text-yt-text-muted overflow-hidden ${currentVideo.channelId && onOpenChannel ? 'cursor-pointer' : 'cursor-default'}`}
+                  aria-label={`فتح قناة ${currentVideo.channelTitle}`}
+                >
+                  <span>{currentVideo.channelTitle?.trim().charAt(0) || 'ق'}</span>
+                </button>
+                <div className="min-w-0">
+                  <h2 className="font-bold text-sm sm:text-base text-yt-text line-clamp-2 leading-snug">
+                    {currentVideo.title}
+                  </h2>
+                  {currentVideo.channelId && onOpenChannel ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenChannel(currentVideo.channelId!)}
+                      className="text-[11px] text-yt-text-muted hover:text-yt-brand truncate text-right cursor-pointer"
+                      aria-label={`فتح قناة ${currentVideo.channelTitle}`}
+                    >
+                      {currentVideo.channelTitle}
+                    </button>
+                  ) : (
+                    <p className="text-[11px] text-yt-text-muted truncate">{currentVideo.channelTitle}</p>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Parent Action Pill Container */}
-            <div className="flex items-center gap-1 shrink-0 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">
-              <span className="text-yt-brand text-xs shrink-0">🔒</span>
-              <button
-                type="button"
-                id="player-parent-hide-btn"
-                onClick={handleHideVideo}
-                disabled={hideConfirmed}
-                className="hover:text-yt-brand active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer"
-                title="إخفاء الفيديو من القائمة"
-              >
-                {hideConfirmed ? 'تم الإخفاء ✅' : 'إخفاء'}
-              </button>
-              <span className="text-white/20 text-xs">·</span>
-              <button
-                type="button"
-                id="player-parent-disable-btn"
-                onClick={handleBlockChannelClick}
-                className="hover:text-rose-300 active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer"
-                title="تعطيل القناة (يتطلب رمز الدخول)"
-              >
-                تعطيل القناة
-              </button>
-              <span className="text-white/20 text-xs">·</span>
-              <button
-                type="button"
-                id="player-parent-save-btn"
-                onClick={handleToggleSave}
-                className="hover:text-emerald-300 active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer"
-                title={isSavedByParent ? 'إلغاء الحفظ' : 'حفظ في المفضلة للأهل'}
-              >
-                {isSavedByParent ? 'محفوظ' : 'حفظ'}
-              </button>
+            {/* Parent actions stay in their own row so channel identity remains readable. */}
+            <div className="overflow-x-auto scrollbar-none pb-1">
+              <div className="flex items-center justify-end gap-1 w-max min-w-full bg-white/5 border border-white/10 rounded-full px-2.5 py-1">
+                <span className="text-yt-brand text-xs shrink-0">🔒</span>
+                <button
+                  type="button"
+                  id="player-parent-hide-btn"
+                  onClick={handleHideVideo}
+                  disabled={hideConfirmed}
+                  className="hover:text-yt-brand active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer whitespace-nowrap"
+                  title="إخفاء الفيديو من القائمة"
+                >
+                  {hideConfirmed ? 'تم الإخفاء ✅' : 'إخفاء'}
+                </button>
+                <span className="text-white/20 text-xs">·</span>
+                <button
+                  type="button"
+                  id="player-parent-disable-btn"
+                  onClick={handleBlockChannelClick}
+                  className="hover:text-rose-300 active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer whitespace-nowrap"
+                  title="تعطيل القناة (يتطلب رمز الدخول)"
+                >
+                  تعطيل القناة
+                </button>
+                <span className="text-white/20 text-xs">·</span>
+                <button
+                  type="button"
+                  id="player-parent-save-btn"
+                  onClick={handleToggleSave}
+                  className="hover:text-emerald-300 active:scale-95 transition-colors px-1 text-[11px] font-bold text-white/80 cursor-pointer whitespace-nowrap"
+                  title={isSavedByParent ? 'إلغاء الحفظ' : 'حفظ في المفضلة للأهل'}
+                >
+                  {isSavedByParent ? 'محفوظ' : 'حفظ'}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1734,7 +1743,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               ? 'w-full h-full relative bg-black flex items-center justify-center overflow-hidden'
               : isMinimized
               ? 'w-full h-full relative bg-black rounded-2xl overflow-hidden flex items-center justify-center'
-              : 'order-1 aspect-video relative bg-black w-full p-0 rounded-none flex items-center justify-center overflow-hidden'
+              : 'order-2 aspect-video relative bg-black w-full p-0 rounded-none flex items-center justify-center overflow-hidden'
           }
         >
           {activeLocalPath && !localPlayError ? (
