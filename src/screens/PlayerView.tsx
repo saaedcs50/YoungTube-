@@ -42,6 +42,7 @@ import { Capacitor } from '@capacitor/core';
 import { resolvePlaylistQueue } from '../services/playlists/playlistPlayback';
 import { canPlayVideoInChildContext } from '../services/playlists/playlistSafety';
 import type { PlaylistPlaybackContext } from '../services/playlists/playlistTypes';
+import { isCurrentHistoryEntry, pushPlayerHistoryEntry, requestHistoryBack } from '../shell/historyCoordinator';
 
 export interface QueuedVideo {
   videoId: string;
@@ -311,9 +312,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     }
     setIsPlaying(false);
     setIsMinimizedLocal(false);
-    onExitMinimized?.();
+    // X closes the minimized player; only the mini body invokes the expand callback.
     onClose();
-  }, [checkAndLogSkippedEarly, currentVideo, currentTime, duration, onClose, onExitMinimized]);
+  }, [checkAndLogSkippedEarly, currentVideo, currentTime, duration, onClose]);
 
   // When isMinimized transitions from true -> false, auto-resume video and restore
   // persistent portrait navigation chrome. Transient gesture controls may still hide.
@@ -830,8 +831,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     if (onOpenSheet) {
       onOpenSheet();
     } else {
-      if (typeof window !== 'undefined' && !window.history.state?.sheetOpen) {
-        window.history.pushState({ ...window.history.state, ytPlayer: true, sheetOpen: true }, '');
+      if (typeof window !== 'undefined' && !isCurrentHistoryEntry('player-settings')) {
+        pushPlayerHistoryEntry(3, { fullscreen: false, sheetOpen: true });
       }
       setIsSettingsOpenLocal(true);
     }
@@ -847,8 +848,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [videoId, videoTitle]);
 
   const handleCloseSettings = useCallback(() => {
-    if (typeof window !== 'undefined' && window.history.state?.sheetOpen) {
-      window.history.back();
+    if (typeof window !== 'undefined' && isCurrentHistoryEntry('player-settings')) {
+      requestHistoryBack('watch-settings-close');
     } else {
       setIsSettingsOpenLocal(false);
       setActiveSheet(null);
@@ -863,8 +864,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   // Close sheet if video enters fullscreen, is minimized, or receives forceStop
   useEffect(() => {
     if ((isFullscreen || isMinimized || effectiveForceStop) && isSettingsOpen) {
-      if (typeof window !== 'undefined' && window.history.state?.sheetOpen) {
-        window.history.back();
+      if (typeof window !== 'undefined' && isCurrentHistoryEntry('player-settings')) {
+        requestHistoryBack('watch-settings-close-before-exit');
       } else {
         setIsSettingsOpenLocal(false);
         onCloseSheet?.();
@@ -936,11 +937,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   }, [onExitFullscreen]);
 
   const handleExitFullscreen = useCallback(() => {
-    // Fix 2, Point 4: When exiting via in-app button, call history.back()
-    // instead of directly calling exitFullscreen() yourself — let popstate handler
-    // be the single place that actually performs the exit
-    if (typeof window !== 'undefined' && window.history.state?.fullscreen) {
-      window.history.back();
+    // Route in-app exit through the shared History coordinator so the observed
+    // transition owns both the browser entry and the fullscreen UI state.
+    if (typeof window !== 'undefined' && isCurrentHistoryEntry('player-fullscreen')) {
+      requestHistoryBack('watch-fullscreen-exit');
     } else {
       performExitFullscreen();
     }
@@ -975,8 +975,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     setIsFullscreenActive(true);
     if (onEnterFullscreen) {
       onEnterFullscreen();
-    } else if (typeof window !== 'undefined' && !window.history.state?.fullscreen) {
-      window.history.pushState({ ytPlayer: true, fullscreen: true }, '');
+    } else if (typeof window !== 'undefined' && !isCurrentHistoryEntry('player-fullscreen')) {
+      pushPlayerHistoryEntry(2, { fullscreen: true, sheetOpen: false });
     }
     performEnterFullscreen();
   }, [onEnterFullscreen, performEnterFullscreen]);
@@ -1037,8 +1037,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           // ignore
         }
         // Sync history if needed
-        if (typeof window !== 'undefined' && window.history.state?.fullscreen) {
-          window.history.back();
+        if (typeof window !== 'undefined' && isCurrentHistoryEntry('player-fullscreen')) {
+          requestHistoryBack('browser-fullscreen-change');
         }
       }
     };

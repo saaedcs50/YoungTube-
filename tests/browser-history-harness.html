@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YoungTube History Coordinator browser harness</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; margin: 2rem; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    [data-status="PASS"] { color: #176b34; }
+    [data-status="FAIL"] { color: #9b1c1c; }
+  </style>
+</head>
+<body data-status="RUNNING">
+  <h1>YoungTube History Coordinator browser harness</h1>
+  <p id="status">Running native browser-history checks…</p>
+  <pre id="report"></pre>
+  <script type="module">
+    import {
+      getCurrentHistoryMeta,
+      handoffOverlayToWatch,
+      initializeNavigationHistory,
+      pushOverlayHistoryEntry,
+      pushPlayerHistoryEntry,
+      pushSearchResultsHistoryEntry,
+      requestHistoryBack,
+      subscribeHistoryTransitions,
+    } from '../src/shell/historyCoordinator.js';
+
+    const report = [];
+    const check = (condition, message) => {
+      if (!condition) throw new Error(message);
+      report.push(`PASS — ${message}`);
+    };
+    const waitFor = (predicate, trigger, timeoutMs = 2500) => new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        stop();
+        reject(new Error('Timed out waiting for browser popstate acknowledgement'));
+      }, timeoutMs);
+      const stop = subscribeHistoryTransitions((transition) => {
+        if (!predicate(transition)) return;
+        clearTimeout(timeout);
+        stop();
+        resolve(transition);
+      });
+      try { trigger(); } catch (error) { clearTimeout(timeout); stop(); reject(error); }
+    });
+
+    async function run() {
+      initializeNavigationHistory('home');
+      const root = getCurrentHistoryMeta();
+      check(root?.entryKind === 'root', 'browser harness starts on a canonical root history entry');
+
+      const firstOverlay = pushOverlayHistoryEntry([{ type: 'search' }], { type: 'search' });
+      const results = pushSearchResultsHistoryEntry('browser harness query', firstOverlay.overlayStack);
+      check(results?.parentEntryId === firstOverlay.meta.entryId, 'search results point to their actual overlay parent');
+
+      await new Promise((resolve, reject) => {
+        const watchdog = setTimeout(() => reject(new Error('Overlay-to-Watch handoff timed out')), 2500);
+        const accepted = handoffOverlayToWatch(() => {
+          clearTimeout(watchdog);
+          resolve();
+        }, 'browser-harness-handoff');
+        if (!accepted) {
+          clearTimeout(watchdog);
+          reject(new Error('Coordinator refused browser harness handoff'));
+        }
+      });
+      check(getCurrentHistoryMeta()?.entryId === root.entryId, 'real browser popstate acknowledgements return to the root before Watch is created');
+
+      const player = pushPlayerHistoryEntry(1);
+      check(player?.entryKind === 'player', 'opening Watch writes a namespaced player entry');
+      await waitFor((transition) => transition.decision === 'player-minimize', () => {
+        check(requestHistoryBack('browser-harness-minimize'), 'Back request is accepted for Watch');
+      });
+      check(getCurrentHistoryMeta()?.entryKind === 'miniplayer-sentinel', 'minimize leaves a sentinel for the second Back action');
+
+      await waitFor((transition) => transition.decision === 'player-close', () => {
+        check(requestHistoryBack('browser-harness-close'), 'second Back request is accepted from the miniplayer sentinel');
+      });
+      check(getCurrentHistoryMeta()?.entryKind === 'root', 'the second Back returns to the root and closes playback');
+
+      document.body.dataset.status = 'PASS';
+      document.querySelector('#status').textContent = 'PASS';
+      document.querySelector('#report').textContent = report.join('\n');
+    }
+
+    run().catch((error) => {
+      document.body.dataset.status = 'FAIL';
+      document.querySelector('#status').textContent = 'FAIL';
+      document.querySelector('#report').textContent = `${report.join('\n')}\nFAIL — ${error?.stack || error}`;
+    });
+  </script>
+</body>
+</html>

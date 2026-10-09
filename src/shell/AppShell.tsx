@@ -14,10 +14,8 @@ import { HistoryScreen } from '../features/history/HistoryScreen';
 import { BottomNav } from './BottomNav';
 import { TopAppBar } from './TopAppBar';
 import {
-  handleNavigationPopState,
   popOverlay,
   pushOverlay,
-  replaceOverlayStack,
   recordCurrentScroll,
   restoreRootScroll,
   scrollRootToTop,
@@ -26,6 +24,7 @@ import {
   type RootId,
   type Overlay,
 } from './navigationStore';
+import { handoffOverlayToWatch } from './historyCoordinator';
 import DownloadsModal from '../components/DownloadsModal';
 
 type SelectVideo = (
@@ -109,14 +108,6 @@ export function AppShell({
   }, [root]);
 
   useEffect(() => {
-    const onPopState = (event: PopStateEvent) => {
-      handleNavigationPopState(event, isPlayerOpen && !isPlayerMinimized);
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [isPlayerOpen, isPlayerMinimized]);
-
-  useEffect(() => {
     const onOpenChannel = (event: Event) => {
       const channelId = (event as CustomEvent<string>).detail;
       if (channelId) pushOverlay({ type: 'channel', channelId });
@@ -157,11 +148,13 @@ export function AppShell({
     channelId?: string,
     options?: { localPath?: string; fromDownloads?: boolean; playlistContext?: PlaylistPlaybackContext }
   ) => {
-    // Selecting a video transfers screen ownership from the overlay to Watch.
-    // Clear the visual overlay stack before App creates the level-1 player history entry.
-    if (overlayStack.length > 0) replaceOverlayStack([]);
-    onSelectVideo(videoId, title, channelName, channelId, options);
-  }, [onSelectVideo, overlayStack.length]);
+    // Wait for the browser to acknowledge each History traversal before selecting
+    // the new video. This avoids leaving the overlay branch ahead of Watch in history.
+    handoffOverlayToWatch(
+      () => onSelectVideo(videoId, title, channelName, channelId, options),
+      'overlay-video-handoff',
+    );
+  }, [onSelectVideo]);
 
   const handleChannelOpen = useCallback((channelId: string) => {
     openOverlay({ type: 'channel', channelId });

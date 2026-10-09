@@ -48,6 +48,7 @@ export const ChannelsScreen: React.FC<Props> = ({ onOpenChannel, onSelectVideo }
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [unseenChannelIds, setUnseenChannelIds] = useState<Set<string>>(new Set());
   const [overflowVideo, setOverflowVideo] = useState<FeedItem | null>(null);
+  const [overflowMode, setOverflowMode] = useState<'menu' | 'playlist'>('menu');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -129,7 +130,7 @@ export const ChannelsScreen: React.FC<Props> = ({ onOpenChannel, onSelectVideo }
         <div className="space-y-6">
           {visibleVideos.map((video) => {
             const channel = channelMap.get(video.channelId);
-            return <YoungTubeVideoCard key={video.videoId} video={video} channelTitle={channel?.title || 'قناة أطفال'} channelThumbnail={channel?.thumbnail} onSelectVideo={() => onSelectVideo(video.videoId, video.title, channel?.title, video.channelId)} onChannelSelect={() => onOpenChannel(video.channelId, channel?.title || 'قناة أطفال')} onAddToPlaylist={() => setOverflowVideo(video)} onOverflow={setOverflowVideo} />;
+            return <YoungTubeVideoCard key={video.videoId} video={video} channelTitle={channel?.title || 'قناة أطفال'} channelThumbnail={channel?.thumbnail} onSelectVideo={() => onSelectVideo(video.videoId, video.title, channel?.title, video.channelId)} onChannelSelect={() => onOpenChannel(video.channelId, channel?.title || 'قناة أطفال')} onAddToPlaylist={() => { setOverflowMode('playlist'); setOverflowVideo(video); }} onOverflow={(selectedVideo) => { setOverflowMode('menu'); setOverflowVideo(selectedVideo); }} />;
           })}
         </div>
       )}
@@ -145,7 +146,7 @@ export const ChannelsScreen: React.FC<Props> = ({ onOpenChannel, onSelectVideo }
         </div>
       )}
 
-      <VideoOverflowSheet video={overflowVideo} channelTitle={overflowVideo ? channelMap.get(overflowVideo.channelId)?.title : undefined} onClose={() => setOverflowVideo(null)} />
+      <VideoOverflowSheet video={overflowVideo} channelTitle={overflowVideo ? channelMap.get(overflowVideo.channelId)?.title : undefined} initialMode={overflowMode} avoidBottomNav onClose={() => { setOverflowVideo(null); setOverflowMode('menu'); }} />
     </section>
   );
 };

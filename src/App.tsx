@@ -8,6 +8,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { useSessionTimer } from './hooks/useSessionTimer';
 import { ensureChannelsArchiveSynced } from './filtering';
 import { AppShell } from './shell/AppShell';
+import { closePlayerHistory, getCurrentHistoryMeta, isCurrentHistoryEntry, isCurrentPlayerHistoryEntry, pushPlayerHistoryEntry, requestHistoryBack, subscribeHistoryTransitions } from './shell/historyCoordinator';
 import { openCastPicker } from './services/castService';
 import { startParentSession, endParentSession, endChildSession, createSessionId } from './services/telemetry';
 import {
@@ -218,47 +219,45 @@ export default function App() {
     setParentAnnouncements((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
-  // Player history uses browser entries only for actual Watch layers:
+  // The History coordinator is the sole writer/listener for Watch layers.
   // level 1 = Watch, level 2 = fullscreen, level 3 = settings sheet.
-  // Miniplayer is playback state, not a history entry.
-  const isPlayerFullscreenRef = useRef(false);
   const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
-  const isPlayerMinimizedRef = useRef(false);
   const [isPlayerMinimized, setIsPlayerMinimized] = useState(false);
-  const isPlayerSheetOpenRef = useRef(false);
   const [isPlayerSheetOpen, setIsPlayerSheetOpen] = useState(false);
   const playerHistoryLevelRef = useRef(0);
-  const closingRef = useRef(false);
 
   const updatePlayerFullscreen = useCallback((val: boolean) => {
     setIsPlayerFullscreen(val);
-    isPlayerFullscreenRef.current = val;
   }, []);
 
   const updatePlayerMinimized = useCallback((val: boolean) => {
     setIsPlayerMinimized(val);
-    isPlayerMinimizedRef.current = val;
   }, []);
 
   const updatePlayerSheetOpen = useCallback((val: boolean) => {
     setIsPlayerSheetOpen(val);
-    isPlayerSheetOpenRef.current = val;
   }, []);
 
   const pushPlayerHistory = useCallback((level: number, state: Record<string, unknown> = {}) => {
     if (typeof window === 'undefined') return;
-    window.history.pushState(
-      { ...state, ytPlayer: true, playerLevel: level },
-      ''
-    );
-    playerHistoryLevelRef.current = level;
+    const entry = pushPlayerHistoryEntry(level as 1 | 2 | 3, state);
+    playerHistoryLevelRef.current = Number(entry?.playerLevel ?? level);
   }, []);
+
+  const clearPlayerUI = useCallback(() => {
+    playerHistoryLevelRef.current = 0;
+    updatePlayerMinimized(false);
+    updatePlayerFullscreen(false);
+    updatePlayerSheetOpen(false);
+    setActivePlaybackVideo(null);
+    setShowDemoPlayer(false);
+  }, [updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const handleOpenDemoPlayer = useCallback(() => {
     updatePlayerMinimized(false);
     updatePlayerSheetOpen(false);
     updatePlayerFullscreen(false);
-    if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
+    if (typeof window !== 'undefined' && !isCurrentPlayerHistoryEntry()) {
       pushPlayerHistory(1, { fullscreen: false, sheetOpen: false });
     }
     setShowDemoPlayer(true);
@@ -274,158 +273,141 @@ export default function App() {
     updatePlayerMinimized(false);
     updatePlayerSheetOpen(false);
     updatePlayerFullscreen(false);
-    if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
+    const current = getCurrentHistoryMeta();
+    if (typeof window !== 'undefined' && !isCurrentPlayerHistoryEntry()) {
       pushPlayerHistory(1, { fullscreen: false, sheetOpen: false });
-    } else if (typeof window !== 'undefined' && window.history.state?.ytPlayer) {
-      playerHistoryLevelRef.current = Number(window.history.state?.playerLevel || 1);
+    } else if (current?.playerLevel) {
+      playerHistoryLevelRef.current = Number(current.playerLevel);
     }
     setActivePlaybackVideo({ videoId, title, channelName, channelId, localPath: options?.localPath, playlistContext: options?.playlistContext });
   }, [pushPlayerHistory, updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const handlePlayerEnterFullscreen = useCallback(() => {
-    if (typeof window !== 'undefined' && !window.history.state?.fullscreen) {
+    if (typeof window !== 'undefined' && !isCurrentHistoryEntry('player-fullscreen')) {
       pushPlayerHistory(2, { fullscreen: true, sheetOpen: false });
     }
     updatePlayerFullscreen(true);
   }, [pushPlayerHistory, updatePlayerFullscreen]);
 
   const handlePlayerExitFullscreen = useCallback(() => {
-    if (typeof window !== 'undefined' && window.history.state?.ytPlayer && window.history.state?.fullscreen) {
-      window.history.back();
+    if (typeof window !== 'undefined' && isCurrentHistoryEntry('player-fullscreen')) {
+      requestHistoryBack('watch-fullscreen-exit');
       return;
     }
     updatePlayerFullscreen(false);
   }, [updatePlayerFullscreen]);
 
   const handlePlayerEnterMinimized = useCallback(() => {
-    updatePlayerMinimized(true);
     updatePlayerSheetOpen(false);
     updatePlayerFullscreen(false);
-    if (typeof window !== 'undefined' && window.history.state?.ytPlayer) {
-      // Back consumes the Watch entry and lands on the underlying root/overlay,
-      // while playback remains mounted in the miniplayer.
-      window.history.back();
+    if (typeof window !== 'undefined' && isCurrentPlayerHistoryEntry()) {
+      requestHistoryBack('watch-minimize');
+    } else {
+      updatePlayerMinimized(true);
     }
   }, [updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const handlePlayerExitMinimized = useCallback(() => {
     updatePlayerMinimized(false);
-    if (typeof window !== 'undefined' && !window.history.state?.ytPlayer) {
+    if (typeof window !== 'undefined' && !isCurrentPlayerHistoryEntry()) {
       pushPlayerHistory(1, { fullscreen: false, sheetOpen: false });
     }
   }, [pushPlayerHistory, updatePlayerMinimized]);
 
   const handlePlayerOpenSheet = useCallback(() => {
-    const nextLevel = 3;
-    if (typeof window !== 'undefined' && !window.history.state?.sheetOpen) {
-      pushPlayerHistory(nextLevel, { fullscreen: false, sheetOpen: true });
+    if (typeof window !== 'undefined' && !isCurrentHistoryEntry('player-settings')) {
+      pushPlayerHistory(3, { fullscreen: false, sheetOpen: true });
     }
     updatePlayerSheetOpen(true);
   }, [pushPlayerHistory, updatePlayerSheetOpen]);
 
   const handlePlayerCloseSheet = useCallback(() => {
-    if (typeof window !== 'undefined' && window.history.state?.ytPlayer && window.history.state?.sheetOpen) {
-      window.history.back();
+    if (typeof window !== 'undefined' && isCurrentHistoryEntry('player-settings')) {
+      requestHistoryBack('watch-settings-close');
       return;
     }
     updatePlayerSheetOpen(false);
   }, [updatePlayerSheetOpen]);
 
   const handleClosePlayer = useCallback(() => {
-    closingRef.current = true;
-    const level = playerHistoryLevelRef.current;
-
-    updatePlayerMinimized(false);
-    updatePlayerFullscreen(false);
-    updatePlayerSheetOpen(false);
-    setActivePlaybackVideo(null);
-    setShowDemoPlayer(false);
-
-    if (level > 0 && typeof window !== 'undefined') {
-      window.history.go(-level);
-    } else {
-      playerHistoryLevelRef.current = 0;
-      closingRef.current = false;
+    const current = getCurrentHistoryMeta();
+    if (typeof window !== 'undefined' && current && ['player', 'player-fullscreen', 'player-settings', 'miniplayer-sentinel'].includes(current.entryKind)) {
+      // The coordinator's acknowledged close-complete transition owns UI cleanup.
+      closePlayerHistory(undefined, 'watch-close-button');
+      return;
     }
-  }, [updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
+    clearPlayerUI();
+  }, [clearPlayerUI]);
 
-  // Ensure the browser state is recoverable after direct state restoration.
+  // Recover the Watch entry if a playback surface is restored independently.
   useEffect(() => {
     if ((activePlaybackVideo || showDemoPlayer) && typeof window !== 'undefined') {
-      if (window.history.state?.ytPlayer) {
-        playerHistoryLevelRef.current = Number(window.history.state?.playerLevel || 1);
+      const current = getCurrentHistoryMeta();
+      if (current && ['player', 'player-fullscreen', 'player-settings'].includes(current.entryKind)) {
+        playerHistoryLevelRef.current = Number(current.playerLevel || 1);
       } else {
         pushPlayerHistory(1, { fullscreen: false, sheetOpen: false });
       }
     }
   }, [activePlaybackVideo, showDemoPlayer, pushPlayerHistory]);
 
-  useEffect(() => {
-    const handlePopState = (e: PopStateEvent) => {
-      const targetLevel = Number(e.state?.playerLevel || 0);
-      const currentLevel = playerHistoryLevelRef.current;
-
-      if (closingRef.current) {
-        playerHistoryLevelRef.current = targetLevel;
-        if (targetLevel === 0) closingRef.current = false;
-        return;
+  const exitBrowserFullscreen = useCallback(() => {
+    try {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (typeof document.exitFullscreen === 'function') {
+          const result = document.exitFullscreen();
+          if (result && typeof result.catch === 'function') result.catch(() => {});
+        } else {
+          (document as any).webkitExitFullscreen?.();
+        }
       }
+    } catch {
+      // Fullscreen exit can fail on WebViews when the native surface has already changed.
+    }
+    try { (screen.orientation as any)?.unlock?.(); } catch {}
+  }, []);
 
-      // Fullscreen Back: exit fullscreen, keep Watch at level 1.
-      if (isPlayerFullscreenRef.current && targetLevel < currentLevel) {
-        playerHistoryLevelRef.current = targetLevel;
-        updatePlayerFullscreen(false);
-        try {
-          if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-            if (typeof document.exitFullscreen === 'function') document.exitFullscreen().catch(() => {});
-            else (document as any).webkitExitFullscreen?.();
-          }
-        } catch {}
-        try { (screen.orientation as any)?.unlock?.(); } catch {}
-        return;
-      }
+  useEffect(() => subscribeHistoryTransitions((transition) => {
+    const target = transition.toMeta;
+    if (target && ['player', 'player-fullscreen', 'player-settings'].includes(target.entryKind)) {
+      playerHistoryLevelRef.current = Number(target.playerLevel || 1);
+    }
 
-      // Settings sheet Back: close only the sheet.
-      if (isPlayerSheetOpenRef.current && targetLevel < currentLevel) {
-        playerHistoryLevelRef.current = targetLevel;
-        updatePlayerSheetOpen(false);
-        return;
-      }
+    if (transition.decision === 'player-fullscreen-exit') {
+      playerHistoryLevelRef.current = Number(target?.playerLevel || 1);
+      updatePlayerFullscreen(false);
+      exitBrowserFullscreen();
+      return;
+    }
 
-      // A Back that lands on another Watch entry means an overlay opened from Watch
-      // was dismissed. Keep the current playback; there is no player-level change.
-      if (e.state?.ytPlayer && targetLevel === currentLevel) {
-        return;
-      }
+    if (transition.decision === 'player-settings-close') {
+      playerHistoryLevelRef.current = Number(target?.playerLevel || 1);
+      updatePlayerSheetOpen(false);
+      return;
+    }
 
-      // Already minimized: this Back closes playback. Do not enter the minimize branch
-      // again, even when a stale player history entry is underneath an overlay.
-      if (isPlayerMinimizedRef.current && (activePlaybackVideo || showDemoPlayer)) {
-        handleClosePlayer();
-        return;
-      }
+    if (transition.decision === 'player-minimize') {
+      playerHistoryLevelRef.current = 0;
+      updatePlayerMinimized(true);
+      updatePlayerFullscreen(false);
+      updatePlayerSheetOpen(false);
+      exitBrowserFullscreen();
+      return;
+    }
 
-      // Re-expanded mini-player has a fresh level-1 Watch entry; keep it expanded.
-      if (e.state?.ytPlayer && targetLevel > 0) {
-        playerHistoryLevelRef.current = targetLevel;
-        updatePlayerMinimized(false);
-        return;
-      }
+    if (transition.decision === 'player-close' || transition.decision === 'player-close-complete') {
+      clearPlayerUI();
+      return;
+    }
 
-      // Watch portrait Back: minimize exactly once. The browser has already returned
-      // to the underlying root/overlay history entry; playback remains mounted in mini.
-      if (activePlaybackVideo || showDemoPlayer) {
-        playerHistoryLevelRef.current = 0;
-        updatePlayerMinimized(true);
-        updatePlayerFullscreen(false);
-        updatePlayerSheetOpen(false);
-        return;
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [activePlaybackVideo, showDemoPlayer, updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen, handleClosePlayer]);
+    // Returning from an overlay opened above Watch lands on the prior Watch layer;
+    // playback stays mounted and the coordinator's destination determines the level.
+    if (target && ['player', 'player-fullscreen', 'player-settings'].includes(target.entryKind)) {
+      updatePlayerMinimized(false);
+      if (target.entryKind === 'player') updatePlayerFullscreen(false);
+      if (target.entryKind !== 'player-settings') updatePlayerSheetOpen(false);
+    }
+  }), [clearPlayerUI, exitBrowserFullscreen, updatePlayerFullscreen, updatePlayerMinimized, updatePlayerSheetOpen]);
 
   const [castNotice, setCastNotice] = useState<string | null>(null);
 

@@ -1,4 +1,12 @@
 import { useSyncExternalStore } from 'react';
+import {
+  getCurrentHistoryMeta,
+  initializeNavigationHistory,
+  pushOverlayHistoryEntry,
+  replaceNavigationHistoryContext,
+  requestHistoryBack,
+  subscribeHistoryTransitions,
+} from './historyCoordinator';
 
 export type RootId = 'home' | 'channels' | 'playlists' | 'you';
 
@@ -81,6 +89,27 @@ export function recordCurrentScroll(root: RootId = snapshot.root) {
   }
 }
 
+function isRootId(value: unknown): value is RootId {
+  return value === 'home' || value === 'channels' || value === 'playlists' || value === 'you';
+}
+
+function syncSnapshotFromHistory(meta: ReturnType<typeof getCurrentHistoryMeta>) {
+  if (!meta) return;
+  const root = isRootId(meta.root) ? meta.root : 'home';
+  const stack = Array.isArray(meta.overlayStack) ? meta.overlayStack as Overlay[] : [];
+  if (snapshot.root === root
+      && snapshot.stack.length === stack.length
+      && snapshot.stack.every((entry, index) => JSON.stringify(entry) === JSON.stringify(stack[index]))) {
+    return;
+  }
+  snapshot = { ...snapshot, root, stack, overlayStack: stack };
+  emit();
+}
+
+function syncFromHistoryTransition(transition: { toMeta?: ReturnType<typeof getCurrentHistoryMeta> | null }) {
+  syncSnapshotFromHistory(transition.toMeta ?? null);
+}
+
 export function switchRoot(root: RootId) {
   recordCurrentScroll();
   if (snapshot.root === root && snapshot.stack.length === 0) {
@@ -88,31 +117,21 @@ export function switchRoot(root: RootId) {
     return;
   }
   snapshot = { ...snapshot, root, stack: [], overlayStack: [] };
+  replaceNavigationHistoryContext(root, []);
   emit();
 }
 
 export function pushOverlay(overlay: Overlay) {
-  const fromPlayer = typeof window !== 'undefined' && Boolean(window.history.state?.ytPlayer);
-  const storedOverlay = { ...overlay, fromPlayer } as Overlay;
-  const nextStack = [...snapshot.stack, storedOverlay];
-  snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
-  if (typeof window !== 'undefined') {
-    window.history.pushState({
-      ytNavigation: true,
-      overlayDepth: snapshot.stack.length,
-      fromPlayer,
-      ...(overlay.type === 'search' ? { searchStage: 'landing' } : {}),
-    }, '');
-  }
+  const nextStack = [...snapshot.stack, overlay];
+  const result = pushOverlayHistoryEntry(nextStack, overlay);
+  const actualStack = result.overlayStack as Overlay[];
+  snapshot = { ...snapshot, stack: actualStack, overlayStack: actualStack };
   emit();
 }
 
 export function popOverlay() {
   if (snapshot.stack.length === 0) return false;
-  if (typeof window !== 'undefined') {
-    window.history.back();
-    return true;
-  }
+  if (typeof window !== 'undefined') return requestHistoryBack('overlay-back');
   const nextStack = snapshot.stack.slice(0, -1);
   snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
   emit();
@@ -122,36 +141,8 @@ export function popOverlay() {
 export function replaceOverlayStack(stack: Overlay[]) {
   const nextStack = [...stack];
   snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
+  replaceNavigationHistoryContext(snapshot.root, nextStack);
   emit();
-}
-
-export function handleNavigationPopState(event: PopStateEvent, playerOpen = false) {
-  if (!snapshot.stack.length) return false;
-  const top = snapshot.stack[snapshot.stack.length - 1];
-  // A push surface opened while Watch was on top sits above the player history entry.
-  // Back returns to the player entry; pop the push surface but leave playback intact.
-  if (event.state?.ytPlayer) {
-    if (top?.fromPlayer) {
-      const nextStack = snapshot.stack.slice(0, -1);
-      snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
-      emit();
-      return true;
-    }
-    return false;
-  }
-  // Back from Watch to the underlying root/overlay is handled by App.tsx. Do not pop the
-  // root's push stack in the same history event.
-  if (playerOpen) return false;
-  if (top.type === 'search' && event.state?.ytNavigation && event.state?.searchStage === 'landing') {
-    return true;
-  }
-  if (event.state?.ytNavigation || !event.state) {
-    const nextStack = snapshot.stack.slice(0, -1);
-    snapshot = { ...snapshot, stack: nextStack, overlayStack: nextStack };
-    emit();
-    return true;
-  }
-  return false;
 }
 
 export function getActiveOverlay(): Overlay | null {
@@ -173,6 +164,14 @@ export function restoreRootScroll(root: RootId = snapshot.root) {
   requestAnimationFrame(() => {
     window.scrollTo({ top: y, behavior: 'auto' });
   });
+}
+
+// Initialize and mirror all application-level History transitions once. The coordinator
+// owns the only popstate listener; this store is a read model, not a second history owner.
+if (typeof window !== 'undefined') {
+  initializeNavigationHistory(snapshot.root);
+  syncSnapshotFromHistory(getCurrentHistoryMeta());
+  subscribeHistoryTransitions(syncFromHistoryTransition);
 }
 
 export function useNavigation() {

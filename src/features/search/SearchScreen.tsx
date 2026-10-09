@@ -13,6 +13,8 @@ import { listPlaylists, getPlaylistItems } from '../../services/playlists/playli
 import { YoungTubeVideoRow } from '../../components/YoungTubeVideoRow';
 import { YoungTubeVideoCard } from '../../components/YoungTubeVideoCard';
 import { VideoOverflowSheet } from '../../components/VideoOverflowSheet';
+import { getCurrentHistoryMeta, pushSearchResultsHistoryEntry, replaceSearchHistoryQuery, requestHistoryBack, subscribeHistoryTransitions } from '../../shell/historyCoordinator';
+import { getSearchRestorationState } from './searchHistoryState.js';
 
 interface Props {
   onBack: () => void;
@@ -59,15 +61,20 @@ function saveRecent(value: string) {
 
 export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenChannel, onOpenPlaylist }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const initialSearchStateRef = useRef<ReturnType<typeof getSearchRestorationState> | null>(null);
+  if (initialSearchStateRef.current === null) {
+    initialSearchStateRef.current = getSearchRestorationState(getCurrentHistoryMeta());
+  }
+  const initialSearchState = initialSearchStateRef.current;
   const [recent, setRecent] = useState<string[]>(readRecents);
   const [tab, setTab] = useState<ResultTab>('all');
-  const [searchStage, setSearchStage] = useState<'landing' | 'results'>(() => window.history.state?.searchStage === 'results' ? 'results' : 'landing');
+  const [searchStage, setSearchStage] = useState<'landing' | 'results'>(initialSearchState.searchStage);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [overflowVideo, setOverflowVideo] = useState<FeedItem | null>(null);
   const [playlists, setPlaylists] = useState<ChildPlaylist[]>([]);
   const [playlistCounts, setPlaylistCounts] = useState<Record<string, number>>({});
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchInput, setSearchInput] = useState(initialSearchState.searchInput);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearchState.debouncedSearch);
   const [videos, setVideos] = useState<FeedItem[]>([]);
   const [favoritesVideos, setFavoritesVideos] = useState<FeedItem[]>([]);
   const [savedAndLovedVideos, setSavedAndLovedVideos] = useState<FeedItem[]>([]);
@@ -339,10 +346,10 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
     const q = value.trim();
     if (!q) return;
     if (searchStage !== 'results') {
-      window.history.pushState({ ...window.history.state, ytNavigation: true, searchStage: 'results', query: q }, '');
+      pushSearchResultsHistoryEntry(q);
       setSearchStage('results');
-    } else if (window.history.state?.searchStage === 'results') {
-      window.history.replaceState({ ...window.history.state, query: q }, '');
+    } else if (getCurrentHistoryMeta()?.searchStage === 'results') {
+      replaceSearchHistoryQuery(q);
     }
   }, [searchStage]);
 
@@ -356,20 +363,36 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
     setRecent(readRecents());
   }, [enterResults, setSearchInput]);
 
-  useEffect(() => {
-    const onPopState = (event: PopStateEvent) => {
-      if (event.state?.searchStage === 'results') return;
-      if (searchStage !== 'results') return;
-
-      // Back from results returns to the landing UI, so normalize the field too.
+  useEffect(() => subscribeHistoryTransitions((transition) => {
+    // Restore from the acknowledged destination entry, never from a global/last query.
+    const restored = getSearchRestorationState(transition.toMeta);
+    if (restored.searchStage === 'results') {
+      setSearchStage('results');
+      setSearchInput(restored.searchInput);
+      setDebouncedSearch(restored.debouncedSearch);
+      setShowSuggestions(false);
+      return;
+    }
+    if (searchStage === 'results'
+        && (transition.type === 'popstate' || transition.type === 'traversal-aborted' || transition.type === 'handoff-complete')) {
       setSearchStage('landing');
       setSearchInput('');
+      setDebouncedSearch('');
       setShowSuggestions(false);
       setTab('all');
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [searchStage]);
+    }
+  }), [searchStage]);
+
+  // While Results are live-filtered, keep the current Results entry's canonical
+  // query aligned with the rendered results without pushing an extra History entry.
+  useEffect(() => {
+    if (searchStage !== 'results') return;
+    const canonicalInput = searchInput.trim();
+    if (debouncedSearch !== canonicalInput.toLowerCase()) return;
+    const current = getCurrentHistoryMeta();
+    if (current?.entryKind !== 'search-results' || current.searchStage !== 'results') return;
+    if (current.query !== canonicalInput) replaceSearchHistoryQuery(canonicalInput);
+  }, [searchStage, searchInput, debouncedSearch]);
 
   const handleFieldChange = (value: string) => {
     setSearchInput(value);
@@ -378,7 +401,7 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
 
   const handleBack = () => {
     if (searchStage === 'results') {
-      window.history.back();
+      requestHistoryBack('search-results-back');
       return;
     }
     onBack();
@@ -389,8 +412,8 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
     setTab('all');
     setShowSuggestions(false);
     setSearchStage('landing');
-    if (window.history.state?.searchStage === 'results') {
-      window.history.back();
+    if (getCurrentHistoryMeta()?.searchStage === 'results') {
+      requestHistoryBack('search-clear-to-landing');
     }
   };
 
