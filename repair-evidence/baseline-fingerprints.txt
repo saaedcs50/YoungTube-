@@ -1,0 +1,21 @@
+Source archive: /mnt/data/devscope (69).zip
+Source archive bytes: 5403695
+Source archive SHA-256: 0b531109f895174215cae90cfdf672baea24cdeaa8c97a3d1d8ebafd7bad096a
+Source ZIP integrity: PASS (unzip -t; no errors detected)
+Repair plan: /mnt/data/youngtube-repair-plan.md
+Repair plan bytes: 147921
+Repair plan SHA-256: 9a9ee16dea1a754a16ab99c7ffd62f8b87ea45bd93dddaa50d01420340e660a8
+Merged prompt pack: /mnt/data/youngtube-next-merged-repair-prompts.md
+Merged prompt pack SHA-256: 1f32eaff0b534b6527883856e1f7e6df2f20899d38cc2999b7143fac30374e1d
+Master execution prompt: /mnt/data/youngtube-execute-merged-repair-batch-prompt.md
+Master execution prompt SHA-256: a099b31f434faaf82702b1aa03c55e6fe5733bfa68801f6a6b891d586f7d8091
+Extracted work tree: /tmp/yt69
+.git directory: ABSENT
+Git identity: UNVERIFIABLE FROM THIS SOURCE TREE
+node_modules: ABSENT
+adb: NOT FOUND
+emulator: NOT FOUND
+Application source changes: NONE
+Generated Android public assets manually changed: NO
+Dependency install/upgrade: NONE
+Git push/deploy/publish/production operation: NONE

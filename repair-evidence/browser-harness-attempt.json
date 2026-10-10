@@ -1,0 +1,17 @@
+{
+  "harness": "tests/browser-history-harness.html",
+  "browser": "Chromium 144.0.7559.96 via installed Playwright",
+  "attempts": [
+    {
+      "url": "http://127.0.0.1:8765/tests/browser-history-harness.html",
+      "result": "BLOCKED",
+      "error": "net::ERR_BLOCKED_BY_ADMINISTRATOR"
+    },
+    {
+      "url": "file:///tmp/yt69/tests/browser-history-harness.html",
+      "result": "BLOCKED",
+      "error": "net::ERR_BLOCKED_BY_ADMINISTRATOR"
+    }
+  ],
+  "classification": "BLOCKED, not FAIL: Chromium refused local page navigation before the harness executed; no browser assertions ran."
+}

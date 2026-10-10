@@ -1,0 +1,92 @@
+
+> react-example@0.0.0 test:navigation
+> node --test tests/navigation-history.test.mjs
+
+TAP version 13
+# Subtest: history state is namespaced and retains unrelated host fields
+ok 1 - history state is namespaced and retains unrelated host fields
+  ---
+  duration_ms: 1.195853
+  type: 'test'
+  ...
+# Subtest: overlay and search-result entries record the actual parent and query metadata
+ok 2 - overlay and search-result entries record the actual parent and query metadata
+  ---
+  duration_ms: 1.023183
+  type: 'test'
+  ...
+# Subtest: overlay-to-Watch handoff waits for each popstate acknowledgement and truncates stale forward overlays
+ok 3 - overlay-to-Watch handoff waits for each popstate acknowledgement and truncates stale forward overlays
+  ---
+  duration_ms: 0.717555
+  type: 'test'
+  ...
+# Subtest: handoff from an overlay above Watch converts Watch into a non-player anchor before opening new Watch
+ok 4 - handoff from an overlay above Watch converts Watch into a non-player anchor before opening new Watch
+  ---
+  duration_ms: 0.432769
+  type: 'test'
+  ...
+# Subtest: Back from Watch minimizes once and the miniplayer sentinel closes playback on the next Back
+ok 5 - Back from Watch minimizes once and the miniplayer sentinel closes playback on the next Back
+  ---
+  duration_ms: 0.411537
+  type: 'test'
+  ...
+# Subtest: history pop decisions preserve fullscreen and settings one layer at a time
+ok 6 - history pop decisions preserve fullscreen and settings one layer at a time
+  ---
+  duration_ms: 0.215503
+  type: 'test'
+  ...
+# Subtest: Back from an overlay opened above Watch returns to the exact prior Watch entry without minimizing it
+ok 7 - Back from an overlay opened above Watch returns to the exact prior Watch entry without minimizing it
+  ---
+  duration_ms: 0.297095
+  type: 'test'
+  ...
+# Subtest: malformed destination state is normalized without deleting unrelated state
+ok 8 - malformed destination state is normalized without deleting unrelated state
+  ---
+  duration_ms: 0.382633
+  type: 'test'
+  ...
+# Subtest: duplicate delivery of the same popstate event object is applied exactly once
+ok 9 - duplicate delivery of the same popstate event object is applied exactly once
+  ---
+  duration_ms: 0.679548
+  type: 'test'
+  ...
+# Subtest: closing player with settings and fullscreen traverses one acknowledged parent at a time
+ok 10 - closing player with settings and fullscreen traverses one acknowledged parent at a time
+  ---
+  duration_ms: 0.889032
+  type: 'test'
+  ...
+# Subtest: closing the mini-player sentinel traverses to its parent without inserting a Watch entry
+ok 11 - closing the mini-player sentinel traverses to its parent without inserting a Watch entry
+  ---
+  duration_ms: 0.298478
+  type: 'test'
+  ...
+# Subtest: Search query edits replace the current results entry without changing entry identity or parent
+ok 12 - Search query edits replace the current results entry without changing entry identity or parent
+  ---
+  duration_ms: 0.291848
+  type: 'test'
+  ...
+# Subtest: Search restores query state only from the exact Search Results entry
+ok 13 - Search restores query state only from the exact Search Results entry
+  ---
+  duration_ms: 0.456173
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 68.878007
