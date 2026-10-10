@@ -1,3 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://youngtube-ashen.vercel.app/sitemap.xml

@@ -8,6 +8,7 @@ import {
   Bookmark,
   Wrench,
   Heart,
+  MessageCircle,
 } from 'lucide-react';
 
 export type DashboardSectionId =
@@ -18,6 +19,7 @@ export type DashboardSectionId =
   | 'taste'
   | 'saved'
   | 'support'
+  | 'parent-inbox'
   | 'tools';
 
 export interface DashboardNavProps {
@@ -25,6 +27,7 @@ export interface DashboardNavProps {
   onSelectSection: (section: DashboardSectionId) => void;
   hasIncompleteSetup?: boolean;
   showTools?: boolean;
+  showParentInbox?: boolean;
 }
 
 interface NavItem {
@@ -41,6 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'taste', label: 'التوجيه الذكي', icon: Sparkles },
   { id: 'saved', label: 'المحفوظات', icon: Bookmark },
   { id: 'support', label: 'دعم YoungTube', icon: Heart },
+  { id: 'parent-inbox', label: 'راسلنا', icon: MessageCircle },
   { id: 'tools', label: 'أدوات النظام', icon: Wrench },
 ];
 
@@ -49,8 +53,9 @@ export const DashboardNav: React.FC<DashboardNavProps> = ({
   onSelectSection,
   hasIncompleteSetup,
   showTools = false,
+  showParentInbox = false,
 }) => {
-  const visibleItems = NAV_ITEMS.filter((item) => item.id !== 'tools' || showTools);
+  const visibleItems = NAV_ITEMS.filter((item) => (item.id !== 'tools' || showTools) && (item.id !== 'parent-inbox' || showParentInbox));
   const itemsRef = useRef<Map<DashboardSectionId, HTMLButtonElement>>(new Map());
 
   // Active tab must scrollIntoView inline nearest

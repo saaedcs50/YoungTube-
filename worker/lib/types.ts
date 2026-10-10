@@ -27,6 +27,9 @@ export interface DurableObjectNamespace {
 export interface Env {
   CHANNELS_ARCHIVE?: KVNamespace;
   TELEMETRY_DO?: DurableObjectNamespace;
+  PARENT_INBOX_DO?: DurableObjectNamespace;
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_CHAT_ID?: string;
   YOUTUBE_API_KEY?: string;
   ADMIN_KEY?: string;
   SUPPORT_PAY_SIGNING_KEY?: string;

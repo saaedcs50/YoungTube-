@@ -10,9 +10,14 @@ id = "b933debea57649fc921e173185619ffb"
 
 [durable_objects]
 bindings = [
-  { name = "TELEMETRY_DO", class_name = "TelemetryAggregator" }
+  { name = "TELEMETRY_DO", class_name = "TelemetryAggregator" },
+  { name = "PARENT_INBOX_DO", class_name = "ParentInboxStore" }
 ]
 
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["TelemetryAggregator"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ParentInboxStore"]

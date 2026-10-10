@@ -16,6 +16,7 @@ export interface DashboardShellProps {
   onOpenDemoPlayer?: () => void;
   hasIncompleteSetup?: boolean;
   showTools?: boolean;
+  showParentInbox?: boolean;
   onToggleTools?: () => void;
   headerSlot?: React.ReactNode;
   children: React.ReactNode;
@@ -29,6 +30,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   onLock,
   hasIncompleteSetup = false,
   showTools = false,
+  showParentInbox = false,
   onToggleTools,
   headerSlot,
   children,
@@ -52,10 +54,10 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
   // Reset section to 'child' if tools section active and tools gets hidden
   useEffect(() => {
-    if (!showTools && activeSection === 'tools') {
+    if ((!showTools && activeSection === 'tools') || (!showParentInbox && activeSection === 'parent-inbox')) {
       onSelectSection('child');
     }
-  }, [showTools, activeSection, onSelectSection]);
+  }, [showTools, showParentInbox, activeSection, onSelectSection]);
 
   // Fetch support pay settings when dashboard opens
   useEffect(() => {
@@ -159,6 +161,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           onSelectSection={onSelectSection}
           hasIncompleteSetup={hasIncompleteSetup}
           showTools={showTools}
+          showParentInbox={showParentInbox}
         />
 
         {/* Support Pay Strip at start of content for each dashboard tab */}

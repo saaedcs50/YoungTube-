@@ -1,1 +1,0 @@
-import{z as a,W as o}from"./index-2dvY7XBi.js";function i(t){try{const e=a(),n=`${o}/api/telemetry/funnel-event`;fetch(n,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({event:t,installId:e}),keepalive:!0}).catch(()=>{})}catch{}}export{i as t};

@@ -38,6 +38,7 @@ const FilteringTab = React.lazy(() => import('./components/FilteringTab').then((
 const SavedVideosTab = React.lazy(() => import('./components/SavedVideosTab').then((m) => ({ default: m.SavedVideosTab })));
 const AddByUrlCard = React.lazy(() => import('./components/AddByUrlCard'));
 const TimerTestCard = React.lazy(() => import('./components/TimerTestCard'));
+const ParentInboxSection = React.lazy(() => import('./components/dashboard/ParentInboxSection').then((m) => ({ default: m.ParentInboxSection })));
 import type { DashboardSectionId } from './components/dashboard/DashboardNav';
 
 // Unified dashboard section loading skeleton
@@ -1023,6 +1024,7 @@ export default function App() {
             onLock={handleLockDashboard}
             hasIncompleteSetup={!mainSettings?.hasCompletedFirstSetup}
             showTools={showTools}
+            showParentInbox={viewMode === 'dashboard' && isDashboardUnlocked}
             onToggleTools={handleToggleTools}
             headerSlot={<PWAInstallButton />}
           >
@@ -1119,6 +1121,15 @@ export default function App() {
                     setChannelsRefreshTrigger((prev) => prev + 1);
                   }}
                 />
+              </Suspense>
+            </div>
+          )}
+
+          {/* SECTION: صندوق رسائل الأهل — لا يظهر خارج لوحة PIN */}
+          {dashboardSection === 'parent-inbox' && viewMode === 'dashboard' && isDashboardUnlocked && (
+            <div id="section-parent-inbox" className="space-y-6">
+              <Suspense fallback={<SectionLoadingSkeleton />}>
+                <ParentInboxSection />
               </Suspense>
             </div>
           )}

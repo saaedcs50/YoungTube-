@@ -71,6 +71,7 @@ export const RATE_LIMITED_ROUTES = new Set([
   '/api/videos-views',
   '/api/videos-durations',
   '/api/support-pay',
+  '/api/parent-inbox',
 ]);
 
 // In-memory fallback map for worker isolates when Durable Objects are unavailable or during tests

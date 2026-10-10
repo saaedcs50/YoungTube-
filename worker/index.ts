@@ -12,8 +12,10 @@ import { handleAdminChannelsRoutes } from './routes/admin-channels';
 import { handleAdminContentRoutes } from './routes/admin-content';
 import { handleAdminTelemetryRoutes } from './routes/admin-telemetry';
 import { handlePublicReadRoutes } from './routes/public-read';
+import { handleParentInboxRoutes } from './routes/parent-inbox';
 
 export { TelemetryAggregator } from './telemetry_do';
+export { ParentInboxStore } from './parent_inbox_do';
 export type { Env } from './lib/types';
 
 export default {
@@ -42,16 +44,30 @@ export default {
     if (request.method === 'GET' && RATE_LIMITED_ROUTES.has(url.pathname)) {
       const allowed = await checkPublicRateLimit(request, env, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_SECONDS, 'public');
       if (!allowed) {
+        const isParentInboxRead = url.pathname === '/api/parent-inbox';
         return new Response(
-          JSON.stringify({ error: 'Too many requests. Please slow down.' }),
+          JSON.stringify(isParentInboxRead
+            ? { ok: false, error: 'rate_limited' }
+            : { error: 'Too many requests. Please slow down.' }),
           {
             status: 429,
             headers: {
               ...corsHeaders,
+              ...(isParentInboxRead ? { 'Cache-Control': 'no-store' } : {}),
               'Retry-After': '60',
             },
           }
         );
+      }
+    }
+
+    const isParentInboxPost = request.method === 'POST' && url.pathname === '/api/parent-inbox';
+    if (isParentInboxPost) {
+      const allowed = await checkPublicRateLimit(request, env, 20, 60, 'parent-inbox');
+      if (!allowed) {
+        return new Response(JSON.stringify({ ok: false, error: 'rate_limited' }), {
+          status: 429, headers: { ...corsHeaders, 'Cache-Control': 'no-store', 'Retry-After': '60' },
+        });
       }
     }
 
@@ -66,6 +82,9 @@ export default {
     }
 
     // Delegate to route handlers in sequence
+    const parentInboxRes = await handleParentInboxRoutes(request, env, url);
+    if (parentInboxRes) return parentInboxRes;
+
     const publicRes = await handlePublicReadRoutes(request, env, url);
     if (publicRes) return publicRes;
 

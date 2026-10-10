@@ -10,7 +10,9 @@
     "preview": "vite preview --port=3000 --host=0.0.0.0",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "test:navigation": "node --test tests/navigation-history.test.mjs"
+    "test:navigation": "node --test tests/navigation-history.test.mjs",
+    "test:parent-inbox": "node --test tests/parent-inbox-routes.test.mjs",
+    "typecheck:worker": "tsc --noEmit -p tsconfig.worker.json"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
