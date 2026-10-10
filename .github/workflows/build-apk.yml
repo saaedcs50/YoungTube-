@@ -46,11 +46,43 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
+      - name: Configure Release Signing Keystore (if secret is present)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.YOUNGTUBE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/release.keystore
+            echo "YOUNGTUBE_KEYSTORE_PATH=release.keystore" >> $GITHUB_ENV
+            echo "YOUNGTUBE_KEYSTORE_PASSWORD=${{ secrets.YOUNGTUBE_KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "YOUNGTUBE_KEY_ALIAS=${{ secrets.YOUNGTUBE_KEY_ALIAS }}" >> $GITHUB_ENV
+            echo "YOUNGTUBE_KEY_PASSWORD=${{ secrets.YOUNGTUBE_KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "Release keystore configured successfully."
+          else
+            echo "Notice: YOUNGTUBE_KEYSTORE_BASE64 secret not set. Release APK will use debug signing fallback for testing."
+          fi
+
+      - name: Build Android Release APK
+        env:
+          # Automatically monotonic versionCode from GitHub Actions run_number (starting at 100)
+          VERSION_CODE: ${{ github.run_number + 100 }}
+          VERSION_NAME: "1.0.${{ github.run_number }}"
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
       - name: Build Android Debug APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: youngtube-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: ignore
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4

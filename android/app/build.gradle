@@ -1,14 +1,71 @@
 apply plugin: 'com.android.application'
 
+// Versioning: Monotonically increasing versionCode is required for Android in-place updates.
+// Supports Gradle project properties (-PversionCode=N -PversionName=x.y.z) and environment variables.
+def resolvedVersionCode = project.hasProperty('versionCode') ?
+    Integer.parseInt(project.property('versionCode').toString()) :
+    (System.getenv('VERSION_CODE') ? Integer.parseInt(System.getenv('VERSION_CODE')) : 2)
+
+def resolvedVersionName = project.hasProperty('versionName') ?
+    project.property('versionName').toString() :
+    (System.getenv('VERSION_NAME') ?: "1.0.1")
+
+// Release signing configuration for deterministic, update-compatible APKs
+def signingPropsFile = rootProject.file('signing.properties')
+if (!signingPropsFile.exists()) {
+    signingPropsFile = file('signing.properties')
+}
+def signingProps = new Properties()
+if (signingPropsFile.exists()) {
+    signingPropsFile.withInputStream { stream -> signingProps.load(stream) }
+}
+
+def releaseKeystorePath = System.getenv('YOUNGTUBE_KEYSTORE_PATH') ?:
+    signingProps.getProperty('storeFile') ?:
+    signingProps.getProperty('keystore.path')
+
+def releaseKeystorePassword = System.getenv('YOUNGTUBE_KEYSTORE_PASSWORD') ?:
+    signingProps.getProperty('storePassword') ?:
+    signingProps.getProperty('keystore.password')
+
+def releaseKeyAlias = System.getenv('YOUNGTUBE_KEY_ALIAS') ?:
+    signingProps.getProperty('keyAlias') ?:
+    signingProps.getProperty('key.alias')
+
+def releaseKeyPassword = System.getenv('YOUNGTUBE_KEY_PASSWORD') ?:
+    signingProps.getProperty('keyPassword') ?:
+    signingProps.getProperty('key.password')
+
+def releaseKeystoreFile = null
+if (releaseKeystorePath) {
+    def candidate = file(releaseKeystorePath)
+    if (candidate.exists()) {
+        releaseKeystoreFile = candidate
+    } else {
+        def rootCandidate = rootProject.file(releaseKeystorePath)
+        if (rootCandidate.exists()) {
+            releaseKeystoreFile = rootCandidate
+        }
+    }
+}
+
+def hasValidReleaseSigning = (releaseKeystoreFile != null &&
+    releaseKeystoreFile.exists() &&
+    releaseKeystorePassword &&
+    releaseKeyAlias &&
+    releaseKeyPassword)
+
 android {
     namespace = "app.youngtube.app"
     compileSdk = rootProject.ext.compileSdkVersion
+
     defaultConfig {
         applicationId "app.youngtube.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // BUMP versionCode before every store/sideload release (must be monotonically increasing)
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +73,33 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    signingConfigs {
+        release {
+            if (hasValidReleaseSigning) {
+                storeFile releaseKeystoreFile
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasValidReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+                logger.warn(
+                    "\n===================================================================\n" +
+                    "[YoungTube Warning] RELEASE BUILD IS USING DEBUG SIGNING KEY!\n" +
+                    "To allow in-place APK updates on user devices without data loss,\n" +
+                    "provide a persistent release keystore via YOUNGTUBE_KEYSTORE_* env vars\n" +
+                    "or create android/signing.properties.\n" +
+                    "===================================================================\n"
+                )
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

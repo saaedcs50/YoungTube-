@@ -11,3 +11,11 @@ bun.lockb
 
 # Ensure android folder is not ignored
 !android/
+
+# Android Keystores & Signing Secrets (DO NOT COMMIT)
+*.jks
+*.keystore
+signing.properties
+android/signing.properties
+release.keystore
+android/release.keystore

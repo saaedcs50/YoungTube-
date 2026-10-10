@@ -1,0 +1,14 @@
+# YoungTube Android Release Signing Configuration (Example)
+# IMPORTANT: DO NOT commit real passwords or keystore files to git!
+#
+# Instructions:
+# 1. Copy this file to "android/signing.properties" (or keep it in the project root)
+# 2. Generate a permanent keystore (run once):
+#    keytool -genkey -v -keystore youngtube-release.keystore -alias youngtube -keyalg RSA -keysize 2048 -validity 10000
+# 3. Move the generated keystore into the "android/" folder (or specify absolute path below).
+# 4. Fill in your actual passwords and alias below:
+
+storeFile=youngtube-release.keystore
+storePassword=YourKeystorePasswordHere
+keyAlias=youngtube
+keyPassword=YourKeyPasswordHere

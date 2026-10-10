@@ -34,3 +34,11 @@
 4. When editing either file for any other feature, preserve the patterns above exactly.
 5. Do not regenerate these two files from memory in a way that reintroduces inline callbacks or unstable `useCallback` dependencies.
 
+## 5. Android Identity & In-Place Updates — FROZEN (ثوابت هوية أندرويد والتحديث)
+Android identity is frozen:
+- Do not change applicationId / namespace (must remain `app.youngtube.app`).
+- Release APKs must use the same keystore; never switch signing keys casually.
+- Bump versionCode on every release APK (must increase monotonically).
+- Updates must install over the old app without uninstall (preserve Dexie/downloads/preferences).
+
+

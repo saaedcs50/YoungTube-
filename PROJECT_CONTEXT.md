@@ -380,3 +380,11 @@ Before modifying this project, read:
 3. `CHANGELOG.md` if present
 
 After every meaningful change, update the handoff/context records with the exact files touched, what changed, what was tested, and what remains uncertain.
+
+## 20. Android Identity & In-Place Updates (FROZEN)
+
+Android identity is frozen:
+- Do not change applicationId / namespace (must remain `app.youngtube.app`).
+- Release APKs must use the same keystore; never switch signing keys casually.
+- Bump versionCode on every release APK (must increase monotonically).
+- Updates must install over the old app without uninstall (preserve Dexie/downloads/preferences).
