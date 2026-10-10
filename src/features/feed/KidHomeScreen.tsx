@@ -77,13 +77,24 @@ export function KidHomeScreen({
     let mounted = true;
     void (async () => {
       try {
-        const [rows, settings, registryChannels] = await Promise.all([
-          db.interactions
+        let rows: Interaction[] = [];
+        try {
+          rows = await db.interactions
             .orderBy('lastWatched')
             .reverse()
             .filter((item: Interaction) => item.completed !== true && item.watchTime > 10)
             .limit(8)
-            .toArray(),
+            .toArray();
+        } catch (queryErr) {
+          console.warn('Fallback continue-watching query:', queryErr);
+          const all = await db.interactions
+            .filter((item: Interaction) => item.completed !== true && item.watchTime > 10)
+            .toArray();
+          all.sort((a, b) => (b.lastWatched || 0) - (a.lastWatched || 0));
+          rows = all.slice(0, 8);
+        }
+
+        const [settings, registryChannels] = await Promise.all([
           db.settings.get('main'),
           listRegistryChannels(),
         ]);

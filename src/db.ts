@@ -316,6 +316,29 @@ db.version(8).stores({
   }
 });
 
+// Version 9: Index lastWatched, savedByParent, and childLoved on interactions table
+db.version(9).stores({
+  settings: 'id',
+  channels: '++id, sourceId, *category',
+  usage: 'date',
+  feedCache: 'videoId, channelId, fetchedAt, publishedAt',
+  interactions: 'videoId, channelId, lastWatched, savedByParent, childLoved',
+  downloads: '++id, &videoId, status, createdAt',
+  dailySummaries: 'date',
+  customCategories: '++id, &categoryId',
+  tasteShiftEvents: '++id, ts, categoryId, type, videoId',
+  childPlaylists: 'id, createdAt, updatedAt',
+  childPlaylistItems: 'id, playlistId, videoId, position, addedAt, &[playlistId+videoId], [playlistId+position]',
+  playlistPlaybackSessions: 'playlistId, updatedAt',
+}).upgrade(async (tx) => {
+  const interactionsTable = tx.table('interactions');
+  await interactionsTable.toCollection().modify((item: any) => {
+    if (typeof item.lastWatched !== 'number' || isNaN(item.lastWatched)) {
+      item.lastWatched = 0;
+    }
+  });
+});
+
 // INVARIANT: Block adding any channel whose sourceId starts with '@'
 db.channels.hook('creating', (_primKey, obj) => {
   if (obj.sourceId && typeof obj.sourceId === 'string' && obj.sourceId.trim().startsWith('@')) {

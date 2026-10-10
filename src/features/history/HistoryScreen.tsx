@@ -13,8 +13,17 @@ export const HistoryScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCh
   const [channels, setChannels] = useState<Map<string, { title: string; thumbnail?: string }>>(new Map());
   useEffect(() => {
     void (async () => {
-      const [interactions, registry, settings] = await Promise.all([
-        db.interactions.orderBy('lastWatched').reverse().limit(100).toArray(),
+      let interactions: Interaction[] = [];
+      try {
+        interactions = await db.interactions.orderBy('lastWatched').reverse().limit(100).toArray();
+      } catch (queryErr) {
+        console.warn('Fallback history query:', queryErr);
+        const all = await db.interactions.toArray();
+        all.sort((a, b) => (b.lastWatched || 0) - (a.lastWatched || 0));
+        interactions = all.slice(0, 100);
+      }
+
+      const [registry, settings] = await Promise.all([
         listRegistryChannels(),
         db.settings.get('main'),
       ]);
