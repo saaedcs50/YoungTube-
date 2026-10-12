@@ -234,6 +234,102 @@ export async function handlePublicReadRoutes(
       );
     }
 
+    // Paged slice path: when limit query parameter is present
+    const limitParam = url.searchParams.get('limit');
+    if (limitParam !== null) {
+      const parsedLimit = parseInt(limitParam, 10);
+      const limit = isNaN(parsedLimit) ? 24 : Math.max(1, Math.min(40, parsedLimit));
+
+      const offsetParam = url.searchParams.get('offset');
+      const parsedOffset = offsetParam !== null ? parseInt(offsetParam, 10) : 0;
+      const offset = isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
+
+      try {
+        let rawVideos: any[] = [];
+        if (env.CHANNELS_ARCHIVE) {
+          const rawArchive = await env.CHANNELS_ARCHIVE.get(channelArchiveKey(sourceId));
+          if (rawArchive) {
+            try {
+              const parsed = JSON.parse(rawArchive);
+              if (Array.isArray(parsed)) {
+                rawVideos = parsed;
+              }
+            } catch {}
+          }
+        }
+
+        const count = rawVideos.length;
+
+        // Return only this page, newest first if publishedAt exists, otherwise original order
+        const hasPublishedAt = rawVideos.some(
+          (v: any) => v && typeof v.publishedAt === 'string' && v.publishedAt.trim().length > 0
+        );
+        let orderedVideos = rawVideos;
+        if (hasPublishedAt) {
+          orderedVideos = [...rawVideos].sort((a: any, b: any) => {
+            const timeA = a?.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+            const timeB = b?.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+            return timeB - timeA;
+          });
+        }
+
+        const pageSlice = orderedVideos.slice(offset, offset + limit);
+        const videos: Array<{
+          videoId: string;
+          title: string;
+          publishedAt?: string;
+          videoDuration?: number;
+        }> = [];
+
+        for (const v of pageSlice) {
+          const vId = typeof v?.videoId === 'string' ? v.videoId.trim() : '';
+          const vTitle = typeof v?.title === 'string' ? v.title : '';
+          if (!vId || !vTitle) continue;
+          const item: {
+            videoId: string;
+            title: string;
+            publishedAt?: string;
+            videoDuration?: number;
+          } = {
+            videoId: vId,
+            title: vTitle,
+          };
+          if (typeof v?.publishedAt === 'string' && v.publishedAt.trim().length > 0) {
+            item.publishedAt = v.publishedAt.trim();
+          }
+          if (typeof v?.videoDuration === 'number' && Number.isFinite(v.videoDuration)) {
+            item.videoDuration = v.videoDuration;
+          }
+          videos.push(item);
+        }
+
+        const nextOffset = offset + videos.length < count ? offset + videos.length : null;
+
+        return new Response(
+          JSON.stringify({
+            sourceId,
+            videos,
+            count,
+            offset,
+            limit,
+            nextOffset,
+          }),
+          {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=600',
+            },
+          }
+        );
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Failed to load channel archive' }),
+          { status: 500, headers: corsHeaders }
+        );
+      }
+    }
+
     const deepen = url.searchParams.get('deepen') === '1';
     const max = Math.min(parseInt(url.searchParams.get('max') || '500', 10) || 500, 2000);
 
