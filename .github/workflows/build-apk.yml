@@ -61,11 +61,12 @@ jobs:
             echo "Notice: YOUNGTUBE_KEYSTORE_BASE64 secret not set. Release APK will use debug signing fallback for testing."
           fi
 
+      - name: Compute Android version
+        run: |
+          echo "VERSION_CODE=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
       - name: Build Android Release APK
-        env:
-          # Automatically monotonic versionCode from GitHub Actions run_number (starting at 100)
-          VERSION_CODE: ${{ github.run_number + 100 }}
-          VERSION_NAME: "1.0.${{ github.run_number }}"
         run: |
           cd android
           chmod +x gradlew
