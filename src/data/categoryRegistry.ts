@@ -134,9 +134,15 @@ export function listCategoriesForKidUi(
     return enabledOptInCats.includes(catId);
   };
 
+  const builtinIds = new Set(baseCategories.map((category) => category.id));
   const filteredOtherBase = otherBase.filter((c) => isCategoryAllowed(c.id));
   const filteredVideoOnlyBase = videoOnlyBase.filter((c) => isCategoryAllowed(c.id));
-  const filteredCustomCats = customCats.filter((c) => isCategoryAllowed(c.id));
+  const filteredCustomCats = customCats.filter(
+    (category) =>
+      !LEGACY_CATEGORY_ID_SET.has(category.id) &&
+      !builtinIds.has(category.id) &&
+      isCategoryAllowed(category.id)
+  );
 
   // Video-only taxonomy paths are visible for browsing, but never offered as
   // source/channel categories in parent curation.
