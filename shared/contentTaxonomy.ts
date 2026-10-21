@@ -93,7 +93,7 @@ export const CONTENT_CENTERS: readonly ContentCenterDefinition[] = [
 ] as const;
 
 /** Secondary categories that require explicit family opt-in; not main browse centers. */
-export const OPT_IN_CATEGORY_IDS = ['gaming'] as const;
+export const OPT_IN_CATEGORY_IDS: readonly string[] = ['gaming'];
 
 export const OPT_IN_CATEGORY_DEFINITIONS = [
   {
