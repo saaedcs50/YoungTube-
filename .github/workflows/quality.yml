@@ -35,6 +35,9 @@ jobs:
       - name: Run music classification regression tests
         run: npm run test:music
 
+      - name: Run content taxonomy and Shorts policy tests
+        run: npm run test:content-policy
+
       - name: Type check application
         run: npm run lint
 
