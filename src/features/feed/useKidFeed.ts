@@ -768,7 +768,7 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           video.title,
           channelCats,
           selectedCategory,
-          (video as any).primaryCategoryId === 'music_songs' || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
+          ((video as any).primaryCategoryId === 'music_songs' || (video as any).primaryCategoryId === 'music_songs_no_music') || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
         );
       });
     }
@@ -796,7 +796,7 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
               item.title,
               channelCats,
               selectedCategory,
-              (item as any).primaryCategoryId === 'music_songs' || (item as any).contentFormat === 'song' || (item as any).contentFormat === 'nasheed'
+              ((item as any).primaryCategoryId === 'music_songs' || (item as any).primaryCategoryId === 'music_songs_no_music') || (item as any).contentFormat === 'song' || (item as any).contentFormat === 'nasheed'
             )) continue;
           }
 
