@@ -17,39 +17,25 @@ import {
   canonicalizeCategoryId,
   isVideoOnlyCategory,
 } from '../../shared/contentTaxonomy';
-import {
-  isLikelySongContentTitle,
-  matchesPublicSongCategory,
-} from '../../shared/musicClassification';
+import { isLikelySongContentTitle, matchesPublicSongCategory } from '../../shared/musicClassification';
 
 export const DEFAULT_KID_CATEGORIES: KidCategory[] = [
   { id: 'all', label: 'كل الفيديوهات', emoji: '✨', description: 'كل الفيديوهات والبرامج الرئيسية', scope: 'both' },
   ...CONTENT_CENTERS.map((category) => ({
-    id: category.id,
-    label: category.label,
-    emoji: category.emoji,
-    description: category.description,
-    scope: 'source' as const,
+    id: category.id, label: category.label, emoji: category.emoji,
+    description: category.description, scope: 'source' as const,
   })),
   ...SONG_VARIANT_CATEGORIES.map((category) => ({
-    id: category.id,
-    label: category.label,
-    emoji: category.emoji,
-    description: category.description,
-    scope: 'video' as const,
+    id: category.id, label: category.label, emoji: category.emoji,
+    description: category.description, scope: 'video' as const,
   })),
 ];
 
 export const KID_CATEGORIES: KidCategory[] = DEFAULT_KID_CATEGORIES;
-
 export const CURATION_CATEGORIES: KidCategory[] = DEFAULT_KID_CATEGORIES.filter(
   (category) => category.id !== 'all' && category.scope !== 'video'
 );
-
-/** Categories that remain hidden unless a parent explicitly opts in. */
 export const OPT_IN_CATEGORY_IDS: string[] = ['gaming'];
-
-/** Legacy IDs stay readable during migration, but are no longer default visible tabs. */
 export const LEGACY_CATEGORY_ID_SET = new Set<string>(LEGACY_CATEGORY_IDS);
 
 /**
@@ -72,7 +58,6 @@ export function getOptInCategoryIds(): readonly string[] {
 export const CATEGORY_TAG_ALIASES: Record<string, string[]> = {
   all: ['all', 'الكل', 'الرئيسية'],
   ...Object.fromEntries(Object.entries(CONTENT_CATEGORY_TAG_ALIASES).map(([id, aliases]) => [id, [...aliases]])),
-  // During migration, old stored tags continue to resolve to canonical centers.
   quran: ['quran', 'faith', 'islamic', 'islam', 'deen', 'deeny', 'religion', 'religious', 'duas', 'azkar', 'prophets', 'quran_recitation', 'nasheed', 'قرآن', 'قرآن كريم', 'أذكار', 'إيمانيات', 'دين', 'إسلاميات', 'سير وقيم', 'قصص الأنبياء'],
   stories: ['stories', 'story', 'storytime', 'reading', 'books', 'book', 'tales', 'fairy_tales', 'fairytales', 'bedtime_stories', 'قصص', 'حكايات', 'قراءة', 'كتب', 'مغامرات', 'حكاية', 'قصة'],
   cartoons: ['cartoons', 'cartoon', 'shows', 'show', 'animation', 'series', 'tv', 'episodes', 'كرتون', 'برامج', 'رسوم متحركة', 'مسلسلات'],
@@ -94,22 +79,39 @@ export function channelMatchesCategory(
 ): boolean {
   if (!targetCategoryId || targetCategoryId === 'all') return true;
   if (!channelCategories || isVideoOnlyCategory(targetCategoryId)) return false;
-
-  const targetLower = canonicalizeCategoryId(targetCategoryId.toLowerCase().trim());
-  const aliases = CATEGORY_TAG_ALIASES[targetLower] || CATEGORY_TAG_ALIASES[targetCategoryId.toLowerCase().trim()] || [targetLower];
+  const rawTarget = targetCategoryId.toLowerCase().trim();
+  const targetLower = canonicalizeCategoryId(rawTarget);
+  const aliases = CATEGORY_TAG_ALIASES[targetLower] || CATEGORY_TAG_ALIASES[rawTarget] || [targetLower];
   const cats = Array.isArray(channelCategories) ? channelCategories : [channelCategories];
-
   for (const category of cats) {
     if (!category) continue;
     const catLower = String(category).toLowerCase().trim();
-    if (catLower === targetLower || canonicalizeCategoryId(catLower) === targetLower) return true;
+    const canonicalCat = canonicalizeCategoryId(catLower);
+    if (catLower === targetLower || canonicalCat === targetLower) return true;
     if (aliases.includes(catLower)) return true;
     const catAliases = CATEGORY_TAG_ALIASES[catLower] || [];
-    if (catAliases.includes(targetLower)) return true;
-    if (catAliases.some((alias) => aliases.includes(alias))) return true;
+    if (catAliases.includes(targetLower) || catAliases.some((alias) => aliases.includes(alias))) return true;
   }
   return false;
 }
+
+/** Video-aware matching keeps music variant routing at the individual-video level. */
+export function videoMatchesCategory(
+  title: string,
+  channelCategories: string | string[] | undefined,
+  targetCategoryId: string,
+  explicitSongContent?: boolean
+): boolean {
+  if (targetCategoryId === 'all') return true;
+  if (targetCategoryId === 'music_songs' || targetCategoryId === 'music_songs_no_music') {
+    const isSong = explicitSongContent === true || isLikelySongContentTitle(title || '');
+    return matchesPublicSongCategory({ title: title || '', isSongContent: isSong }, targetCategoryId);
+  }
+  return channelMatchesCategory(channelCategories, targetCategoryId);
+}
+
+/** Legacy alias for channelMatchesCategory */
+export const matchCategory = channelMatchesCategory;
 
 /**
  * Video-aware category match. Music paths are determined per video title, never
