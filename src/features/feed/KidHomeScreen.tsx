@@ -140,7 +140,7 @@ export function KidHomeScreen({
           video.title,
           categories,
           category.id,
-          (video as any).primaryCategoryId === 'music_songs' || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
+          ((video as any).primaryCategoryId === 'music_songs' || (video as any).primaryCategoryId === 'music_songs_no_music') || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
         );
       }).slice(0, 8);
       if (rows.length >= 3) result.push({ id: category.id, label: category.label, videos: rows });
