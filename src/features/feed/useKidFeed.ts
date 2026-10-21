@@ -495,9 +495,8 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
       try {
         const [settings] = await Promise.all([db.settings.get('main')]);
         const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
-        const hideMusicVideos = settings?.hideMusicVideos === true;
         const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
-        const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, hideMusicVideos, hasFamilyKey);
+        const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, false, hasFamilyKey);
         setVideos((prev) =>
           prev.length > 0
             ? prev
@@ -679,7 +678,6 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
       const cachedBlocks = loadCachedBlocks();
       const blockedChannelSet = new Set(cachedBlocks.channelIds);
 
-      const hideMusicVideos = settings?.hideMusicVideos === true;
       const suppressed = new Set(suppressedVideoIds);
 
       const videoIds = interactions.map((i) => i.videoId);
