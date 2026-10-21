@@ -283,6 +283,31 @@ export function hasSongVariantClaim(title: string): boolean {
   );
 }
 
+/** Video-level song eligibility: title format cues first; source category is only a supporting hint. */
+export function isSongContentCandidate(title: string, sourceCategoryHints: string[] = []): boolean {
+  if (isLikelySongContentTitle(title || '')) return true;
+  const songHintIds = new Set([
+    'songs', 'song', 'music_songs', 'nasheed', 'anashid', 'kids_songs',
+    'nursery_rhymes', 'اغاني', 'اناشيد', 'نشيد',
+  ]);
+  const hasSongSourceHint = (sourceCategoryHints || []).some((value) =>
+    songHintIds.has(normalizeWithOffsets(String(value || '')).text.replace(/\s+/gu, '_'))
+  );
+  return hasSongSourceHint && hasSongVariantClaim(title || '');
+}
+
+/** Shared classification entrypoint for client sync and Worker archive search. */
+export function classifySongVariantForCandidate(input: {
+  title: string;
+  description?: string;
+  sourceCategoryHints?: string[];
+}): SongVariantClassification | null {
+  const isSongContent = isSongContentCandidate(input.title, input.sourceCategoryHints || []);
+  return isSongContent
+    ? classifySongVariant({ title: input.title || '', description: input.description, isSongContent: true })
+    : null;
+}
+
 export function classifySongVariant(input: {
   title: string;
   description?: string;
