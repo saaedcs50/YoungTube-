@@ -125,7 +125,8 @@ export function listCategoriesForKidUi(
   kidCategories: KidCategory[];
 } {
   const allCategory = baseCategories.find((c) => c.id === 'all') || DEFAULT_KID_CATEGORIES[0];
-  const otherBase = baseCategories.filter((c) => c.id !== 'all');
+  const otherBase = baseCategories.filter((c) => c.id !== 'all' && c.scope !== 'video');
+  const videoOnlyBase = baseCategories.filter((c) => c.scope === 'video');
 
   const isCategoryAllowed = (catId: string) => {
     if (!OPT_IN_CATEGORY_IDS.includes(catId)) return true;
@@ -133,10 +134,18 @@ export function listCategoriesForKidUi(
   };
 
   const filteredOtherBase = otherBase.filter((c) => isCategoryAllowed(c.id));
+  const filteredVideoOnlyBase = videoOnlyBase.filter((c) => isCategoryAllowed(c.id));
   const filteredCustomCats = customCats.filter((c) => isCategoryAllowed(c.id));
 
+  // Video-only taxonomy paths are visible for browsing, but never offered as
+  // source/channel categories in parent curation.
   const curationCategories: KidCategory[] = [...filteredOtherBase, ...filteredCustomCats];
-  const kidCategories: KidCategory[] = [allCategory, ...filteredOtherBase, ...filteredCustomCats];
+  const kidCategories: KidCategory[] = [
+    allCategory,
+    ...filteredOtherBase,
+    ...filteredVideoOnlyBase,
+    ...filteredCustomCats,
+  ];
 
   return { curationCategories, kidCategories };
 }
