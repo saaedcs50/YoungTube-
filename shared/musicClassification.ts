@@ -44,15 +44,12 @@ const EXPLICIT_NO_MUSIC_PHRASES: readonly string[] = [
  * is added to a supported phrase in the future.
  */
 function escapeRegExp(phrase: string): string {
-  return phrase.replace(/[.*+?^\u0024{}()|[\\]\\]/g, '\\];
-
-/**
- * Normalizes a title for phrase matching without changing its meaning:');
+  return phrase.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
 }
 
 /**
  * Require each phrase to be bounded by the string edge or a non-letter,
- * non-number character. Unicode properties are essential here because \b
+ * non-number character. Unicode properties are essential here because \\b
  * does not provide reliable Arabic word boundaries. The lookarounds are
  * intentionally avoided for older WebViews; consuming the delimiters is
  * sufficient because this is a boolean test and the regex is not global.
@@ -64,7 +61,6 @@ const EXPLICIT_NO_MUSIC_PATTERNS: readonly RegExp[] = EXPLICIT_NO_MUSIC_PHRASES.
       'u'
     )
 );
-
 /**
  * Normalizes a title for phrase matching without changing its meaning:
  * lowercases, strips Arabic diacritics (harakat) and tatweel (kashida),
