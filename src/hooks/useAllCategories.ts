@@ -4,8 +4,10 @@ import db from '../db';
 import {
   KidCategory,
   listCategoriesForKidUi,
+  getBuiltinCategories,
+  LEGACY_CATEGORY_ID_SET,
 } from '../data/categoryRegistry';
-import { getCachedCategories, fetchCategories } from '../services/categoriesService';
+import { fetchCategories } from '../services/categoriesService';
 
 /** Helper to generate a unique categoryId slug from a user label */
 export function generateUniqueCategoryId(
@@ -32,7 +34,7 @@ export function generateUniqueCategoryId(
 }
 
 export function useAllCategories() {
-  const [baseCategories, setBaseCategories] = useState<KidCategory[]>(() => getCachedCategories());
+  const [baseCategories, setBaseCategories] = useState<KidCategory[]>(() => getBuiltinCategories());
   const [customCats, setCustomCats] = useState<KidCategory[]>([]);
   const [enabledOptInCats, setEnabledOptInCats] = useState<string[]>([]);
 
@@ -76,7 +78,15 @@ export function useAllCategories() {
     fetchCategories()
       .then((fresh) => {
         if (isMounted && Array.isArray(fresh) && fresh.length > 0) {
-          setBaseCategories(fresh);
+          // The app owns the canonical browse taxonomy. Worker categories can
+          // add administrator-defined categories, but legacy IDs must not
+          // replace or duplicate the eight canonical child-facing centers.
+          const builtins = getBuiltinCategories();
+          const builtinIds = new Set(builtins.map((category) => category.id));
+          const remoteExtras = fresh.filter(
+            (category) => !builtinIds.has(category.id) && !LEGACY_CATEGORY_ID_SET.has(category.id)
+          );
+          setBaseCategories([...builtins, ...remoteExtras]);
         }
       })
       .catch((err) => {
