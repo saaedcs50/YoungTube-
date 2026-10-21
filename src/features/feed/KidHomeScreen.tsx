@@ -9,7 +9,7 @@ import type { FeedItem, Interaction } from '../../db';
 import db from '../../db';
 import type { PlaylistPlaybackContext } from '../../services/playlists/playlistTypes';
 import { useAllCategories } from '../../hooks/useAllCategories';
-import { matchCategory } from '../../data/categoryRegistry';
+import { videoMatchesCategory } from '../../data/categoryRegistry';
 import { listRegistryChannels } from '../../data/channelRegistry';
 import { loadCachedBlocks } from '../../services/globalBlocks';
 import { recordCurrentScroll } from '../../shell/navigationStore';
@@ -110,7 +110,6 @@ export function KidHomeScreen({
           const registryChannel = channelId ? registryChannelMap.get(channelId) : undefined;
           if (registryChannel?.enabled === false || registryChannel?.autoDisabled === true) continue;
           if (channelId && blockedChannelSet.has(channelId)) continue;
-          if (settings?.hideMusicVideos === true && video.hasMusic === true) continue;
 
           const total = interaction.videoDuration || video.videoDuration;
           if (hasFamilyKey && (typeof total !== 'number' || !Number.isFinite(total) || total < 120)) continue;
@@ -137,7 +136,12 @@ export function KidHomeScreen({
       const rows = videos.filter((video) => {
         const info = channelMap.get(video.channelId);
         const categories = info?.categories || (video as any).categories || (video as any).category || [];
-        return matchCategory(categories, category.id);
+        return videoMatchesCategory(
+          video.title,
+          categories,
+          category.id,
+          (video as any).primaryCategoryId === 'music_songs' || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
+        );
       }).slice(0, 8);
       if (rows.length >= 3) result.push({ id: category.id, label: category.label, videos: rows });
     }
