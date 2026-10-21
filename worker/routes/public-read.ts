@@ -808,6 +808,7 @@ export async function handlePublicReadRoutes(
         songVariantConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
         songVariantStatus?: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
         songVariantRuleVersion?: string;
+        songVariantClassifiedAt?: string;
       }> = [];
 
       for (const ch of channels) {
@@ -845,6 +846,7 @@ export async function handlePublicReadRoutes(
                 songVariantConfidence: song?.confidence,
                 songVariantStatus: song?.classificationStatus,
                 songVariantRuleVersion: song?.ruleVersion,
+                songVariantClassifiedAt: song?.classifiedAt,
               });
             }
           }
@@ -898,6 +900,7 @@ export async function handlePublicReadRoutes(
         songVariantConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
         songVariantStatus?: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
         songVariantRuleVersion?: string;
+        songVariantClassifiedAt?: string;
       }> = [];
 
       for (const candidate of candidates) {
@@ -930,6 +933,7 @@ export async function handlePublicReadRoutes(
           songVariantConfidence: candidate.songVariantConfidence,
           songVariantStatus: candidate.songVariantStatus,
           songVariantRuleVersion: candidate.songVariantRuleVersion,
+          songVariantClassifiedAt: candidate.songVariantClassifiedAt,
         });
       }
 
