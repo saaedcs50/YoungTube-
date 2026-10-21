@@ -126,8 +126,8 @@ type SongPhraseHit = { phrase: string; start: number; end: number };
 const SONG_FORMAT_PHRASES = [
   // Arabic has spelling variants worth listing explicitly. Do not globally
   // replace taa marbuta with haa; doing so changes unrelated words.
-  'أغنية', 'اغنية', 'أغنيات', 'اغنيات', 'أغاني', 'اغاني',
-  'أنشودة', 'انشودة', 'أناشيد', 'اناشيد', 'نشيد', 'كليب غنائي',
+  'أغنية', 'اغنية', 'أغنيه', 'اغنيه', 'أغنيات', 'اغنيات', 'أغاني', 'اغاني',
+  'أنشودة', 'انشودة', 'أنشوده', 'انشوده', 'أناشيد', 'اناشيد', 'نشيد', 'كليب غنائي',
   'song', 'songs', 'nursery rhyme', 'nursery rhymes', 'rhymes',
   'sing along', 'lullaby', 'nasheed', 'anasheed', 'kids song',
   'kids songs', 'children song', 'children songs',
