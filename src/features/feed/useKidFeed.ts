@@ -722,6 +722,7 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           songVariantConfidence: cached.songVariantConfidence,
           songVariantStatus: cached.songVariantStatus,
           songVariantRuleVersion: cached.songVariantRuleVersion,
+          songVariantClassifiedAt: cached.songVariantClassifiedAt,
           isPortrait: cached.isPortrait,
           fetchedAt: inter.lastWatched || Date.now(),
           hidden: false,
