@@ -132,3 +132,85 @@ test('integration: client and Worker both consume the same shared helper', () =>
   assert.equal(publicRead.includes("includes('no music')"), false);
   assert.equal(publicRead.includes("includes('بدون موسيقى')"), false);
 });
+
+test('bounded matching accepts punctuation and exact end-of-string claims', () => {
+  const titles = [
+    'Songs for Kids Without Music',
+    'Kids Songs: No Music',
+    'أغاني أطفال بلا موسيقى',
+    'أنشودة من دون موسيقا',
+    '(بدون موسيقى) للأطفال',
+    'Kids Songs — No Music!',
+    'No Music',
+    'Without Music',
+    'بدون موسيقى',
+    'بلا موسيقى',
+    'من دون موسيقا',
+  ];
+  for (const title of titles) assert.equal(hasExplicitNoMusicClaim(title), true, title);
+});
+
+test('phrase boundaries reject English and Arabic prefixes of longer words', () => {
+  const titles = [
+    'Without Musical Instruments',
+    'No musical instruments',
+    'Without Musicians',
+    'بدون موسيقيين',
+    'بدون موسيقى2024',
+    'No Music2024',
+  ];
+  for (const title of titles) assert.equal(hasExplicitNoMusicClaim(title), false, title);
+});
+
+test('REGRESSION: normalized substring matching creates phrase-prefix false positives', () => {
+  // This test-only copy reproduces the previous faulty matching strategy.
+  // Keep the old strategy out of production code.
+  const oldSubstringMatcher = (title) => {
+    const normalized = normalizeTitleForMusicMatch(title);
+    const phrases = [
+      'no music',
+      'without music',
+      'بدون موسيقي',
+      'بدون موسيقا',
+      'بلا موسيقي',
+      'بلا موسيقا',
+      'من دون موسيقي',
+      'من دون موسيقا',
+    ];
+    return phrases.some((phrase) => normalized.includes(phrase));
+  };
+  const falsePositives = [
+    'Without Musical Instruments',
+    'No musical instruments',
+    'Without Musicians',
+    'بدون موسيقيين',
+  ];
+  for (const title of falsePositives) {
+    assert.equal(oldSubstringMatcher(title), true, `old matcher should expose the defect: ${title}`);
+    assert.equal(hasExplicitNoMusicClaim(title), false, `bounded matcher should reject: ${title}`);
+  }
+});
+
+test('normalization remains separate from phrase-boundary classification', () => {
+  assert.equal(normalizeTitleForMusicMatch('بِدُون مُوسِيقَى'), 'بدون موسيقي');
+  assert.equal(normalizeTitleForMusicMatch('مُوسِيـقَى'), 'موسيقي');
+  assert.equal(hasExplicitNoMusicClaim('بِدُون مُوسِيقَى'), true);
+  assert.equal(hasExplicitNoMusicClaim('بدون موسيقيين'), false);
+});
+
+test('boolean contract remains fail-safe for explicit, ordinary and ambiguous titles', () => {
+  const hasMusic = (title) => !hasExplicitNoMusicClaim(title);
+  for (const title of ['Songs for Kids Without Music', 'Kids Songs: No Music', 'أغاني أطفال بلا موسيقى', 'أنشودة من دون موسيقا']) {
+    assert.equal(hasMusic(title), false, title);
+  }
+  for (const title of [
+    'تعليم الحروف للأطفال',
+    'بدون موسيقى2024',
+    'أغنية بدون كلام',
+    'أنشودة بدون إيقاع',
+    'Vocals Only Nasheed',
+    'أنشودة بدون مؤثرات موسيقية',
+  ]) {
+    assert.equal(hasMusic(title), true, title);
+  }
+});
