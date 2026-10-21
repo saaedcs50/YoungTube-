@@ -39,6 +39,33 @@ const EXPLICIT_NO_MUSIC_PHRASES: readonly string[] = [
 ];
 
 /**
+ * Escapes configured phrases before compiling them as regular expressions.
+ * The phrase list is static, but escaping keeps the matcher safe if punctuation
+ * is added to a supported phrase in the future.
+ */
+function escapeRegExp(phrase: string): string {
+  return phrase.replace(/[.*+?^\u0024{}()|[\\]\\]/g, '\\];
+
+/**
+ * Normalizes a title for phrase matching without changing its meaning:');
+}
+
+/**
+ * Require each phrase to be bounded by the string edge or a non-letter,
+ * non-number character. Unicode properties are essential here because \b
+ * does not provide reliable Arabic word boundaries. The lookarounds are
+ * intentionally avoided for older WebViews; consuming the delimiters is
+ * sufficient because this is a boolean test and the regex is not global.
+ */
+const EXPLICIT_NO_MUSIC_PATTERNS: readonly RegExp[] = EXPLICIT_NO_MUSIC_PHRASES.map(
+  (phrase) =>
+    new RegExp(
+      `(^|[^\\p{L}\\p{N}])${escapeRegExp(phrase)}($|[^\\p{L}\\p{N}])`,
+      'u'
+    )
+);
+
+/**
  * Normalizes a title for phrase matching without changing its meaning:
  * lowercases, strips Arabic diacritics (harakat) and tatweel (kashida),
  * unifies hamza/madda alef forms (أ إ آ) to bare alef (ا), and unifies
@@ -64,5 +91,5 @@ export function normalizeTitleForMusicMatch(title: string): string {
 export function hasExplicitNoMusicClaim(title: string): boolean {
   if (!title) return false;
   const normalized = normalizeTitleForMusicMatch(title);
-  return EXPLICIT_NO_MUSIC_PHRASES.some((phrase) => normalized.includes(phrase));
+  return EXPLICIT_NO_MUSIC_PATTERNS.some((pattern) => pattern.test(normalized));
 }
