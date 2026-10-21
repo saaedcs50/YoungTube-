@@ -66,8 +66,19 @@ interface FeedItem {
   channelId: string;
   title: string;
   videoDuration?: number;
+  /** Legacy boolean retained for local-cache compatibility only; never used as a global content filter. */
   hasMusic?: boolean;
   isPortrait?: boolean;
+  /** Video-level content taxonomy metadata, populated on the next successful sync. */
+  primaryCategoryId?: string;
+  secondaryCategoryIds?: string[];
+  contentFormat?: string;
+  songVariant?: string;
+  songVariantEvidence?: string;
+  songVariantMatchedField?: 'title' | 'description' | null;
+  songVariantConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  songVariantStatus?: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
+  songVariantRuleVersion?: string;
   fetchedAt: number;
   publishedAt?: string;
   hidden?: boolean;
