@@ -27,7 +27,6 @@ function filterChannelVideos(
     if (row.hidden === true) return false;
     if (row.isPortrait === true) return false;
     if (blockedChannelIds.includes(row.channelId)) return false;
-    if (settings?.hideMusicVideos === true && row.hasMusic === true) return false;
     if (
       hasFamilyKey &&
       typeof row.videoDuration === 'number' &&
