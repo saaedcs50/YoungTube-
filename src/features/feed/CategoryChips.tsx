@@ -3,6 +3,15 @@ import { useAllCategories } from '../../hooks/useAllCategories';
 
 export const CATEGORY_SHORT_NAMES: Record<string, string> = {
   all: 'الكل',
+  learn: 'تعلّم',
+  science_discovery: 'علوم',
+  stories_programs: 'قصص وبرامج',
+  music_songs: 'أغاني وأناشيد',
+  music_songs_no_music: 'بدون موسيقى',
+  arts_crafts: 'ارسم واصنع',
+  cooking_food: 'طبخ',
+  nature_life: 'طبيعة',
+  movement_play: 'تحرّك والعب',
   quran: 'قرآن',
   stories: 'قصص',
   cartoons: 'كرتون',
