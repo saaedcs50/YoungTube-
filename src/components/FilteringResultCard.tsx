@@ -39,7 +39,6 @@ export default function FilteringResultCard({
 }: FilteringResultCardProps) {
   const [filtering, setFiltering] = useState(false);
   const [lastResult, setLastResult] = useState<FilteringResult | null>(null);
-  const [hideMusic, setHideMusic] = useState(false);
   const [summary, setSummary] = useState<DexieSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
 
@@ -59,15 +58,12 @@ export default function FilteringResultCard({
 
       for (const item of allRows) {
         if (item.hidden === true) hiddenCount++;
-        if (item.hasMusic === true) hasMusicCount++;
-        if (item.hasMusic === false) noMusicCount++;
+        if (item.primaryCategoryId === 'music_songs') hasMusicCount++;
+        if (item.primaryCategoryId === 'music_songs_no_music') noMusicCount++;
         if (item.isPortrait === true) portraitCount++;
       }
 
       const totalCached = allRows.length;
-      const isHide = settings?.hideMusicVideos === true;
-      setHideMusic(isHide);
-
       const activeCount = Math.max(0, totalCached - hiddenCount);
       const blacklistWordsCount = settings?.blacklistWords?.length || 0;
 
@@ -127,27 +123,6 @@ export default function FilteringResultCard({
       console.error('Filtering calculation error:', err);
     } finally {
       setFiltering(false);
-    }
-  };
-
-  // 3) Music filter toggle (persists setting only, no implicit heavy re-filter)
-  const handleMusicToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const checked = e.target.checked;
-    setHideMusic(checked);
-
-    try {
-      const currentSettings = await db.settings.get('main');
-      if (currentSettings) {
-        await db.settings.update('main', { hideMusicVideos: checked });
-      } else {
-        await db.settings.put({
-          id: 'main',
-          blacklistWords: [],
-          hideMusicVideos: checked,
-        });
-      }
-    } catch (err) {
-      console.error('Failed to save hideMusicVideos setting to db.settings:', err);
     }
   };
 
@@ -235,7 +210,7 @@ export default function FilteringResultCard({
               <div className="flex items-center justify-between text-[11px]">
                 <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
                   <VolumeX className="w-3.5 h-3.5 text-emerald-600" />
-                  فيديوهات بدون موسيقى:
+                  أغاني/أناشيد يعلن عنوانها أنها بدون موسيقى:
                 </span>
                 <span className="font-bold text-emerald-700 font-mono">
                   {summary.noMusicCount} فيديو
@@ -245,7 +220,7 @@ export default function FilteringResultCard({
               <div className="flex items-center justify-between text-[11px]">
                 <span className="flex items-center gap-1.5 text-yt-brand font-medium">
                   <Music className="w-3.5 h-3.5 text-yt-brand" />
-                  فيديوهات تحتوي على موسيقى:
+                  أغاني/أناشيد عادية أو غير محسومة:
                 </span>
                 <span className="font-bold text-yt-brand font-mono">
                   {summary.hasMusicCount} فيديو
@@ -284,41 +259,16 @@ export default function FilteringResultCard({
               )}
             </div>
 
-            {/* Music Filtering Checkbox */}
-            <div className="mt-3 pt-3 border-t border-yt-border space-y-2">
-              <label
-                htmlFor="hide-music-checkbox"
-                className="flex items-center gap-2.5 cursor-pointer select-none group min-h-[44px]"
-              >
-                <input
-                  id="hide-music-checkbox"
-                  type="checkbox"
-                  checked={hideMusic}
-                  onChange={handleMusicToggle}
-                  className="w-5 h-5 rounded border-yt-border focus:ring-yt-brand cursor-pointer accent-yt-brand"
-                />
-                <div className="flex items-center gap-1.5 text-xs font-bold text-yt-text group-hover:text-yt-text transition">
-                  <Music className="w-4 h-4 text-yt-text-muted" />
-                  <span>إخفاء الفيديوهات ذات الموسيقى (Hide videos with music)</span>
-                </div>
-              </label>
-
-              {hideMusic && (
-                <div
-                  id="music-filter-stat-box"
-                  className="p-3 rounded-xl bg-yt-brand-soft border border-yt-brand/30 text-yt-text text-xs flex items-center justify-between transition-all"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Music className="w-3.5 h-3.5 text-yt-brand shrink-0" />
-                    <span className="text-[11px] font-medium">
-                      الفيديوهات ذات الموسيقى المحجوبة من خلاصة الطفل:
-                    </span>
-                  </div>
-                  <span className="font-bold text-xs font-mono bg-yt-brand/20 px-2.5 py-0.5 rounded text-yt-text">
-                    {summary.hasMusicCount} فيديو
-                  </span>
-                </div>
-              )}
+            {/* Music categories are scoped to songs/nasheeds; no global content hide toggle. */}
+            <div
+              id="song-variant-info"
+              className="mt-3 pt-3 border-t border-yt-border flex items-start gap-2.5 text-xs text-yt-text-muted"
+            >
+              <Music className="w-4 h-4 text-yt-text-muted shrink-0 mt-0.5" />
+              <p>
+                تصنيف النسخ الصوتية يخص الأغاني والأناشيد فقط. عبارة «بدون موسيقى» دليل من عنوان الناشر وليست فحصًا للصوت؛ أما الدروس والقصص والكرتون فلا تُخفى بسبب حقل الموسيقى القديم.
+              </p>
+            </div>
             </div>
           </div>
         ) : null}
