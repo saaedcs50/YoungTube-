@@ -35,7 +35,7 @@ import {
   fetchChannels,
 } from '../lib/youtube-api';
 import { Env, VideoItem } from '../lib/types';
-import { hasExplicitNoMusicClaim } from '../../shared/musicClassification';
+import { classifySongVariantForCandidate, hasExplicitNoMusicClaim } from '../../shared/musicClassification';
 
 function resolveYoutubeApiKeyForPublicRoute(request: Request, env: Env): string {
   const isAdmin = checkAdminAuth(request, env);
