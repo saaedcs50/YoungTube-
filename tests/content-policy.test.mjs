@@ -80,6 +80,28 @@ test('classifier is opt-in and does not turn non-song content into song content'
   assert.equal(loaded.music.matchesPublicSongCategory({ title: 'Nursery rhyme without rhythm' }, 'music_songs_no_music'), false);
 });
 
+test('a source tagged songs does not classify a generic lesson by itself', () => {
+  assert.equal(
+    loaded.music.isSongContentCandidate('A lesson without music', ['songs']),
+    false
+  );
+  assert.equal(
+    loaded.music.classifySongVariantForCandidate({
+      title: 'تعليم الحروف بدون موسيقى',
+      sourceCategoryHints: ['songs'],
+    }),
+    null
+  );
+  assert.equal(
+    loaded.music.isSongContentCandidate('Nursery rhyme without music', []),
+    true
+  );
+  assert.equal(
+    loaded.music.classifySongVariantForCandidate({ title: 'Nursery rhyme without music' }).publicCategory,
+    'music_songs_no_music'
+  );
+});
+
 test('unicode boundaries reject misleading English and Arabic prefixes', () => {
   assert.equal(loaded.music.hasExplicitNoMusicClaim('Without Musical Instruments'), false);
   assert.equal(loaded.music.hasExplicitNoMusicClaim('Without Musicians'), false);
