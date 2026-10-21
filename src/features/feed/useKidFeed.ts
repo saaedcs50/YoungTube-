@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import db, { FeedItem } from '../../db';
 import { listRegistryChannels, RegistryChannel } from '../../data/channelRegistry';
 import { WORKER_URL } from '../../config';
-import { matchCategory } from '../../data/categoryRegistry';
+import { videoMatchesCategory } from '../../data/categoryRegistry';
 import {
   ensureChannelsArchiveSynced,
   scheduleBackgroundPortraitCheck,
@@ -125,13 +125,12 @@ function shuffleVideos(array: FeedItem[]): FeedItem[] {
 function filterStarterVideos(
   starters: FeedItem[],
   blockedChannelSet: Set<string>,
-  hideMusicVideos: boolean,
+  _legacyHideMusicVideos: boolean,
   hasFamilyKey: boolean
 ): FeedItem[] {
   return starters.filter((video) => {
     if (blockedChannelSet.has(video.channelId)) return false;
     if (video.isPortrait !== false) return false;
-    if (hideMusicVideos && video.hasMusic === true) return false;
     if (
       hasFamilyKey &&
       (typeof video.videoDuration !== 'number' ||
@@ -212,7 +211,7 @@ const CACHE_KEEP = 30;
 /** Bounded, recency-sorted load of enabled-channel videos (chunked anyOf, not 196 parallel queries). */
 export async function loadBoundedFeed(
   enabledChannelIds: string[],
-  hideMusicVideos: boolean,
+  _legacyHideMusicVideos: boolean,
   hasFamilyKey = false
 ): Promise<FeedItem[]> {
   const cachedBlocks = loadCachedBlocks();
@@ -233,7 +232,6 @@ export async function loadBoundedFeed(
           !Number.isFinite(row.videoDuration) ||
           row.videoDuration < MIN_VIDEO_DURATION_SECONDS)
       ) continue;
-      if (hideMusicVideos && row.hasMusic === true) continue;
       if (blockedChannelSet.has(row.channelId)) continue;
       const list = byChannel.get(row.channelId);
       if (list) list.push(row);
@@ -703,7 +701,6 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
         const targetChannelId = inter.channelId || cached.channelId;
         if (targetChannelId && (disabledChannelIds.has(targetChannelId) || blockedChannelSet.has(targetChannelId))) continue;
 
-        if (hideMusicVideos && cached.hasMusic === true) continue;
 
         if (settings?.familyYoutubeApiKey?.trim()) {
           if (
@@ -761,7 +758,12 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
       result = result.filter((video) => {
         const channelInfo = channelMap.get(video.channelId);
         const channelCats = channelInfo?.categories || (video as any).categories || (video as any).category;
-        return matchCategory(channelCats, selectedCategory);
+        return videoMatchesCategory(
+          video.title,
+          channelCats,
+          selectedCategory,
+          (video as any).primaryCategoryId === 'music_songs' || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
+        );
       });
     }
 
@@ -784,7 +786,12 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           if (selectedCategory !== 'all') {
             const channelInfo = channelMap.get(item.channelId);
             const channelCats = channelInfo?.categories || (item as any).categories || (item as any).category;
-            if (!matchCategory(channelCats, selectedCategory)) continue;
+            if (!videoMatchesCategory(
+              item.title,
+              channelCats,
+              selectedCategory,
+              (item as any).primaryCategoryId === 'music_songs' || (item as any).contentFormat === 'song' || (item as any).contentFormat === 'nasheed'
+            )) continue;
           }
 
           existingIds.add(item.videoId);
@@ -885,7 +892,6 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
             if (registryChannel?.enabled === false || registryChannel?.autoDisabled === true) return false;
             if (locallyHiddenIds.has(item.videoId)) return false;
             if (item.isPortrait === true) return false;
-            if (hideMusicVideos && item.hasMusic === true) return false;
             if (hasFamilyKey && (
               typeof item.videoDuration !== 'number' ||
               !Number.isFinite(item.videoDuration) ||
