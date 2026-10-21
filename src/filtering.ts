@@ -9,10 +9,8 @@ import {
   type GlobalBlocks,
 } from './services/globalBlocks';
 import {
-  classifySongVariant,
+  classifySongVariantForCandidate,
   hasExplicitNoMusicClaim,
-  hasSongVariantClaim,
-  isLikelySongContentTitle,
 } from '../shared/musicClassification';
 
 export const MIN_VIDEO_DURATION_SECONDS = 120;
@@ -497,7 +495,7 @@ export async function filterAndCacheVideos(
     existingItem?: FeedItem;
     duration?: number;
     isSongContent?: boolean;
-    songClassification?: ReturnType<typeof classifySongVariant>;
+    songClassification?: ReturnType<typeof classifySongVariantForCandidate>;
   }
 
   const channelCandidates: Map<string, CandidateItem[]> = new Map();
@@ -557,22 +555,18 @@ export async function filterAndCacheVideos(
         }
       }
 
-      // Music variant classification is video-level. A source tag alone is not
-      // enough: it is used only as a supporting hint when the video title has an
-      // explicit song-format or audio-variant phrase.
+      // Classify song/nasheed variants at video level. Source category tags are
+      // only supporting hints and never classify every video from a channel.
       const sourceCategories = Array.isArray((channel as any).categories)
-        ? (channel as any).categories.map((value: unknown) => String(value || '').toLowerCase().trim())
+        ? (channel as any).categories.map((value: unknown) => String(value || '').trim())
         : typeof (channel as any).category === 'string'
-          ? [(channel as any).category.toLowerCase().trim()]
+          ? [(channel as any).category]
           : [];
-      const sourceHasSongHint = sourceCategories.some((category: string) =>
-        ['songs', 'song', 'music_songs', 'nasheed', 'anashid', 'kids_songs', 'nursery_rhymes', 'اغاني', 'أغاني', 'أناشيد', 'اناشيد', 'نشيد'].includes(category)
-      );
-      const hasSongFormatCue = isLikelySongContentTitle(video.title);
-      const isSongContent = hasSongFormatCue || (sourceHasSongHint && hasSongVariantClaim(video.title));
-      const songClassification = isSongContent
-        ? classifySongVariant({ title: video.title, isSongContent: true }) || undefined
-        : undefined;
+      const songClassification = classifySongVariantForCandidate({
+        title: video.title,
+        sourceCategoryHints: sourceCategories,
+      }) || undefined;
+      const isSongContent = Boolean(songClassification);
 
       // Legacy value remains for old screens/cache reads, but is not used to
       // hide non-song content anywhere in the kid-facing UI.
