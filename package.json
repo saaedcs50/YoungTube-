@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit",
     "test:navigation": "node --test tests/navigation-history.test.mjs",
     "test:parent-inbox": "node --test tests/parent-inbox-routes.test.mjs",
+    "test:music": "node --test tests/music-classification.test.mjs",
     "typecheck:worker": "tsc --noEmit -p tsconfig.worker.json"
   },
   "dependencies": {

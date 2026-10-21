@@ -8,6 +8,7 @@ import {
   isPlaylistBlocked,
   type GlobalBlocks,
 } from './services/globalBlocks';
+import { hasExplicitNoMusicClaim } from '../shared/musicClassification';
 
 export const MIN_VIDEO_DURATION_SECONDS = 120;
 
@@ -549,10 +550,10 @@ export async function filterAndCacheVideos(
         }
       }
 
-      // 5. hasMusic heuristic
-      const hasNoMusicPhrase =
-        titleLower.includes('no music') || titleLower.includes('بدون موسيقى');
-      const hasMusic = !hasNoMusicPhrase;
+      // 5. hasMusic heuristic: shared explicit no-music claim detection
+      // (../shared/musicClassification). Default stays hasMusic=true for
+      // every title without an explicit claim.
+      const hasMusic = !hasExplicitNoMusicClaim(video.title);
 
       if (hasMusic) {
         hasMusicCount++;

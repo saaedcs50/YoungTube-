@@ -278,6 +278,20 @@ Never upgrade SOURCE-OK or BLOCKED to PASS without evidence.
   5. **Keystore Protection**: Ignored `*.jks`, `*.keystore`, and `signing.properties` in root and `android/.gitignore`; provided `signing.properties.example`.
   6. **Documentation**: Documented exact data preservation rules, ADB update commands, and the one-time migration requirement in `README.md`.
 
+### Session 2026-10-21 (Music Classification Regression Fix — Muse Qualification Phase 2)
+
+- **Branch**: `fix/music-classification-phrases`, based on `main` HEAD `3db2c22701778bb1884940685ff79a16d022a1b1`. Opened as a Draft PR for owner review; NOT merged, NOT deployed.
+- **Why**: The title-based music classification existed as two duplicated copies of a two-phrase substring check (`'no music'` / `'بدون موسيقى'`) — one in the client archive sync, one in the Worker search-archive path. Explicit no-music claims in other attested spellings (e.g. «بدون موسيقا», «بلا موسيقى», «من دون موسيقى», "without music") were missed, so those videos were stamped `hasMusic=true` and hidden by the parental hide-music filter.
+- **Changes**:
+  - `shared/musicClassification.ts` (NEW): pure, dependency-free helper — `normalizeTitleForMusicMatch` (lowercase; strips Arabic diacritics U+064B–U+065F + U+0670 and tatweel U+0640; unifies أ/إ/آ→ا and ى→ي) and `hasExplicitNoMusicClaim` (normalized substring match against the explicit-claim phrase list: "no music", "without music", and بدون/بلا/من دون + موسيقى/موسيقا).
+  - `src/filtering.ts`: the inline two-phrase block in `filterAndCacheVideos` now calls the shared helper. Boolean contract and default unchanged: `hasMusic = !hasExplicitNoMusicClaim(title)` — default stays `hasMusic=true`.
+  - `worker/routes/public-read.ts`: the duplicated inline block in the search-archive path now calls the same shared helper. No other route behavior changed.
+  - `tests/music-classification.test.mjs` (NEW, 7 tests) + `test:music` script in `package.json`: supported claim variants, the regression cases, normalization cases, ordinary titles keeping the default, ambiguous claims excluded, and an integration contract asserting both call sites consume the shared helper and the hardcoded phrase pair is gone.
+- **Policy boundary (deliberate)**: «بدون إيقاع» (no rhythm), "vocals only", and «بدون مؤثرات موسيقية» do NOT classify as no-music in this phase — none of them proves the absence of music. NOTE for the taxonomy plan: the plan's §15 keeps these as distinct internal claim types (NO_RHYTHM_CLAIM / RHYTHM_ONLY / NO_INSTRUMENTS_CLAIM) proposed for the same visible family track in Catalog v2; the boolean `hasMusic` contract cannot express that distinction, so they remain out here. Revisit only under the v2 tri-state design.
+- **Pre-fix evidence**: the old logic, run verbatim against the title matrix, returned `hasMusic=true` for «أنشودة أطفال بدون موسيقا», «أغاني أطفال بلا موسيقى», «أناشيد من دون موسيقى», and "Songs for Kids Without Music" (all explicit claims, all missed); post-fix the new suite passes all of them as detected claims.
+- **Verification** (Node 24.20.0, npm 10.9.4, this sandbox): `npm run test:music` PASS (7/7); `npm run test:navigation` PASS (13/13); `npm run test:parent-inbox` PASS (10/10); `npm run lint` PASS; `npm run typecheck:worker` PASS; `npm run build` PASS; `git diff --check` PASS.
+- **Not tested / limitations**: No Android build (unchanged client logic only; web build verified). No production call, deployment, or data mutation occurred. A title claim is the publisher's statement, not audio analysis — this fix detects claims, it cannot verify the actual audio. Feed/portrait/duration/Shorts logic untouched.
+
 ## Next Agent Should Do
 
 1. Read `PROJECT_CONTEXT.md`, `HANDOFF.md`, and `AI_REVIEW_INSTRUCTIONS.md` before making any edits.

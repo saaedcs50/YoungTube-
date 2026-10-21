@@ -35,6 +35,7 @@ import {
   fetchChannels,
 } from '../lib/youtube-api';
 import { Env, VideoItem } from '../lib/types';
+import { hasExplicitNoMusicClaim } from '../../shared/musicClassification';
 
 function resolveYoutubeApiKeyForPublicRoute(request: Request, env: Env): string {
   const isAdmin = checkAdminAuth(request, env);
@@ -810,15 +811,16 @@ export async function handlePublicReadRoutes(
             const titleLower = titleStr.toLowerCase();
             const titleNorm = normalize(titleStr);
             if (titleLower.includes(qLower) || titleNorm.includes(qNorm)) {
-              const hasNoMusicPhrase =
-                titleLower.includes('no music') || titleLower.includes('بدون موسيقى');
               matchedVideos.push({
                 videoId: String(v.videoId),
                 title: titleStr,
                 publishedAt: v.publishedAt || '',
                 sourceId,
                 videoDuration: typeof v.videoDuration === 'number' ? v.videoDuration : undefined,
-                hasMusic: !hasNoMusicPhrase,
+                // Shared explicit no-music claim detection
+                // (../../shared/musicClassification); same rule as the
+                // client archive sync in src/filtering.ts.
+                hasMusic: !hasExplicitNoMusicClaim(titleStr),
               });
             }
           }
