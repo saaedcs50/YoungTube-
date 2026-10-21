@@ -80,6 +80,21 @@ test('classifier is opt-in and does not turn non-song content into song content'
   assert.equal(loaded.music.matchesPublicSongCategory({ title: 'Nursery rhyme without rhythm' }, 'music_songs_no_music'), false);
 });
 
+test('Arabic taa marbuta spelling variants identify song/nasheed format', () => {
+  assert.equal(loaded.music.isLikelySongContentTitle('أغنية الحروف بدون موسيقى'), true);
+  assert.equal(loaded.music.isLikelySongContentTitle('اغنيه الحروف بدون موسيقى'), true);
+  assert.equal(loaded.music.isLikelySongContentTitle('أنشودة الحروف بدون موسيقى'), true);
+  assert.equal(loaded.music.isLikelySongContentTitle('انشوده الحروف بدون موسيقى'), true);
+  assert.equal(
+    loaded.music.classifySongVariantForCandidate({ title: 'أغنية الحروف بدون موسيقى' }).publicCategory,
+    'music_songs_no_music'
+  );
+  assert.equal(
+    loaded.music.classifySongVariantForCandidate({ title: 'أنشودة الحروف بدون موسيقى' }).publicCategory,
+    'music_songs_no_music'
+  );
+});
+
 test('a source tagged songs does not classify a generic lesson by itself', () => {
   assert.equal(
     loaded.music.isSongContentCandidate('A lesson without music', ['songs']),
