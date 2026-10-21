@@ -124,6 +124,42 @@ test('unicode boundaries reject misleading English and Arabic prefixes', () => {
   assert.equal(loaded.music.hasExplicitNoMusicClaim('A song without music!'), true);
 });
 
+test('classification evidence stores a timestamp and rule version', () => {
+  const result = loaded.music.classifySongVariantForCandidate({
+    title: 'أغنية الحروف بدون موسيقى',
+    classifiedAt: '2026-10-21T12:00:00.000Z',
+  });
+  assert.equal(result.ruleVersion, loaded.music.MUSIC_CLASSIFICATION_VERSION);
+  assert.equal(result.classifiedAt, '2026-10-21T12:00:00.000Z');
+  assert.equal(result.matchedField, 'title');
+  assert.equal(result.matchedPhrase, 'بدون موسيقى');
+});
+
+test('global legacy music boolean no longer hides non-song content or drives badges', () => {
+  const surfaces = [
+    'src/features/feed/useKidFeed.ts',
+    'src/features/feed/KidHomeScreen.tsx',
+    'src/features/channels/ChannelsScreen.tsx',
+    'src/features/search/SearchScreen.tsx',
+    'src/features/history/HistoryScreen.tsx',
+    'src/features/channel/ChannelScreen.tsx',
+    'src/services/playlists/playlistSafety.ts',
+  ];
+  for (const relativePath of surfaces) {
+    const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    assert.equal(
+      /hideMusicVideos[\\s\\S]{0,160}hasMusic|hasMusic[\\s\\S]{0,160}hideMusicVideos/.test(source),
+      false,
+      `legacy global music filter remains in ${relativePath}`
+    );
+  }
+  for (const relativePath of ['src/components/VideoCard.tsx', 'src/components/YoungTubeVideoCard.tsx']) {
+    const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    assert.equal(source.includes('video.hasMusic === false'), false, `legacy no-music badge remains in ${relativePath}`);
+    assert.equal(source.includes("video.primaryCategoryId === 'music_songs_no_music'"), true);
+  }
+});
+
 test('Shorts inference requires duration, date, and aspect ratio; URL path alone only requests review', () => {
   const evaluate = loaded.shorts.evaluateShortsPolicy;
   assert.equal(evaluate({ shortsPathSignal: true }).status, 'NEEDS_REVIEW');
