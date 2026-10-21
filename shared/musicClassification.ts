@@ -44,7 +44,7 @@ const EXPLICIT_NO_MUSIC_PHRASES: readonly string[] = [
  * is added to a supported phrase in the future.
  */
 function escapeRegExp(phrase: string): string {
-  return phrase.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+  return phrase.replace(/[.*+?^${}()|[\]{}\\]/g, '\\$&');
 }
 
 /**
