@@ -89,3 +89,340 @@ export function hasExplicitNoMusicClaim(title: string): boolean {
   const normalized = normalizeTitleForMusicMatch(title);
   return EXPLICIT_NO_MUSIC_PATTERNS.some((pattern) => pattern.test(normalized));
 }
+
+// ---- Taxonomy-plan v1: video-level song/nasheed variant classification ----
+
+export const MUSIC_CLASSIFICATION_VERSION = 'youngtube-song-variant-v1';
+
+export type SongVariant =
+  | 'STANDARD_OR_UNSPECIFIED'
+  | 'NO_MUSIC_CLAIMED'
+  | 'NO_MUSIC_WITH_RHYTHM'
+  | 'NO_RHYTHM_CLAIMED'
+  | 'RHYTHM_ONLY'
+  | 'NO_DUFF_CLAIMED'
+  | 'NO_INSTRUMENTS_CLAIMED'
+  | 'VOCALS_ONLY_CLAIMED'
+  | 'AMBIGUOUS';
+
+export type PublicSongCategory = 'music_songs' | 'music_songs_no_music';
+
+export interface SongVariantClassification {
+  variant: SongVariant;
+  publicCategory: PublicSongCategory;
+  additionalClaims: SongVariant[];
+  matchedPhrase: string | null;
+  matchedField: 'title' | 'description' | null;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  classificationStatus: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
+  ruleVersion: string;
+  evidenceMeaning: 'PUBLISHER_METADATA_CLAIM_NOT_AUDIO_VERIFIED';
+}
+
+type NormalizedText = { text: string; offsets: Array<{ start: number; end: number }> };
+type SongPhrase = { phrase: string; normalized: string; pattern: RegExp };
+type SongPhraseHit = { phrase: string; start: number; end: number };
+
+const SONG_FORMAT_PHRASES = [
+  'اغنية', 'اغاني', 'انشودة', 'اناشيد', 'نشيد', 'كليب غنائي',
+  'song', 'songs', 'nursery rhyme', 'nursery rhymes', 'rhymes',
+  'sing along', 'lullaby', 'nasheed', 'anasheed', 'kids song',
+  'kids songs', 'children song', 'children songs',
+] as const;
+
+const NO_MUSIC_CLAIM_PHRASES = [
+  'بدون موسيقى', 'بدون موسيقا', 'بدون موسيقي', 'بدون موسقى',
+  'بلا موسيقى', 'بلا موسيقا', 'بلا موسيقي',
+  'من دون موسيقى', 'من دون موسيقا', 'من دون موسيقي',
+  'دون موسيقى', 'دون موسيقا', 'من غير موسيقى', 'من غير موسيقا',
+  'لا موسيقى', 'خالي من الموسيقى', 'خالية من الموسيقى', 'خال من الموسيقى',
+  'خال من الموسيقا', 'خالية تماما من الموسيقى', 'خال تماما من الموسيقى',
+  'بدون موسيقى نهائيا', 'نسخة بدون موسيقى', 'نسخة بلا موسيقى',
+  'no music version', 'no music', 'no-music version',
+  'without the music', 'without music', 'music-free', 'music free', 'no music cover',
+] as const;
+
+const NO_RHYTHM_CLAIM_PHRASES = [
+  'بدون ايقاع موسيقي', 'بدون ايقاع', 'بلا ايقاع', 'من دون ايقاع',
+  'دون ايقاع', 'من غير ايقاع', 'لا ايقاع',
+  'بدون مؤثرات ايقاعية', 'بدون اي مؤثرات ايقاعية', 'دون مؤثرات ايقاعية',
+  'no rhythm', 'without rhythm', 'no percussion', 'without percussion',
+] as const;
+
+const RHYTHM_ONLY_CLAIM_PHRASES = [
+  'نسخة ايقاع فقط', 'بالايقاع فقط', 'ايقاع فقط', 'دفوف فقط', 'دف فقط', 'طبلة فقط',
+  'rhythm only', 'percussion only',
+] as const;
+
+const NO_DUFF_CLAIM_PHRASES = [
+  'بدون دفوف', 'بدون دف', 'بلا دفوف', 'بلا دف', 'من دون دفوف', 'من دون دف',
+] as const;
+
+const NO_INSTRUMENTS_CLAIM_PHRASES = [
+  'بدون آلات موسيقية', 'بلا آلات موسيقية', 'من دون آلات موسيقية',
+  'بدون معازف', 'بلا معازف', 'من دون معازف',
+  'بدون خلفية موسيقية', 'دون خلفية موسيقية',
+  'بدون مؤثرات موسيقية', 'دون مؤثرات موسيقية', 'بدون مصاحبة موسيقية',
+  'without instruments', 'no instruments', 'instrument free', 'instrument-free',
+] as const;
+
+const VOCALS_ONLY_CLAIM_PHRASES = [
+  'اصوات بشرية فقط', 'صوت بشري فقط', 'باصوات بشرية فقط', 'اداء صوتي فقط',
+  'vocals only', 'vocal only', 'voice only', 'only vocals', 'a cappella',
+  'acapella', 'acapella version',
+] as const;
+
+const NO_MUSIC_EFFECTS_ONLY_PHRASES = [
+  'no music effects', 'without music effects', 'no musical effects',
+  'without musical effects', 'بدون مؤثرات موسيقية', 'دون مؤثرات موسيقية',
+] as const;
+
+function normalizeWithOffsets(input: string): NormalizedText {
+  const chars: string[] = [];
+  const offsets: Array<{ start: number; end: number }> = [];
+  let index = 0;
+  while (index < input.length) {
+    const codePoint = input.codePointAt(index);
+    if (codePoint === undefined) break;
+    const current = String.fromCodePoint(codePoint);
+    const start = index;
+    index += current.length;
+    const normalized = current
+      .normalize('NFD')
+      .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/gu, '')
+      .replace(/\u0640/gu, '')
+      .toLowerCase()
+      .replace(/[أإآٱ]/gu, 'ا')
+      .replace(/ى/gu, 'ي')
+      .replace(/[ؤئ]/gu, 'ء')
+      .replace(/[\p{P}\p{S}]/gu, ' ');
+    for (const ch of normalized) {
+      if (/\s/u.test(ch)) {
+        if (chars.length > 0 && chars[chars.length - 1] === ' ') {
+          offsets[offsets.length - 1].end = index;
+        } else if (chars.length > 0) {
+          chars.push(' ');
+          offsets.push({ start, end: index });
+        }
+      } else {
+        chars.push(ch);
+        offsets.push({ start, end: index });
+      }
+    }
+  }
+  while (chars[0] === ' ') { chars.shift(); offsets.shift(); }
+  while (chars[chars.length - 1] === ' ') { chars.pop(); offsets.pop(); }
+  return { text: chars.join(''), offsets };
+}
+
+function normalizePhraseForSongMatch(phrase: string): string {
+  return normalizeWithOffsets(phrase).text;
+}
+
+function compileSongPhrases(phrases: readonly string[]): SongPhrase[] {
+  return phrases
+    .map((phrase) => {
+      const normalized = normalizePhraseForSongMatch(phrase);
+      const body = normalized.split(' ').filter(Boolean).join('\\s+');
+      return {
+        phrase,
+        normalized,
+        pattern: new RegExp('(^|[^\\p{L}\\p{N}])' + body + '($|[^\\p{L}\\p{N}])', 'u'),
+      };
+    })
+    .filter((item) => item.normalized.length > 0)
+    .sort((a, b) => b.normalized.length - a.normalized.length);
+}
+
+function findSongPhrase(input: string, phrases: SongPhrase[]): SongPhraseHit | null {
+  const normalized = normalizeWithOffsets(input);
+  for (const item of phrases) {
+    const match = item.pattern.exec(normalized.text);
+    if (!match || match.index === undefined) continue;
+    const phraseStart = match.index + match[1].length;
+    const phraseEnd = phraseStart + item.normalized.length;
+    const startOffset = normalized.offsets[phraseStart];
+    const endOffset = normalized.offsets[phraseEnd - 1];
+    if (!startOffset || !endOffset) continue;
+    return { phrase: input.slice(startOffset.start, endOffset.end), start: startOffset.start, end: endOffset.end };
+  }
+  return null;
+}
+
+const SONG_FORMAT_MATCHERS = compileSongPhrases(SONG_FORMAT_PHRASES);
+const NO_MUSIC_CLAIM_MATCHERS = compileSongPhrases(NO_MUSIC_CLAIM_PHRASES);
+const NO_RHYTHM_CLAIM_MATCHERS = compileSongPhrases(NO_RHYTHM_CLAIM_PHRASES);
+const RHYTHM_ONLY_CLAIM_MATCHERS = compileSongPhrases(RHYTHM_ONLY_CLAIM_PHRASES);
+const NO_DUFF_CLAIM_MATCHERS = compileSongPhrases(NO_DUFF_CLAIM_PHRASES);
+const NO_INSTRUMENTS_CLAIM_MATCHERS = compileSongPhrases(NO_INSTRUMENTS_CLAIM_PHRASES);
+const VOCALS_ONLY_CLAIM_MATCHERS = compileSongPhrases(VOCALS_ONLY_CLAIM_PHRASES);
+const NO_MUSIC_EFFECTS_MATCHERS = compileSongPhrases(NO_MUSIC_EFFECTS_ONLY_PHRASES);
+
+/** Use only title-specific format/audio cues; a channel category by itself is not proof. */
+export function isLikelySongContentTitle(title: string): boolean {
+  if (!title || !title.trim()) return false;
+  return Boolean(
+    findSongPhrase(title, SONG_FORMAT_MATCHERS) ||
+    findSongPhrase(title, NO_MUSIC_CLAIM_MATCHERS) ||
+    findSongPhrase(title, NO_RHYTHM_CLAIM_MATCHERS) ||
+    findSongPhrase(title, RHYTHM_ONLY_CLAIM_MATCHERS) ||
+    findSongPhrase(title, NO_DUFF_CLAIM_MATCHERS) ||
+    findSongPhrase(title, NO_INSTRUMENTS_CLAIM_MATCHERS) ||
+    findSongPhrase(title, VOCALS_ONLY_CLAIM_MATCHERS)
+  );
+}
+
+/**
+ * Classify song/nasheed title claims. Description evidence is stored for review
+ * but cannot automatically move an item to the visible no-music category.
+ */
+export function classifySongVariant(input: {
+  title: string;
+  description?: string;
+  isSongContent: boolean;
+}): SongVariantClassification | null {
+  if (input.isSongContent !== true) return null;
+  const title = typeof input.title === 'string' ? input.title : '';
+  const description = typeof input.description === 'string' ? input.description : '';
+  const noMusic = findSongPhrase(title, NO_MUSIC_CLAIM_MATCHERS);
+  const noRhythm = findSongPhrase(title, NO_RHYTHM_CLAIM_MATCHERS);
+  const rhythmOnly = findSongPhrase(title, RHYTHM_ONLY_CLAIM_MATCHERS);
+  const noDuff = findSongPhrase(title, NO_DUFF_CLAIM_MATCHERS);
+  const noInstruments = findSongPhrase(title, NO_INSTRUMENTS_CLAIM_MATCHERS);
+  const vocalsOnly = findSongPhrase(title, VOCALS_ONLY_CLAIM_MATCHERS);
+  const noMusicEffectsOnly = findSongPhrase(title, NO_MUSIC_EFFECTS_MATCHERS);
+  const normalizedTitle = normalizeTitleForMusicMatch(title).replace(/[-—–_]+/gu, ' ');
+  const hasPositiveRhythm = /(^|[^\p{L}\p{N}])(?:مع\s+(?:ايقاع|دف|دفوف)|with\s+(?:rhythm|percussion))($|[^\p{L}\p{N}])/u
+    .test(normalizedTitle);
+  let variant: SongVariant = 'STANDARD_OR_UNSPECIFIED';
+  let matchedPhrase: string | null = null;
+  let matchedField: 'title' | 'description' | null = null;
+  let confidence: 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW';
+  let classificationStatus: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED' =
+    title ? 'UNSPECIFIED' : 'NEEDS_REVIEW';
+  const additionalClaims: SongVariant[] = [];
+
+  if (noMusicEffectsOnly) {
+    variant = 'NO_INSTRUMENTS_CLAIMED';
+    matchedPhrase = noMusicEffectsOnly.phrase;
+    matchedField = 'title';
+    confidence = 'MEDIUM';
+    classificationStatus = 'NEEDS_REVIEW';
+  } else if (noMusic && hasPositiveRhythm) {
+    variant = 'NO_MUSIC_WITH_RHYTHM';
+    matchedPhrase = noMusic.phrase;
+    matchedField = 'title';
+    confidence = 'MEDIUM';
+    classificationStatus = 'NEEDS_REVIEW';
+    if (rhythmOnly) additionalClaims.push('RHYTHM_ONLY');
+  } else if (noMusic && noRhythm && rhythmOnly) {
+    variant = 'AMBIGUOUS';
+    matchedPhrase = noMusic.phrase;
+    matchedField = 'title';
+    confidence = 'LOW';
+    classificationStatus = 'NEEDS_REVIEW';
+    additionalClaims.push('NO_RHYTHM_CLAIMED', 'RHYTHM_ONLY');
+  } else if (noMusic) {
+    variant = 'NO_MUSIC_CLAIMED';
+    matchedPhrase = noMusic.phrase;
+    matchedField = 'title';
+    confidence = 'HIGH';
+    classificationStatus = 'AUTO_CLASSIFIED';
+    if (noRhythm) additionalClaims.push('NO_RHYTHM_CLAIMED');
+    if (noInstruments) additionalClaims.push('NO_INSTRUMENTS_CLAIMED');
+    if (vocalsOnly) additionalClaims.push('VOCALS_ONLY_CLAIMED');
+    if (noDuff) additionalClaims.push('NO_DUFF_CLAIMED');
+  } else if (noRhythm && rhythmOnly) {
+    variant = 'AMBIGUOUS';
+    matchedPhrase = noRhythm.phrase;
+    matchedField = 'title';
+    confidence = 'LOW';
+    classificationStatus = 'NEEDS_REVIEW';
+    additionalClaims.push('NO_RHYTHM_CLAIMED', 'RHYTHM_ONLY');
+  } else if (rhythmOnly) {
+    variant = 'RHYTHM_ONLY';
+    matchedPhrase = rhythmOnly.phrase;
+    matchedField = 'title';
+    confidence = 'HIGH';
+    classificationStatus = 'NEEDS_REVIEW';
+  } else if (noRhythm) {
+    variant = 'NO_RHYTHM_CLAIMED';
+    matchedPhrase = noRhythm.phrase;
+    matchedField = 'title';
+    confidence = 'HIGH';
+    classificationStatus = 'NEEDS_REVIEW';
+  } else if (noInstruments) {
+    variant = 'NO_INSTRUMENTS_CLAIMED';
+    matchedPhrase = noInstruments.phrase;
+    matchedField = 'title';
+    confidence = 'HIGH';
+    classificationStatus = 'NEEDS_REVIEW';
+  } else if (vocalsOnly) {
+    variant = 'VOCALS_ONLY_CLAIMED';
+    matchedPhrase = vocalsOnly.phrase;
+    matchedField = 'title';
+    confidence = 'HIGH';
+    classificationStatus = 'NEEDS_REVIEW';
+  } else if (noDuff) {
+    variant = 'NO_DUFF_CLAIMED';
+    matchedPhrase = noDuff.phrase;
+    matchedField = 'title';
+    confidence = 'HIGH';
+    classificationStatus = 'NEEDS_REVIEW';
+  }
+
+  if (!matchedPhrase && description) {
+    const descHit =
+      findSongPhrase(description, NO_MUSIC_CLAIM_MATCHERS) ||
+      findSongPhrase(description, NO_RHYTHM_CLAIM_MATCHERS) ||
+      findSongPhrase(description, RHYTHM_ONLY_CLAIM_MATCHERS) ||
+      findSongPhrase(description, NO_DUFF_CLAIM_MATCHERS) ||
+      findSongPhrase(description, NO_INSTRUMENTS_CLAIM_MATCHERS) ||
+      findSongPhrase(description, VOCALS_ONLY_CLAIM_MATCHERS);
+    if (descHit) {
+      matchedPhrase = descHit.phrase;
+      matchedField = 'description';
+      confidence = 'MEDIUM';
+      classificationStatus = 'NEEDS_REVIEW';
+      if (findSongPhrase(description, NO_MUSIC_CLAIM_MATCHERS)) variant = 'NO_MUSIC_CLAIMED';
+      else if (findSongPhrase(description, NO_RHYTHM_CLAIM_MATCHERS)) variant = 'NO_RHYTHM_CLAIMED';
+      else if (findSongPhrase(description, RHYTHM_ONLY_CLAIM_MATCHERS)) variant = 'RHYTHM_ONLY';
+      else if (findSongPhrase(description, NO_DUFF_CLAIM_MATCHERS)) variant = 'NO_DUFF_CLAIMED';
+      else if (findSongPhrase(description, NO_INSTRUMENTS_CLAIM_MATCHERS)) variant = 'NO_INSTRUMENTS_CLAIMED';
+      else if (findSongPhrase(description, VOCALS_ONLY_CLAIM_MATCHERS)) variant = 'VOCALS_ONLY_CLAIMED';
+    }
+  }
+
+  const publicNoMusic =
+    matchedField === 'title' &&
+    confidence === 'HIGH' &&
+    variant === 'NO_MUSIC_CLAIMED';
+
+  return {
+    variant,
+    publicCategory: publicNoMusic ? 'music_songs_no_music' : 'music_songs',
+    additionalClaims,
+    matchedPhrase,
+    matchedField,
+    confidence,
+    classificationStatus,
+    ruleVersion: MUSIC_CLASSIFICATION_VERSION,
+    evidenceMeaning: 'PUBLISHER_METADATA_CLAIM_NOT_AUDIO_VERIFIED',
+  };
+}
+
+export function matchesPublicSongCategory(input: {
+  title: string;
+  description?: string;
+  isSongContent?: boolean;
+}, selectedCategory: string): boolean {
+  if (selectedCategory !== 'music_songs' && selectedCategory !== 'music_songs_no_music') return false;
+  const songContent = input.isSongContent === true || isLikelySongContentTitle(input.title || '');
+  const result = classifySongVariant({
+    title: input.title || '',
+    description: input.description,
+    isSongContent: songContent,
+  });
+  return Boolean(result && result.publicCategory === selectedCategory);
+}
+
