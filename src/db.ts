@@ -79,6 +79,7 @@ interface FeedItem {
   songVariantConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
   songVariantStatus?: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
   songVariantRuleVersion?: string;
+  songVariantClassifiedAt?: string;
   fetchedAt: number;
   publishedAt?: string;
   hidden?: boolean;
