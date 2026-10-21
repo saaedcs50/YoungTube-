@@ -284,16 +284,12 @@ export function hasSongVariantClaim(title: string): boolean {
 }
 
 /** Video-level song eligibility: title format cues first; source category is only a supporting hint. */
-export function isSongContentCandidate(title: string, sourceCategoryHints: string[] = []): boolean {
-  if (isLikelySongContentTitle(title || '')) return true;
-  const songHintIds = new Set([
-    'songs', 'song', 'music_songs', 'nasheed', 'anashid', 'kids_songs',
-    'nursery_rhymes', 'اغاني', 'اناشيد', 'نشيد',
-  ]);
-  const hasSongSourceHint = (sourceCategoryHints || []).some((value) =>
-    songHintIds.has(normalizeWithOffsets(String(value || '')).text.replace(/\s+/gu, '_'))
-  );
-  return hasSongSourceHint && hasSongVariantClaim(title || '');
+export function isSongContentCandidate(title: string, _sourceCategoryHints: string[] = []): boolean {
+  // Source category hints are intentionally not sufficient to identify the video
+  // format: one source can contain songs, lessons, cartoons and general shows.
+  // Ambiguous claims lacking a song/nasheed format cue remain outside the public
+  // song paths until a future reviewer supplies video-level metadata.
+  return isLikelySongContentTitle(title || '');
 }
 
 /** Shared classification entrypoint for client sync and Worker archive search. */
