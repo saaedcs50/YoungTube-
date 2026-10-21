@@ -12,6 +12,8 @@ export interface KidCategory {
 import {
   CONTENT_CENTERS,
   SONG_VARIANT_CATEGORIES,
+  OPT_IN_CATEGORY_IDS,
+  OPT_IN_CATEGORY_DEFINITIONS,
   LEGACY_CATEGORY_IDS,
   LEGACY_CATEGORY_TO_CENTER,
   CONTENT_CATEGORY_TAG_ALIASES,
@@ -26,6 +28,10 @@ export const DEFAULT_KID_CATEGORIES: KidCategory[] = [
     id: category.id, label: category.label, emoji: category.emoji,
     description: category.description, scope: 'source' as const,
   })),
+  ...OPT_IN_CATEGORY_DEFINITIONS.map((category) => ({
+    id: category.id, label: category.label, emoji: category.emoji,
+    description: category.description, scope: 'source' as const,
+  })),
   ...SONG_VARIANT_CATEGORIES.map((category) => ({
     id: category.id, label: category.label, emoji: category.emoji,
     description: category.description, scope: 'video' as const,
@@ -34,9 +40,11 @@ export const DEFAULT_KID_CATEGORIES: KidCategory[] = [
 
 export const KID_CATEGORIES: KidCategory[] = DEFAULT_KID_CATEGORIES;
 export const CURATION_CATEGORIES: KidCategory[] = DEFAULT_KID_CATEGORIES.filter(
-  (category) => category.id !== 'all' && category.scope !== 'video'
+  (category) =>
+    category.id !== 'all' &&
+    category.scope !== 'video' &&
+    !(OPT_IN_CATEGORY_IDS as readonly string[]).includes(category.id)
 );
-export const OPT_IN_CATEGORY_IDS: string[] = ['gaming'];
 export const LEGACY_CATEGORY_ID_SET = new Set<string>(LEGACY_CATEGORY_IDS);
 
 /**
