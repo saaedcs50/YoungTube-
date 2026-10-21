@@ -95,7 +95,7 @@ export function channelMatchesCategory(
   return false;
 }
 
-/** Video-aware matching keeps music variant routing at the individual-video level. */
+/** Video-aware matching keeps song variant routing at the individual-video level. */
 export function videoMatchesCategory(
   title: string,
   channelCategories: string | string[] | undefined,
@@ -109,31 +109,6 @@ export function videoMatchesCategory(
   }
   return channelMatchesCategory(channelCategories, targetCategoryId);
 }
-
-/** Legacy alias for channelMatchesCategory */
-export const matchCategory = channelMatchesCategory;
-
-/**
- * Video-aware category match. Music paths are determined per video title, never
- * by declaring every video in a channel to be a song. Legacy topic categories
- * continue to match against channel/source category hints during migration.
- */
-export function videoMatchesCategory(
-  title: string,
-  channelCategories: string | string[] | undefined,
-  targetCategoryId: string,
-  explicitSongContent?: boolean
-): boolean {
-  if (targetCategoryId === 'all') return true;
-  if (targetCategoryId === 'music_songs' || targetCategoryId === 'music_songs_no_music') {
-    const isSong = explicitSongContent === true || isLikelySongContentTitle(title || '');
-    return matchesPublicSongCategory({ title: title || '', isSongContent: isSong }, targetCategoryId);
-  }
-  return channelMatchesCategory(channelCategories, targetCategoryId);
-}
-
-/** Legacy alias for channelMatchesCategory */
-export const matchCategory = channelMatchesCategory;
 
 /** Legacy alias for channelMatchesCategory */
 export const matchCategory = channelMatchesCategory;
