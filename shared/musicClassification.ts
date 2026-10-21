@@ -1,24 +1,15 @@
 /**
- * Shared title-based "explicit no-music claim" detection for YoungTube.
+ * Shared title evidence helpers for YoungTube.
  *
- * Single source of truth used by BOTH:
- * - the kid client (`src/filtering.ts`, archive sync classification), and
- * - the Worker (`worker/routes/public-read.ts`, search-archive classification).
+ * `hasExplicitNoMusicClaim` is a legacy boolean API preserved for compatibility.
+ * The canonical video-level rules below classify only song/nasheed-format titles
+ * and retain the publisher's exact claim, claim type, confidence, rule version,
+ * and classification timestamp. Neither API analyzes audio.
  *
- * Policy (Phase 2, intentionally narrow):
- * - Only UNAMBIGUOUS, EXPLICIT no-music claims in the title qualify:
- *   "no music" / "without music", and the Arabic phrase families
- *   بدون / بلا / من دون + موسيقى with their common spelling variants.
- * - The following do NOT qualify, because they do not prove the absence of
- *   music: «بدون إيقاع» (no rhythm), "vocals only" (no instruments claim),
- *   and «بدون مؤثرات موسيقية» (no music effects). They stay classified by
- *   the callers' existing default.
- * - Callers keep the existing boolean contract and default:
- *   `hasMusic = !hasExplicitNoMusicClaim(title)`.
- *
- * Limitation: a title claim is the publisher's statement, not an audio
- * analysis. This helper detects that a claim was made; it cannot verify
- * that the video's actual audio contains no music.
+ * Critical product boundary: do not use the legacy boolean to globally hide
+ * lessons, cartoons, stories, or general videos. Only the video-level
+ * `music_songs_no_music` classification may drive the no-music song badge/path,
+ * and only when the title itself makes a high-confidence explicit claim.
  */
 
 /**
