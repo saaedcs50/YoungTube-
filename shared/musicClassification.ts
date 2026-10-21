@@ -261,15 +261,9 @@ const NO_MUSIC_EFFECTS_MATCHERS = compileSongPhrases(NO_MUSIC_EFFECTS_ONLY_PHRAS
 /** Use only title-specific format/audio cues; a channel category by itself is not proof. */
 export function isLikelySongContentTitle(title: string): boolean {
   if (!title || !title.trim()) return false;
-  return Boolean(
-    findSongPhrase(title, SONG_FORMAT_MATCHERS) ||
-    findSongPhrase(title, NO_MUSIC_CLAIM_MATCHERS) ||
-    findSongPhrase(title, NO_RHYTHM_CLAIM_MATCHERS) ||
-    findSongPhrase(title, RHYTHM_ONLY_CLAIM_MATCHERS) ||
-    findSongPhrase(title, NO_DUFF_CLAIM_MATCHERS) ||
-    findSongPhrase(title, NO_INSTRUMENTS_CLAIM_MATCHERS) ||
-    findSongPhrase(title, VOCALS_ONLY_CLAIM_MATCHERS)
-  );
+  // Only a song/nasheed-format cue can identify the format. Audio claims like
+  // "without music" do not by themselves prove the item is a song.
+  return Boolean(findSongPhrase(title, SONG_FORMAT_MATCHERS));
 }
 
 /**
