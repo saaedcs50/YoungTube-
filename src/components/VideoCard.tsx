@@ -239,7 +239,7 @@ export const VideoCard = React.memo(
           )}
 
           {/* Optional No Music Muted Badge */}
-          {video.hasMusic === false && (
+          {video.primaryCategoryId === 'music_songs_no_music' && video.songVariant === 'NO_MUSIC_CLAIMED' && (
             <div className="absolute top-2 start-2 px-2 py-0.5 rounded-md bg-black/75 text-white text-[10px] font-medium flex items-center gap-1 backdrop-blur-xs pointer-events-none z-10">
               <VolumeX className="w-3 h-3 text-white/80" />
               <span>بدون موسيقى</span>
