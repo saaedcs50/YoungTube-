@@ -813,10 +813,12 @@ export async function purgeInvalidFeedRows(filterDuration = false): Promise<numb
 }
 
 /**
- * Direct query against db.feedCache to count videos where hasMusic is true.
+ * Legacy-named helper retained for callers outside the current app bundle.
+ * Counts videos in the ordinary/unspecified song path only; it does not prove
+ * that the audio actually contains music.
  */
 export async function getVideosWithMusicCount(): Promise<number> {
-  return await db.feedCache.filter((item) => item.hasMusic === true).count();
+  return await db.feedCache.filter((item) => item.primaryCategoryId === 'music_songs').count();
 }
 
 /**
