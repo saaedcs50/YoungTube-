@@ -92,6 +92,20 @@ export const CONTENT_CENTERS: readonly ContentCenterDefinition[] = [
   },
 ] as const;
 
+/** Secondary categories that require explicit family opt-in; not main browse centers. */
+export const OPT_IN_CATEGORY_IDS = ['gaming'] as const;
+
+export const OPT_IN_CATEGORY_DEFINITIONS = [
+  {
+    id: 'gaming',
+    label: 'ألعاب رقمية مناسبة',
+    emoji: '🎮',
+    description: 'ألعاب رقمية مناسبة للعمر؛ لا تظهر إلا بعد تفعيل ولي الأمر',
+    sourceSelectable: true,
+    launchTier: 'P2',
+  },
+] as const;
+
 /** This is a video-only category; it must never be stored as a source/channel category. */
 export const SONG_VARIANT_CATEGORIES = [
   {
