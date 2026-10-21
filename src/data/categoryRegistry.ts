@@ -20,6 +20,7 @@ import {
   canonicalizeCategoryId,
   isVideoOnlyCategory,
 } from '../../shared/contentTaxonomy';
+export { OPT_IN_CATEGORY_IDS };
 import { isLikelySongContentTitle, matchesPublicSongCategory } from '../../shared/musicClassification';
 
 export const DEFAULT_KID_CATEGORIES: KidCategory[] = [
