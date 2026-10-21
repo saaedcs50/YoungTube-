@@ -1,3 +1,4 @@
+import db from '../db';
 import { WORKER_URL } from '../config';
 
 export interface KidCategory {
