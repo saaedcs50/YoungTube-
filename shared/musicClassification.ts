@@ -270,6 +270,19 @@ export function isLikelySongContentTitle(title: string): boolean {
  * Classify song/nasheed title claims. Description evidence is stored for review
  * but cannot automatically move an item to the visible no-music category.
  */
+/** True when an explicit audio-variant phrase is present; use only with an independent song-format signal. */
+export function hasSongVariantClaim(title: string): boolean {
+  if (!title) return false;
+  return Boolean(
+    findSongPhrase(title, NO_MUSIC_CLAIM_MATCHERS) ||
+    findSongPhrase(title, NO_RHYTHM_CLAIM_MATCHERS) ||
+    findSongPhrase(title, RHYTHM_ONLY_CLAIM_MATCHERS) ||
+    findSongPhrase(title, NO_DUFF_CLAIM_MATCHERS) ||
+    findSongPhrase(title, NO_INSTRUMENTS_CLAIM_MATCHERS) ||
+    findSongPhrase(title, VOCALS_ONLY_CLAIM_MATCHERS)
+  );
+}
+
 export function classifySongVariant(input: {
   title: string;
   description?: string;
