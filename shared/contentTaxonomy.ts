@@ -116,7 +116,7 @@ export const LEGACY_CATEGORY_TO_CENTER: Readonly<Record<string, ContentCenterId 
   science: 'science_discovery',
   crafts: 'arts_crafts',
   sports: 'movement_play',
-  gaming: 'movement_play',
+  gaming: null,
   cooking: 'cooking_food',
   // Calm/sleep describes context or mood, not a durable topic.
   calm: null,
