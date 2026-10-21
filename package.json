@@ -13,6 +13,7 @@
     "test:navigation": "node --test tests/navigation-history.test.mjs",
     "test:parent-inbox": "node --test tests/parent-inbox-routes.test.mjs",
     "test:music": "node --test tests/music-classification.test.mjs",
+    "test:content-policy": "node --test tests/content-policy.test.mjs",
     "typecheck:worker": "tsc --noEmit -p tsconfig.worker.json"
   },
   "dependencies": {
