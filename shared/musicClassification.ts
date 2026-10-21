@@ -116,6 +116,7 @@ export interface SongVariantClassification {
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   classificationStatus: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
   ruleVersion: string;
+  classifiedAt: string;
   evidenceMeaning: 'PUBLISHER_METADATA_CLAIM_NOT_AUDIO_VERIFIED';
 }
 
@@ -300,10 +301,16 @@ export function classifySongVariantForCandidate(input: {
   title: string;
   description?: string;
   sourceCategoryHints?: string[];
+  classifiedAt?: string;
 }): SongVariantClassification | null {
   const isSongContent = isSongContentCandidate(input.title, input.sourceCategoryHints || []);
   return isSongContent
-    ? classifySongVariant({ title: input.title || '', description: input.description, isSongContent: true })
+    ? classifySongVariant({
+        title: input.title || '',
+        description: input.description,
+        isSongContent: true,
+        classifiedAt: input.classifiedAt,
+      })
     : null;
 }
 
@@ -311,6 +318,7 @@ export function classifySongVariant(input: {
   title: string;
   description?: string;
   isSongContent: boolean;
+  classifiedAt?: string;
 }): SongVariantClassification | null {
   if (input.isSongContent !== true) return null;
   const title = typeof input.title === 'string' ? input.title : '';
@@ -438,6 +446,7 @@ export function classifySongVariant(input: {
     confidence,
     classificationStatus,
     ruleVersion: MUSIC_CLASSIFICATION_VERSION,
+    classifiedAt: input.classifiedAt || new Date().toISOString(),
     evidenceMeaning: 'PUBLISHER_METADATA_CLAIM_NOT_AUDIO_VERIFIED',
   };
 }
