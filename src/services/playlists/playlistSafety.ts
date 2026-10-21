@@ -35,9 +35,6 @@ export async function canPlayVideoInChildContext(
 
   const settings = await db.settings.get('main');
   const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
-  if (settings?.hideMusicVideos === true && feed.hasMusic === true) {
-    return { allowed: false, reason: 'blocked_source_playlist', feed };
-  }
   if (
     hasFamilyKey &&
     (typeof feed.videoDuration !== 'number' ||
