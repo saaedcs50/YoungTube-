@@ -11,6 +11,7 @@ import {
 import {
   classifySongVariantForCandidate,
   hasExplicitNoMusicClaim,
+  MUSIC_CLASSIFICATION_VERSION,
 } from '../shared/musicClassification';
 
 export const MIN_VIDEO_DURATION_SECONDS = 120;
@@ -490,7 +491,7 @@ export async function filterAndCacheVideos(
     videoId: string;
     channelId: string;
     title: string;
-    hasMusic: boolean;
+    hasMusic?: boolean;
     publishedAt?: string;
     existingItem?: FeedItem;
     duration?: number;
@@ -562,20 +563,28 @@ export async function filterAndCacheVideos(
         : typeof (channel as any).category === 'string'
           ? [(channel as any).category]
           : [];
+      const preserveClassificationAt =
+        existingItem?.songVariantRuleVersion === MUSIC_CLASSIFICATION_VERSION &&
+        existingItem.title === video.title
+          ? existingItem.songVariantClassifiedAt
+          : undefined;
       const songClassification = classifySongVariantForCandidate({
         title: video.title,
         sourceCategoryHints: sourceCategories,
+        classifiedAt: preserveClassificationAt,
       }) || undefined;
       const isSongContent = Boolean(songClassification);
 
-      // Legacy value remains for old screens/cache reads, but is not used to
-      // hide non-song content anywhere in the kid-facing UI.
-      const hasMusic = !hasExplicitNoMusicClaim(video.title);
+      // Legacy boolean compatibility is song-only now. A lesson or cartoon
+      // titled "without music" must not acquire a no-music badge/flag.
+      const hasMusic = songClassification
+        ? !hasExplicitNoMusicClaim(video.title)
+        : undefined;
 
-      if (hasMusic) {
-        hasMusicCount++;
-      } else {
+      if (songClassification?.publicCategory === 'music_songs_no_music') {
         noMusicCount++;
+      } else if (songClassification) {
+        hasMusicCount++;
       }
 
       const candidate: CandidateItem = {
@@ -662,6 +671,7 @@ export async function filterAndCacheVideos(
         songVariantConfidence: c.songClassification?.confidence,
         songVariantStatus: c.songClassification?.classificationStatus,
         songVariantRuleVersion: c.songClassification?.ruleVersion,
+        songVariantClassifiedAt: c.songClassification?.classifiedAt,
         fetchedAt: now,
         publishedAt: c.publishedAt,
         hidden: false,
