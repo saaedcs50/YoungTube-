@@ -8,7 +8,12 @@ import {
   isPlaylistBlocked,
   type GlobalBlocks,
 } from './services/globalBlocks';
-import { hasExplicitNoMusicClaim } from '../shared/musicClassification';
+import {
+  classifySongVariant,
+  hasExplicitNoMusicClaim,
+  hasSongVariantClaim,
+  isLikelySongContentTitle,
+} from '../shared/musicClassification';
 
 export const MIN_VIDEO_DURATION_SECONDS = 120;
 
@@ -491,6 +496,8 @@ export async function filterAndCacheVideos(
     publishedAt?: string;
     existingItem?: FeedItem;
     duration?: number;
+    isSongContent?: boolean;
+    songClassification?: ReturnType<typeof classifySongVariant>;
   }
 
   const channelCandidates: Map<string, CandidateItem[]> = new Map();
@@ -550,9 +557,25 @@ export async function filterAndCacheVideos(
         }
       }
 
-      // 5. hasMusic heuristic: shared explicit no-music claim detection
-      // (../shared/musicClassification). Default stays hasMusic=true for
-      // every title without an explicit claim.
+      // Music variant classification is video-level. A source tag alone is not
+      // enough: it is used only as a supporting hint when the video title has an
+      // explicit song-format or audio-variant phrase.
+      const sourceCategories = Array.isArray((channel as any).categories)
+        ? (channel as any).categories.map((value: unknown) => String(value || '').toLowerCase().trim())
+        : typeof (channel as any).category === 'string'
+          ? [(channel as any).category.toLowerCase().trim()]
+          : [];
+      const sourceHasSongHint = sourceCategories.some((category: string) =>
+        ['songs', 'song', 'music_songs', 'nasheed', 'anashid', 'kids_songs', 'nursery_rhymes', 'اغاني', 'أغاني', 'أناشيد', 'اناشيد', 'نشيد'].includes(category)
+      );
+      const hasSongFormatCue = isLikelySongContentTitle(video.title);
+      const isSongContent = hasSongFormatCue || (sourceHasSongHint && hasSongVariantClaim(video.title));
+      const songClassification = isSongContent
+        ? classifySongVariant({ title: video.title, isSongContent: true }) || undefined
+        : undefined;
+
+      // Legacy value remains for old screens/cache reads, but is not used to
+      // hide non-song content anywhere in the kid-facing UI.
       const hasMusic = !hasExplicitNoMusicClaim(video.title);
 
       if (hasMusic) {
@@ -566,6 +589,8 @@ export async function filterAndCacheVideos(
         channelId,
         title: video.title,
         hasMusic,
+        isSongContent,
+        songClassification,
         publishedAt: video.publishedAt,
         existingItem,
         duration: existingItem?.videoDuration,
@@ -635,6 +660,14 @@ export async function filterAndCacheVideos(
         title: c.title,
         videoDuration: finalDuration,
         hasMusic: c.hasMusic,
+        primaryCategoryId: c.songClassification?.publicCategory ?? (c.isSongContent ? 'music_songs' : undefined),
+        contentFormat: c.isSongContent ? 'song' : undefined,
+        songVariant: c.songClassification?.variant,
+        songVariantEvidence: c.songClassification?.matchedPhrase ?? undefined,
+        songVariantMatchedField: c.songClassification?.matchedField,
+        songVariantConfidence: c.songClassification?.confidence,
+        songVariantStatus: c.songClassification?.classificationStatus,
+        songVariantRuleVersion: c.songClassification?.ruleVersion,
         fetchedAt: now,
         publishedAt: c.publishedAt,
         hidden: false,
