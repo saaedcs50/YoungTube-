@@ -97,7 +97,7 @@ export const ChannelsScreen: React.FC<Props> = ({ onOpenChannel, onSelectVideo }
         video.title,
         channelMap.get(video.channelId)?.category || [],
         category,
-        (video as any).primaryCategoryId === 'music_songs' || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
+        ((video as any).primaryCategoryId === 'music_songs' || (video as any).primaryCategoryId === 'music_songs_no_music') || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
       )
     ),
     [category, videos, channelMap]
