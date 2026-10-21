@@ -371,19 +371,18 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
         .filter((c) => c.enabled !== false && c.autoDisabled !== true && !blockedChannelSet.has(c.sourceId))
         .map((c) => c.sourceId);
 
-      const hideMusicVideos = settings?.hideMusicVideos === true;
       const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
 
       let availableVideos: FeedItem[] = [];
       if (enabledChannelIds.length > 0) {
-        availableVideos = await loadBoundedFeed(enabledChannelIds, hideMusicVideos, hasFamilyKey);
+        availableVideos = await loadBoundedFeed(enabledChannelIds, false, hasFamilyKey);
       }
 
       // If feedCache is empty, seed initial curated safe videos
       if (availableVideos.length === 0) {
         const totalCacheCount = await db.feedCache.count();
         if (totalCacheCount === 0) {
-          const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, hideMusicVideos, hasFamilyKey);
+          const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, false, hasFamilyKey);
           if (safeStarters.length > 0) {
             await db.feedCache.bulkPut(safeStarters);
             availableVideos = safeStarters;
@@ -716,6 +715,15 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           title: inter.title || cached.title || 'فيديو أطفال',
           videoDuration: cached.videoDuration,
           hasMusic: cached.hasMusic,
+          primaryCategoryId: cached.primaryCategoryId,
+          secondaryCategoryIds: cached.secondaryCategoryIds,
+          contentFormat: cached.contentFormat,
+          songVariant: cached.songVariant,
+          songVariantEvidence: cached.songVariantEvidence,
+          songVariantMatchedField: cached.songVariantMatchedField,
+          songVariantConfidence: cached.songVariantConfidence,
+          songVariantStatus: cached.songVariantStatus,
+          songVariantRuleVersion: cached.songVariantRuleVersion,
           isPortrait: cached.isPortrait,
           fetchedAt: inter.lastWatched || Date.now(),
           hidden: false,
@@ -883,7 +891,6 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
             localRows.filter((row) => row.hidden === true).map((row) => row.videoId)
           );
           const hasFamilyKey = Boolean(familyYoutubeApiHeaders['X-Family-Youtube-Key']);
-          const hideMusicVideos = settings?.hideMusicVideos === true;
 
           const safetyFilteredArchiveResults = data.results.filter((item: any) => {
             if (!item?.videoId || !item?.sourceId) return false;
