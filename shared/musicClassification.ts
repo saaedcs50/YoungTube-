@@ -283,12 +283,12 @@ export function hasSongVariantClaim(title: string): boolean {
   );
 }
 
-/** Video-level song eligibility: title format cues first; source category is only a supporting hint. */
+/** Video-level song eligibility: a source/channel tag is never enough; require a song-format cue in this video's title. */
 export function isSongContentCandidate(title: string, _sourceCategoryHints: string[] = []): boolean {
-  // Source category hints are intentionally not sufficient to identify the video
-  // format: one source can contain songs, lessons, cartoons and general shows.
-  // Ambiguous claims lacking a song/nasheed format cue remain outside the public
-  // song paths until a future reviewer supplies video-level metadata.
+  // The channel/source hints are accepted for forward-compatible callers but are
+  // deliberately ignored: one source can contain songs, lessons, cartoons and
+  // general shows. Ambiguous claims lacking a video-level song/nasheed format
+  // cue remain outside the public song paths until reviewed video metadata exists.
   return isLikelySongContentTitle(title || '');
 }
 
