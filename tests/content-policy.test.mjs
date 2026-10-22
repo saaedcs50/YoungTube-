@@ -124,6 +124,30 @@ test('unicode boundaries reject misleading English and Arabic prefixes', () => {
   assert.equal(loaded.music.hasExplicitNoMusicClaim('A song without music!'), true);
 });
 
+test('archive audit example titles are classified by the actual shared TypeScript module', () => {
+  const classifyCandidate = loaded.music.classifySongVariantForCandidate;
+  const archiveExamples = [
+    'أغنية أنا رمانة بدون موسيقى - قناة أسرتنا',
+    'أغنية بطة بطوطة 2 بدون موسيقى',
+    'أنشودة نحولة الغيورة بدون موسيقى…',
+    'أغنية حيوانات المزرعة بدون موسقى…',
+    'أغنية ثعلوب والعنب بدون موسيقى - أناشيد أطفال بدون ايقاع',
+  ];
+
+  for (const title of archiveExamples) {
+    const result = classifyCandidate({ title });
+    assert.ok(result, title);
+    assert.equal(result.publicCategory, 'music_songs_no_music', title);
+    assert.equal(result.variant, 'NO_MUSIC_CLAIMED', title);
+  }
+
+  const mixedClaims = classifyCandidate({
+    title: 'أغنية ثعلوب والعنب بدون موسيقى - أناشيد أطفال بدون ايقاع',
+  });
+  assert.deepEqual(mixedClaims.additionalClaims, ['NO_RHYTHM_CLAIMED']);
+  assert.equal(classifyCandidate({ title: 'شرح الحروف بدون موسيقى' }), null);
+});
+
 test('legacy hasMusic value follows the canonical song path and stays unset for non-songs', () => {
   const classifyCandidate = loaded.music.classifySongVariantForCandidate;
   const legacyFlag = loaded.music.legacyHasMusicFlag;
