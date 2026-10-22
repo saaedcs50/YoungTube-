@@ -6,7 +6,7 @@ import { listRegistryChannels, type RegistryChannel } from '../../data/channelRe
 import { loadBoundedFeed } from '../feed/useKidFeed';
 import { loadCachedBlocks } from '../../services/globalBlocks';
 import { useAllCategories } from '../../hooks/useAllCategories';
-import { matchCategory } from '../../data/categoryRegistry';
+import { videoMatchesCategory } from '../../data/categoryRegistry';
 import { YoungTubeVideoCard } from '../../components/YoungTubeVideoCard';
 import { VideoOverflowSheet } from '../../components/VideoOverflowSheet';
 
@@ -64,13 +64,11 @@ export const ChannelsScreen: React.FC<Props> = ({ onOpenChannel, onSelectVideo }
       const lastWatched = new Map(interactions.map((item) => [item.videoId, item.lastWatched || 0]));
       const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
       const enabledChannelSet = new Set(enabled.map((channel) => channel.sourceId));
-      const hideMusicVideos = settings?.hideMusicVideos === true;
       const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
       const unseen = new Set<string>();
       for (const video of cachedRows) {
         if (video.hidden || video.isPortrait || !video.channelId) continue;
         if (!enabledChannelSet.has(video.channelId) || blockedChannelSet.has(video.channelId)) continue;
-        if (hideMusicVideos && video.hasMusic === true) continue;
         if (hasFamilyKey && (
           typeof video.videoDuration !== 'number' ||
           !Number.isFinite(video.videoDuration) ||
@@ -82,7 +80,7 @@ export const ChannelsScreen: React.FC<Props> = ({ onOpenChannel, onSelectVideo }
         if (!watchedAt || watchedAt < published) unseen.add(video.channelId);
       }
       setUnseenChannelIds(unseen);
-      const rows = await loadBoundedFeed(enabled.map((channel) => channel.sourceId), settings?.hideMusicVideos === true, Boolean(settings?.familyYoutubeApiKey?.trim()));
+      const rows = await loadBoundedFeed(enabled.map((channel) => channel.sourceId), false, Boolean(settings?.familyYoutubeApiKey?.trim()));
       rows.sort((a, b) => Date.parse(b.publishedAt || '') - Date.parse(a.publishedAt || '') || b.fetchedAt - a.fetchedAt);
       setVideos(diversify(rows));
     } finally {
@@ -93,7 +91,17 @@ export const ChannelsScreen: React.FC<Props> = ({ onOpenChannel, onSelectVideo }
   useEffect(() => { void load(); }, [load]);
 
   const channelMap = useMemo(() => new Map(channels.map((channel) => [channel.sourceId, channel])), [channels]);
-  const visibleVideos = useMemo(() => category === 'all' ? videos : videos.filter((video) => matchCategory(channelMap.get(video.channelId)?.category || [], category)), [category, videos, channelMap]);
+  const visibleVideos = useMemo(
+    () => category === 'all' ? videos : videos.filter((video) =>
+      videoMatchesCategory(
+        video.title,
+        channelMap.get(video.channelId)?.category || [],
+        category,
+        ((video as any).primaryCategoryId === 'music_songs' || (video as any).primaryCategoryId === 'music_songs_no_music') || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
+      )
+    ),
+    [category, videos, channelMap]
+  );
 
   return (
     <section dir="rtl" className="min-h-[calc(100vh-7rem)] max-w-3xl mx-auto px-4 sm:px-6 py-4 pb-28 space-y-6">

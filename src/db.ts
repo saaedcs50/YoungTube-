@@ -21,6 +21,9 @@ interface Settings {
   supportPayOnboardingSeenAt?: number;
   hideMusicVideos?: boolean;
   enabledOptInCategories?: string[];
+  /** Last published Catalog V2 generation materialized into feedCache. */
+  catalogGenerationId?: string;
+  catalogMode?: 'legacy' | 'published';
   tasteShift?: {
     enabled: boolean;
     targetCategories: string[];
@@ -66,8 +69,22 @@ interface FeedItem {
   channelId: string;
   title: string;
   videoDuration?: number;
+  /** Legacy boolean retained for local-cache compatibility only; never used as a global content filter. */
   hasMusic?: boolean;
   isPortrait?: boolean;
+  /** Video-level content taxonomy metadata, populated on the next successful sync. */
+  primaryCategoryId?: string;
+  secondaryCategoryIds?: string[];
+  contentFormat?: string;
+  songVariant?: string;
+  songVariantEvidence?: string;
+  songVariantMatchedField?: 'title' | 'description' | null;
+  songVariantConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  songVariantStatus?: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
+  songVariantRuleVersion?: string;
+  songVariantClassifiedAt?: string;
+  /** Last metadata refresh timestamp from Catalog V2; missing means legacy/unverified. */
+  catalogMetadataCheckedAt?: string;
   fetchedAt: number;
   publishedAt?: string;
   hidden?: boolean;

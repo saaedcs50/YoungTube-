@@ -24,8 +24,26 @@ export interface DurableObjectNamespace {
   get(id: DurableObjectId): DurableObjectStub;
 }
 
+export interface D1CatalogStatement {
+  bind(...values: any[]): D1CatalogStatement;
+  first<T = any>(): Promise<T | null>;
+  all<T = any>(): Promise<{ results: T[]; success?: boolean; meta?: { changes?: number } }>;
+  run(): Promise<{ success?: boolean; meta?: { changes?: number } }>;
+}
+export interface D1CatalogBinding {
+  prepare(sql: string): D1CatalogStatement;
+  batch<T = any>(statements: D1CatalogStatement[]): Promise<Array<{ results?: T[]; success?: boolean; meta?: { changes?: number } }>>;
+}
+export interface CatalogQueueBinding {
+  send(body: any, options?: { contentType?: 'json' | 'text' | 'bytes' | 'v8'; delaySeconds?: number }): Promise<void>;
+  sendBatch(messages: Array<{ body: any; contentType?: 'json' | 'text' | 'bytes' | 'v8'; delaySeconds?: number }>): Promise<void>;
+}
+
 export interface Env {
   CHANNELS_ARCHIVE?: KVNamespace;
+  CATALOG_DB?: D1CatalogBinding;
+  CATALOG_DISCOVERY_QUEUE?: CatalogQueueBinding;
+  CATALOG_PROCESSING_QUEUE?: CatalogQueueBinding;
   TELEMETRY_DO?: DurableObjectNamespace;
   PARENT_INBOX_DO?: DurableObjectNamespace;
   TELEGRAM_BOT_TOKEN?: string;

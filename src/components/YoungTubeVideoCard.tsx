@@ -93,7 +93,7 @@ export const YoungTubeVideoCard: React.FC<YoungTubeVideoCardProps> = ({
         {duration && <span className="absolute bottom-2 end-2 rounded-md bg-black/80 text-white px-1.5 py-0.5 text-[11px] font-mono">{duration}</span>}
         {resumeProgress > 0 && <span className="absolute inset-x-0 bottom-0 h-1 bg-white/20"><span className="block h-full bg-yt-brand" style={{ width: `${Math.min(100, resumeProgress * 100)}%` }} /></span>}
         {isTasteShiftTarget && <span className="absolute top-2 start-2 rounded-md bg-yt-brand text-white px-2 py-1 text-[10px] font-bold">✨ جديد</span>}
-        {video.hasMusic === false && <span className="absolute top-2 end-2 inline-flex items-center gap-1 rounded-md bg-black/75 px-2 py-1 text-[10px] font-semibold text-white"><VolumeX className="w-3 h-3" />بدون موسيقى</span>}
+        {video.primaryCategoryId === 'music_songs_no_music' && video.songVariant === 'NO_MUSIC_CLAIMED' && <span className="absolute top-2 end-2 inline-flex items-center gap-1 rounded-md bg-black/75 px-2 py-1 text-[10px] font-semibold text-white"><VolumeX className="w-3 h-3" />بدون موسيقى</span>}
       </button>
 
       <div className="py-2.5 flex items-start gap-2.5">

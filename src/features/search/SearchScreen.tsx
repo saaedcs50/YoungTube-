@@ -128,9 +128,8 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
         const enabledChannelIds = registryChannels
           .filter((channel) => channel.enabled !== false && channel.autoDisabled !== true && !blockedChannelSet.has(channel.sourceId))
           .map((channel) => channel.sourceId);
-        const hideMusicVideos = settings?.hideMusicVideos === true;
         const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
-        const safeVideos = await loadBoundedFeed(enabledChannelIds, hideMusicVideos, hasFamilyKey);
+        const safeVideos = await loadBoundedFeed(enabledChannelIds, false, hasFamilyKey);
 
         const interactions = await db.interactions
           .filter(
@@ -171,7 +170,6 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
           const registryChannel = registryMap.get(targetChannelId);
           if (blockedChannelSet.has(targetChannelId)) continue;
           if (registryChannel?.enabled === false || registryChannel?.autoDisabled === true) continue;
-          if (hideMusicVideos && cached.hasMusic === true) continue;
           if (hasFamilyKey && (
             typeof cached.videoDuration !== 'number' ||
             !Number.isFinite(cached.videoDuration) ||
@@ -303,7 +301,6 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
             localRows.filter((row) => row.hidden === true).map((row) => row.videoId)
           );
           const hasFamilyKey = Boolean(familyYoutubeApiHeaders['X-Family-Youtube-Key']);
-          const hideMusicVideos = settings?.hideMusicVideos === true;
 
           const safetyFilteredArchiveResults: DeepSearchResult[] = data.results.filter((item: any) => {
             if (!item?.videoId || !item?.sourceId) return false;
@@ -312,7 +309,6 @@ export const SearchScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCha
             if (registryChannel?.enabled === false || registryChannel?.autoDisabled === true) return false;
             if (locallyHiddenIds.has(item.videoId)) return false;
             if (item.isPortrait === true) return false;
-            if (hideMusicVideos && item.hasMusic === true) return false;
             if (hasFamilyKey && (
               typeof item.videoDuration !== 'number' ||
               !Number.isFinite(item.videoDuration) ||

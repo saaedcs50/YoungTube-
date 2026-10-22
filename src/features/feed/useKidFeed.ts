@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import db, { FeedItem } from '../../db';
 import { listRegistryChannels, RegistryChannel } from '../../data/channelRegistry';
 import { WORKER_URL } from '../../config';
-import { matchCategory } from '../../data/categoryRegistry';
+import { videoMatchesCategory } from '../../data/categoryRegistry';
+import { fetchPublishedCatalogFeed } from '../../services/catalogV2Feed';
 import {
   ensureChannelsArchiveSynced,
   scheduleBackgroundPortraitCheck,
@@ -125,13 +126,12 @@ function shuffleVideos(array: FeedItem[]): FeedItem[] {
 function filterStarterVideos(
   starters: FeedItem[],
   blockedChannelSet: Set<string>,
-  hideMusicVideos: boolean,
+  _legacyHideMusicVideos: boolean,
   hasFamilyKey: boolean
 ): FeedItem[] {
   return starters.filter((video) => {
     if (blockedChannelSet.has(video.channelId)) return false;
     if (video.isPortrait !== false) return false;
-    if (hideMusicVideos && video.hasMusic === true) return false;
     if (
       hasFamilyKey &&
       (typeof video.videoDuration !== 'number' ||
@@ -208,11 +208,31 @@ const PER_CHANNEL_CAP = 15;
 const QUERY_CHUNK = 20;
 const CACHE_TRIM_ABOVE = 40;
 const CACHE_KEEP = 30;
+const CATALOG_METADATA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function isFreshCatalogMetadata(value?: string): boolean {
+  if (!value) return false;
+  const timestamp = Date.parse(value);
+  const age = Date.now() - timestamp;
+  return Number.isFinite(timestamp) && age >= 0 && age < CATALOG_METADATA_MAX_AGE_MS;
+}
+
+/** Keep the new catalog pool bounded like the legacy indexed feed: at most 15 videos per source. */
+function capCatalogItemsPerChannel(items: FeedItem[]): FeedItem[] {
+  const counts = new Map<string, number>();
+  const ordered = [...items].sort((a, b) => videoRecency(b) - videoRecency(a));
+  return ordered.filter((item) => {
+    const count = counts.get(item.channelId) || 0;
+    if (count >= PER_CHANNEL_CAP) return false;
+    counts.set(item.channelId, count + 1);
+    return true;
+  });
+}
 
 /** Bounded, recency-sorted load of enabled-channel videos (chunked anyOf, not 196 parallel queries). */
 export async function loadBoundedFeed(
   enabledChannelIds: string[],
-  hideMusicVideos: boolean,
+  _legacyHideMusicVideos: boolean,
   hasFamilyKey = false
 ): Promise<FeedItem[]> {
   const cachedBlocks = loadCachedBlocks();
@@ -233,7 +253,6 @@ export async function loadBoundedFeed(
           !Number.isFinite(row.videoDuration) ||
           row.videoDuration < MIN_VIDEO_DURATION_SECONDS)
       ) continue;
-      if (hideMusicVideos && row.hasMusic === true) continue;
       if (blockedChannelSet.has(row.channelId)) continue;
       const list = byChannel.get(row.channelId);
       if (list) list.push(row);
@@ -373,19 +392,61 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
         .filter((c) => c.enabled !== false && c.autoDisabled !== true && !blockedChannelSet.has(c.sourceId))
         .map((c) => c.sourceId);
 
-      const hideMusicVideos = settings?.hideMusicVideos === true;
       const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
+      const enabledOptInCategories = settings?.enabledOptInCategories || [];
+      const publishedCatalog = await fetchPublishedCatalogFeed(enabledOptInCategories);
 
       let availableVideos: FeedItem[] = [];
-      if (enabledChannelIds.length > 0) {
-        availableVideos = await loadBoundedFeed(enabledChannelIds, hideMusicVideos, hasFamilyKey);
+      if (publishedCatalog) {
+        const enabledSet = new Set(enabledChannelIds);
+        const catalogItems = capCatalogItemsPerChannel(
+          publishedCatalog.items.filter((item) =>
+            enabledSet.has(item.channelId) &&
+            !blockedChannelSet.has(item.channelId) &&
+            (!hasFamilyKey ||
+              (typeof item.videoDuration === 'number' &&
+                Number.isFinite(item.videoDuration) &&
+                item.videoDuration >= MIN_VIDEO_DURATION_SECONDS))
+          )
+        );
+        const previousGeneration = String(settings?.catalogGenerationId || '');
+        await db.transaction('rw', db.feedCache, db.settings, async () => {
+          // A generation change invalidates legacy/previous-generation cache entries.
+          // The published catalog contains only manually approved, Shorts-cleared rows.
+          if (previousGeneration !== publishedCatalog.generationId) {
+            await db.feedCache.clear();
+          }
+          await db.feedCache.bulkPut(catalogItems);
+          const latestSettings = await db.settings.get('main');
+          if (latestSettings) {
+            await db.settings.put({
+              ...latestSettings,
+              catalogMode: 'published',
+              catalogGenerationId: publishedCatalog.generationId,
+            });
+          }
+        });
+        availableVideos = catalogItems;
+      } else {
+        // Shadow mode keeps the legacy path. After V2 publication, local fallback
+        // rows remain usable only while their Catalog V2 metadata is inside retention.
+        availableVideos = await loadBoundedFeed(enabledChannelIds, false, hasFamilyKey);
+        if (settings?.catalogMode === 'published') {
+          const staleIds: string[] = [];
+          availableVideos = availableVideos.filter((item) => {
+            const fresh = isFreshCatalogMetadata(item.catalogMetadataCheckedAt);
+            if (!fresh) staleIds.push(item.videoId);
+            return fresh;
+          });
+          if (staleIds.length > 0) void db.feedCache.bulkDelete(staleIds);
+        }
       }
 
-      // If feedCache is empty, seed initial curated safe videos
-      if (availableVideos.length === 0) {
+      // Legacy-only starter fallback. Never seed starter/legacy videos in published mode.
+      if (!publishedCatalog && settings?.catalogMode !== 'published' && availableVideos.length === 0) {
         const totalCacheCount = await db.feedCache.count();
         if (totalCacheCount === 0) {
-          const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, hideMusicVideos, hasFamilyKey);
+          const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, false, hasFamilyKey);
           if (safeStarters.length > 0) {
             await db.feedCache.bulkPut(safeStarters);
             availableVideos = safeStarters;
@@ -458,12 +519,18 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
             const restPool: FeedItem[] = [];
 
             for (const video of availableVideos) {
+              const explicitTaxonomy = [
+                ...(video.primaryCategoryId ? [video.primaryCategoryId] : []),
+                ...(video.secondaryCategoryIds || []),
+              ];
               const directCats = (video as any).categories || (video as any).category;
-              const cats: string[] = directCats
-                ? Array.isArray(directCats)
-                  ? directCats
-                  : [directCats]
-                : channelCatLookup.get(video.channelId) || [];
+              const cats: string[] = explicitTaxonomy.length > 0
+                ? explicitTaxonomy
+                : directCats
+                  ? Array.isArray(directCats)
+                    ? directCats
+                    : [directCats]
+                  : channelCatLookup.get(video.channelId) || [];
               if (cats.some((cat) => targetSet.has(cat))) targetPool.push(video);
               else restPool.push(video);
             }
@@ -498,9 +565,8 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
       try {
         const [settings] = await Promise.all([db.settings.get('main')]);
         const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
-        const hideMusicVideos = settings?.hideMusicVideos === true;
         const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
-        const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, hideMusicVideos, hasFamilyKey);
+        const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, false, hasFamilyKey);
         setVideos((prev) =>
           prev.length > 0
             ? prev
@@ -682,7 +748,6 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
       const cachedBlocks = loadCachedBlocks();
       const blockedChannelSet = new Set(cachedBlocks.channelIds);
 
-      const hideMusicVideos = settings?.hideMusicVideos === true;
       const suppressed = new Set(suppressedVideoIds);
 
       const videoIds = interactions.map((i) => i.videoId);
@@ -697,13 +762,13 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
 
         const cached = cachedMap.get(inter.videoId);
         if (!cached) continue;
+        if (settings?.catalogMode === 'published' && !isFreshCatalogMetadata(cached.catalogMetadataCheckedAt)) continue;
         if (cached.hidden === true) continue;
         if (cached.isPortrait === true) continue;
 
         const targetChannelId = inter.channelId || cached.channelId;
         if (targetChannelId && (disabledChannelIds.has(targetChannelId) || blockedChannelSet.has(targetChannelId))) continue;
 
-        if (hideMusicVideos && cached.hasMusic === true) continue;
 
         if (settings?.familyYoutubeApiKey?.trim()) {
           if (
@@ -719,6 +784,16 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           title: inter.title || cached.title || 'فيديو أطفال',
           videoDuration: cached.videoDuration,
           hasMusic: cached.hasMusic,
+          primaryCategoryId: cached.primaryCategoryId,
+          secondaryCategoryIds: cached.secondaryCategoryIds,
+          contentFormat: cached.contentFormat,
+          songVariant: cached.songVariant,
+          songVariantEvidence: cached.songVariantEvidence,
+          songVariantMatchedField: cached.songVariantMatchedField,
+          songVariantConfidence: cached.songVariantConfidence,
+          songVariantStatus: cached.songVariantStatus,
+          songVariantRuleVersion: cached.songVariantRuleVersion,
+          songVariantClassifiedAt: cached.songVariantClassifiedAt,
           isPortrait: cached.isPortrait,
           fetchedAt: inter.lastWatched || Date.now(),
           hidden: false,
@@ -760,8 +835,19 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
     if (selectedCategory !== 'all') {
       result = result.filter((video) => {
         const channelInfo = channelMap.get(video.channelId);
-        const channelCats = channelInfo?.categories || (video as any).categories || (video as any).category;
-        return matchCategory(channelCats, selectedCategory);
+        const explicitTaxonomy = [
+          ...(video.primaryCategoryId ? [video.primaryCategoryId] : []),
+          ...(video.secondaryCategoryIds || []),
+        ];
+        const channelCats = explicitTaxonomy.length > 0
+          ? explicitTaxonomy
+          : channelInfo?.categories || (video as any).categories || (video as any).category;
+        return videoMatchesCategory(
+          video.title,
+          channelCats,
+          selectedCategory,
+          ((video as any).primaryCategoryId === 'music_songs' || (video as any).primaryCategoryId === 'music_songs_no_music') || (video as any).contentFormat === 'song' || (video as any).contentFormat === 'nasheed'
+        );
       });
     }
 
@@ -783,8 +869,19 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           // Category filter if active
           if (selectedCategory !== 'all') {
             const channelInfo = channelMap.get(item.channelId);
-            const channelCats = channelInfo?.categories || (item as any).categories || (item as any).category;
-            if (!matchCategory(channelCats, selectedCategory)) continue;
+            const explicitTaxonomy = [
+              ...(item.primaryCategoryId ? [item.primaryCategoryId] : []),
+              ...(item.secondaryCategoryIds || []),
+            ];
+            const channelCats = explicitTaxonomy.length > 0
+              ? explicitTaxonomy
+              : channelInfo?.categories || (item as any).categories || (item as any).category;
+            if (!videoMatchesCategory(
+              item.title,
+              channelCats,
+              selectedCategory,
+              ((item as any).primaryCategoryId === 'music_songs' || (item as any).primaryCategoryId === 'music_songs_no_music') || (item as any).contentFormat === 'song' || (item as any).contentFormat === 'nasheed'
+            )) continue;
           }
 
           existingIds.add(item.videoId);
@@ -845,6 +942,12 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           db.settings.get('main'),
           listRegistryChannels(),
         ]);
+        // The archive endpoint is a legacy candidate pool. Once Catalog V2 is active,
+        // do not let deep search bypass its approved-only feed contract.
+        if (settings?.catalogMode === 'published') {
+          if (!cancelled) setDeepSearchResults([]);
+          return;
+        }
         const requestInit: RequestInit = { headers: familyYoutubeApiHeaders };
         let res: Response;
         try {
@@ -876,7 +979,6 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
             localRows.filter((row) => row.hidden === true).map((row) => row.videoId)
           );
           const hasFamilyKey = Boolean(familyYoutubeApiHeaders['X-Family-Youtube-Key']);
-          const hideMusicVideos = settings?.hideMusicVideos === true;
 
           const safetyFilteredArchiveResults = data.results.filter((item: any) => {
             if (!item?.videoId || !item?.sourceId) return false;
@@ -885,7 +987,6 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
             if (registryChannel?.enabled === false || registryChannel?.autoDisabled === true) return false;
             if (locallyHiddenIds.has(item.videoId)) return false;
             if (item.isPortrait === true) return false;
-            if (hideMusicVideos && item.hasMusic === true) return false;
             if (hasFamilyKey && (
               typeof item.videoDuration !== 'number' ||
               !Number.isFinite(item.videoDuration) ||

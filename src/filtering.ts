@@ -8,6 +8,11 @@ import {
   isPlaylistBlocked,
   type GlobalBlocks,
 } from './services/globalBlocks';
+import {
+  classifySongVariantForCandidate,
+  hasExplicitNoMusicClaim,
+  MUSIC_CLASSIFICATION_VERSION,
+} from '../shared/musicClassification';
 
 export const MIN_VIDEO_DURATION_SECONDS = 120;
 
@@ -486,10 +491,12 @@ export async function filterAndCacheVideos(
     videoId: string;
     channelId: string;
     title: string;
-    hasMusic: boolean;
+    hasMusic?: boolean;
     publishedAt?: string;
     existingItem?: FeedItem;
     duration?: number;
+    isSongContent?: boolean;
+    songClassification?: ReturnType<typeof classifySongVariantForCandidate>;
   }
 
   const channelCandidates: Map<string, CandidateItem[]> = new Map();
@@ -549,15 +556,35 @@ export async function filterAndCacheVideos(
         }
       }
 
-      // 5. hasMusic heuristic
-      const hasNoMusicPhrase =
-        titleLower.includes('no music') || titleLower.includes('بدون موسيقى');
-      const hasMusic = !hasNoMusicPhrase;
+      // Classify song/nasheed variants at video level. Source category tags are
+      // only supporting hints and never classify every video from a channel.
+      const sourceCategories = Array.isArray((channel as any).categories)
+        ? (channel as any).categories.map((value: unknown) => String(value || '').trim())
+        : typeof (channel as any).category === 'string'
+          ? [(channel as any).category]
+          : [];
+      const preserveClassificationAt =
+        existingItem?.songVariantRuleVersion === MUSIC_CLASSIFICATION_VERSION &&
+        existingItem.title === video.title
+          ? existingItem.songVariantClassifiedAt
+          : undefined;
+      const songClassification = classifySongVariantForCandidate({
+        title: video.title,
+        sourceCategoryHints: sourceCategories,
+        classifiedAt: preserveClassificationAt,
+      }) || undefined;
+      const isSongContent = Boolean(songClassification);
 
-      if (hasMusic) {
-        hasMusicCount++;
-      } else {
+      // Legacy boolean compatibility is song-only now. A lesson or cartoon
+      // titled "without music" must not acquire a no-music badge/flag.
+      const hasMusic = songClassification
+        ? !hasExplicitNoMusicClaim(video.title)
+        : undefined;
+
+      if (songClassification?.publicCategory === 'music_songs_no_music') {
         noMusicCount++;
+      } else if (songClassification) {
+        hasMusicCount++;
       }
 
       const candidate: CandidateItem = {
@@ -565,6 +592,8 @@ export async function filterAndCacheVideos(
         channelId,
         title: video.title,
         hasMusic,
+        isSongContent,
+        songClassification,
         publishedAt: video.publishedAt,
         existingItem,
         duration: existingItem?.videoDuration,
@@ -634,6 +663,15 @@ export async function filterAndCacheVideos(
         title: c.title,
         videoDuration: finalDuration,
         hasMusic: c.hasMusic,
+        primaryCategoryId: c.songClassification?.publicCategory ?? (c.isSongContent ? 'music_songs' : undefined),
+        contentFormat: c.isSongContent ? 'song' : undefined,
+        songVariant: c.songClassification?.variant,
+        songVariantEvidence: c.songClassification?.matchedPhrase ?? undefined,
+        songVariantMatchedField: c.songClassification?.matchedField,
+        songVariantConfidence: c.songClassification?.confidence,
+        songVariantStatus: c.songClassification?.classificationStatus,
+        songVariantRuleVersion: c.songClassification?.ruleVersion,
+        songVariantClassifiedAt: c.songClassification?.classifiedAt,
         fetchedAt: now,
         publishedAt: c.publishedAt,
         hidden: false,
@@ -775,10 +813,12 @@ export async function purgeInvalidFeedRows(filterDuration = false): Promise<numb
 }
 
 /**
- * Direct query against db.feedCache to count videos where hasMusic is true.
+ * Legacy-named helper retained for callers outside the current app bundle.
+ * Counts videos in the ordinary/unspecified song path only; it does not prove
+ * that the audio actually contains music.
  */
 export async function getVideosWithMusicCount(): Promise<number> {
-  return await db.feedCache.filter((item) => item.hasMusic === true).count();
+  return await db.feedCache.filter((item) => item.primaryCategoryId === 'music_songs').count();
 }
 
 /**

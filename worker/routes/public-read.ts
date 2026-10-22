@@ -35,6 +35,7 @@ import {
   fetchChannels,
 } from '../lib/youtube-api';
 import { Env, VideoItem } from '../lib/types';
+import { classifySongVariantForCandidate, hasExplicitNoMusicClaim } from '../../shared/musicClassification';
 
 function resolveYoutubeApiKeyForPublicRoute(request: Request, env: Env): string {
   const isAdmin = checkAdminAuth(request, env);
@@ -799,26 +800,53 @@ export async function handlePublicReadRoutes(
         videoDuration?: number;
         isPortrait?: boolean;
         hasMusic: boolean;
+        primaryCategoryId?: string;
+        contentFormat?: string;
+        songVariant?: string;
+        songVariantEvidence?: string;
+        songVariantMatchedField?: 'title' | 'description' | null;
+        songVariantConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+        songVariantStatus?: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
+        songVariantRuleVersion?: string;
+        songVariantClassifiedAt?: string;
       }> = [];
 
       for (const ch of channels) {
         if (!ch || !ch.sourceId || !Array.isArray(ch.videos)) continue;
         const sourceId = String(ch.sourceId);
+        const sourceCategories = Array.isArray(ch.categories)
+          ? ch.categories.map((value: unknown) => String(value || '').trim())
+          : typeof ch.category === 'string'
+            ? [ch.category]
+            : [];
         for (const v of ch.videos) {
           if (v && v.videoId && v.title) {
             const titleStr = String(v.title);
             const titleLower = titleStr.toLowerCase();
             const titleNorm = normalize(titleStr);
             if (titleLower.includes(qLower) || titleNorm.includes(qNorm)) {
-              const hasNoMusicPhrase =
-                titleLower.includes('no music') || titleLower.includes('بدون موسيقى');
+              const song = classifySongVariantForCandidate({
+                title: titleStr,
+                sourceCategoryHints: sourceCategories,
+              }) || undefined;
               matchedVideos.push({
                 videoId: String(v.videoId),
                 title: titleStr,
                 publishedAt: v.publishedAt || '',
                 sourceId,
                 videoDuration: typeof v.videoDuration === 'number' ? v.videoDuration : undefined,
-                hasMusic: !hasNoMusicPhrase,
+                // Legacy boolean remains for compatibility; UI routing uses the
+                // video-level classification evidence below.
+                hasMusic: !hasExplicitNoMusicClaim(titleStr),
+                primaryCategoryId: song?.publicCategory,
+                contentFormat: song ? 'song' : undefined,
+                songVariant: song?.variant,
+                songVariantEvidence: song?.matchedPhrase ?? undefined,
+                songVariantMatchedField: song?.matchedField,
+                songVariantConfidence: song?.confidence,
+                songVariantStatus: song?.classificationStatus,
+                songVariantRuleVersion: song?.ruleVersion,
+                songVariantClassifiedAt: song?.classifiedAt,
               });
             }
           }
@@ -864,6 +892,15 @@ export async function handlePublicReadRoutes(
         videoDuration?: number;
         isPortrait: boolean;
         hasMusic: boolean;
+        primaryCategoryId?: string;
+        contentFormat?: string;
+        songVariant?: string;
+        songVariantEvidence?: string;
+        songVariantMatchedField?: 'title' | 'description' | null;
+        songVariantConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+        songVariantStatus?: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
+        songVariantRuleVersion?: string;
+        songVariantClassifiedAt?: string;
       }> = [];
 
       for (const candidate of candidates) {
@@ -888,6 +925,15 @@ export async function handlePublicReadRoutes(
           videoDuration: duration,
           isPortrait: false,
           hasMusic: candidate.hasMusic,
+          primaryCategoryId: candidate.primaryCategoryId,
+          contentFormat: candidate.contentFormat,
+          songVariant: candidate.songVariant,
+          songVariantEvidence: candidate.songVariantEvidence,
+          songVariantMatchedField: candidate.songVariantMatchedField,
+          songVariantConfidence: candidate.songVariantConfidence,
+          songVariantStatus: candidate.songVariantStatus,
+          songVariantRuleVersion: candidate.songVariantRuleVersion,
+          songVariantClassifiedAt: candidate.songVariantClassifiedAt,
         });
       }
 

@@ -21,3 +21,31 @@ new_sqlite_classes = ["TelemetryAggregator"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["ParentInboxStore"]
+
+[[d1_databases]]
+binding = "CATALOG_DB"
+database_name = "youngtube-catalog-v2"
+database_id = "6d6ad975-fb9d-44ea-b363-132d5e70e654"
+migrations_dir = "worker/migrations"
+
+[[queues.producers]]
+binding = "CATALOG_DISCOVERY_QUEUE"
+queue = "youngtube-catalog-discovery"
+
+[[queues.producers]]
+binding = "CATALOG_PROCESSING_QUEUE"
+queue = "youngtube-catalog-processing"
+
+[[queues.consumers]]
+queue = "youngtube-catalog-discovery"
+max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "youngtube-catalog-dlq"
+
+[[queues.consumers]]
+queue = "youngtube-catalog-processing"
+max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "youngtube-catalog-dlq"

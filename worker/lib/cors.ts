@@ -58,6 +58,8 @@ export const RATE_LIMIT_WINDOW_SECONDS = 60;
 export const RATE_LIMIT_MAX_REQUESTS = 60;
 export const RATE_LIMITED_ROUTES = new Set([
   '/api/categories',
+  '/api/catalog/v2/manifest',
+  '/api/catalog/v2/feed',
   '/api/channels-latest',
   '/api/announcements',
   '/api/global-blocks',

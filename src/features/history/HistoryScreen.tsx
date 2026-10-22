@@ -33,7 +33,6 @@ export const HistoryScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCh
       const blockedChannelSet = new Set(loadCachedBlocks().channelIds);
       const registryMap = new Map(registry.map((c) => [c.sourceId, c]));
       const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
-      const hideMusicVideos = settings?.hideMusicVideos === true;
       const safeRows: Array<{ interaction: Interaction; feed: FeedItem }> = [];
 
       for (const interaction of interactions) {
@@ -46,7 +45,6 @@ export const HistoryScreen: React.FC<Props> = ({ onBack, onSelectVideo, onOpenCh
         const channel = registryMap.get(channelId);
         if (!channel || channel.enabled === false || channel.autoDisabled === true) continue;
         if (blockedChannelSet.has(channelId)) continue;
-        if (hideMusicVideos && feed.hasMusic === true) continue;
 
         const duration = feed.videoDuration ?? interaction.videoDuration;
         if (
