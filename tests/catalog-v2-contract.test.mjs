@@ -110,3 +110,7 @@ test('metadata enrichment batches respect the worker subrequest budget', () => {
   assert.ok(route.includes("for(let i=0;i<ids.length;i+=20)await env.CATALOG_PROCESSING_QUEUE.send({type:'ENRICH_VIDEO_BATCH',ids:ids.slice(i,i+20),scheduledRefresh:true},{contentType:'json'});"));
   assert.ok(workerIndex.includes('up to 400 aged Catalog V2 records per six-hour cron tick'));
 });
+
+test('catalog review queue exposes metadata timestamp for a matching admin approval gate', () => {
+  assert.ok(route.includes('v.frame_height,v.metadata_checked_at,(SELECT s.title FROM video_sources'));
+});
