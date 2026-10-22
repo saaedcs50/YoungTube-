@@ -925,6 +925,12 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           db.settings.get('main'),
           listRegistryChannels(),
         ]);
+        // The archive endpoint is a legacy candidate pool. Once Catalog V2 is active,
+        // do not let deep search bypass its approved-only feed contract.
+        if (settings?.catalogMode === 'published') {
+          if (!cancelled) setDeepSearchResults([]);
+          return;
+        }
         const requestInit: RequestInit = { headers: familyYoutubeApiHeaders };
         let res: Response;
         try {

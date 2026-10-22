@@ -44,6 +44,8 @@ test('kid app activates Catalog V2 only for a matching fully published generatio
   assert.ok(kidFeed.includes('previousGeneration !== publishedCatalog.generationId'));
   assert.ok(kidFeed.includes("catalogMode: 'published'"));
   assert.ok(kidFeed.includes("settings?.catalogMode !== 'published'"));
+  assert.ok(kidFeed.includes("settings?.catalogMode === 'published'"));
+  assert.ok(kidFeed.includes('do not let deep search bypass its approved-only feed contract'));
 });
 
 test('client feed uses video-level taxonomy and applies minimum duration only with the family key', () => {
