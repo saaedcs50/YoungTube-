@@ -5,6 +5,8 @@ import { test } from 'node:test';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const route = fs.readFileSync(path.join(root, 'worker/routes/catalog-v2.ts'), 'utf8');
+const catalogClient = fs.readFileSync(path.join(root, 'src/services/catalogV2Feed.ts'), 'utf8');
+const kidFeed = fs.readFileSync(path.join(root, 'src/features/feed/useKidFeed.ts'), 'utf8');
 
 test('Shorts path behavior is observed only for pilot batches and not treated as verified evidence', () => {
   assert.match(route, /b\.pilot===true\?await probeShortsPath\(id\):null/);
@@ -31,4 +33,23 @@ test('archive migration is shadow-only and preserves the legacy KV feed until ge
   assert.match(route, /activeGenerationUnchanged:true/);
   assert.match(route, /JSON.stringify\(\{mode:'published',schemaVersion:2/);
   assert.match(route, /JSON.stringify\(\{mode:'published',schemaVersion:2/);
+});
+
+
+test('kid app activates Catalog V2 only for a matching fully published generation', () => {
+  assert.ok(catalogClient.includes("if (envelope.mode !== 'published' || !envelope.manifest) return null;"));
+  assert.ok(catalogClient.includes('activeGeneration !== manifestGeneration'));
+  assert.ok(catalogClient.includes("data.mode !== 'published' || data.generationId !== activeGeneration"));
+  assert.ok(kidFeed.includes('fetchPublishedCatalogFeed(enabledOptInCategories)'));
+  assert.ok(kidFeed.includes('previousGeneration !== publishedCatalog.generationId'));
+  assert.ok(kidFeed.includes("catalogMode: 'published'"));
+  assert.ok(kidFeed.includes("settings?.catalogMode !== 'published'"));
+});
+
+test('client feed uses video-level taxonomy and applies minimum duration only with the family key', () => {
+  assert.ok(kidFeed.includes('video.primaryCategoryId'));
+  assert.ok(kidFeed.includes('video.secondaryCategoryIds || []'));
+  assert.ok(kidFeed.includes('item.videoDuration >= MIN_VIDEO_DURATION_SECONDS'));
+  assert.ok(catalogClient.includes('primaryCategoryId: row.primaryCategoryId'));
+  assert.ok(catalogClient.includes("row.format === 'SONG_OR_NASHEED'"));
 });
