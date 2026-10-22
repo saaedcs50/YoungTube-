@@ -98,8 +98,15 @@ test('archive migration is capped at the configured recent history depth', () =>
 
 
 test('metadata refresh capacity stays within the 30-day retention window for the capped catalog', () => {
-  assert.ok(route.includes("video_id LIMIT 250"));
+  assert.ok(route.includes("video_id LIMIT 400"));
   assert.ok(route.includes('ids.slice(i,i+100).map(id=>env.CATALOG_DB!.prepare(\'UPDATE videos SET metadata_refresh_queued_at=? WHERE video_id=?\').bind(queuedAt,id))'));
   assert.ok(route.includes('ids.slice(i,i+100).map(id=>env.CATALOG_DB!.prepare(\'UPDATE videos SET metadata_refresh_queued_at=NULL WHERE video_id=?\').bind(id))'));
   assert.ok(workerIndex.includes('up to 250 aged Catalog V2 records per six-hour cron tick'));
+});
+
+
+test('metadata enrichment batches respect the worker subrequest budget', () => {
+  assert.ok(route.includes('.slice(0,20)'));
+  assert.ok(route.includes("for(let i=0;i<ids.length;i+=20)await env.CATALOG_PROCESSING_QUEUE.send({type:'ENRICH_VIDEO_BATCH',ids:ids.slice(i,i+20),scheduledRefresh:true},{contentType:'json'});"));
+  assert.ok(workerIndex.includes('up to 400 aged Catalog V2 records per six-hour cron tick'));
 });
