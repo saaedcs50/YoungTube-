@@ -72,6 +72,8 @@ test('catalog metadata retention is refreshed before age-out and stale pages can
   assert.ok(route.includes('metadataCheckedAtFloor'));
   assert.ok(route.includes('{expiration:expiresAt}'));
   assert.ok(route.includes('catalog_page_metadata_stale'));
+  assert.ok(route.includes("datetime(metadata_checked_at)<=datetime('now','-30 days')"));
+  assert.ok(route.includes('metadata_expired'));
   assert.ok(route.includes("UPDATE catalog_generation_items SET payload_json='{}'"));
 });
 
