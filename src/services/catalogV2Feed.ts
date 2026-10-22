@@ -25,6 +25,7 @@ interface CatalogFeedItem {
   musicVariant?: string | null;
   musicClassificationJson?: string | null;
   videoDuration?: number | null;
+  metadataCheckedAt?: string | null;
 }
 interface CatalogFeedPage {
   mode?: string;
@@ -37,6 +38,7 @@ export interface PublishedCatalogFeed {
   items: FeedItem[];
 }
 
+const CATALOG_METADATA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_ALL_FEED_PAGES = 2;
 const MAX_PAGES_PER_CATEGORY = 1;
 
@@ -57,7 +59,15 @@ function parseClassification(value?: string | null): Record<string, any> | null 
   }
 }
 
+function isFreshMetadataTimestamp(value?: string | null): boolean {
+  if (!value) return false;
+  const parsed = Date.parse(value);
+  const age = Date.now() - parsed;
+  return Number.isFinite(parsed) && age >= 0 && age < CATALOG_METADATA_MAX_AGE_MS;
+}
+
 function mapCatalogItem(row: CatalogFeedItem): FeedItem | null {
+  if (!isFreshMetadataTimestamp(row.metadataCheckedAt)) return null;
   const videoId = String(row.videoId || '').trim();
   const title = String(row.title || '').trim();
   const channelId = String(row.sourceId || '').trim();
@@ -73,6 +83,7 @@ function mapCatalogItem(row: CatalogFeedItem): FeedItem | null {
     videoDuration: duration,
     publishedAt: row.publishedAt ? String(row.publishedAt) : undefined,
     fetchedAt: Date.now(),
+    catalogMetadataCheckedAt: String(row.metadataCheckedAt),
     hidden: false,
     // Catalog publish already requires a successful NOT_SHORTS decision.
     isPortrait: false,
@@ -123,7 +134,11 @@ export async function fetchPublishedCatalogFeed(
     const manifestGeneration = String(envelope.manifest.generationId || '');
     if (!activeGeneration || activeGeneration === 'legacy-kv' || activeGeneration !== manifestGeneration) return null;
 
-    if (cachedFeed?.generationId === activeGeneration && cachedOptInKey === optInKey) return cachedFeed;
+    if (cachedFeed?.generationId === activeGeneration && cachedOptInKey === optInKey) {
+      const freshItems = cachedFeed.items.filter((item) => isFreshMetadataTimestamp(item.catalogMetadataCheckedAt));
+      if (freshItems.length === cachedFeed.items.length && freshItems.length > 0) return cachedFeed;
+      cachedFeed = freshItems.length > 0 ? { generationId: activeGeneration, items: freshItems } : null;
+    }
 
     const categories = Array.isArray(envelope.manifest.categories) ? envelope.manifest.categories : [];
     const all = categories.find((category) => category.id === 'all');

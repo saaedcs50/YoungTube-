@@ -13,7 +13,7 @@ import { handleAdminContentRoutes } from './routes/admin-content';
 import { handleAdminTelemetryRoutes } from './routes/admin-telemetry';
 import { handlePublicReadRoutes } from './routes/public-read';
 import { handleParentInboxRoutes } from './routes/parent-inbox';
-import { handleCatalogV2Routes, handleCatalogV2QueueBatch } from './routes/catalog-v2';
+import { handleCatalogV2Routes, handleCatalogV2QueueBatch, scheduleCatalogMetadataRefresh } from './routes/catalog-v2';
 
 export { TelemetryAggregator } from './telemetry_do';
 export { ParentInboxStore } from './parent_inbox_do';
@@ -120,6 +120,14 @@ export default {
       await refreshChannelsBatch(env);
     } catch (err) {
       console.error('Scheduled cron refresh error:', err);
+    }
+
+    try {
+      // Refresh up to 100 aged Catalog V2 records per six-hour cron tick and
+      // rebuild a generation when membership changes or its oldest metadata nears expiry.
+      await scheduleCatalogMetadataRefresh(env);
+    } catch (err) {
+      console.error('Scheduled catalog metadata refresh error:', err);
     }
 
     if (env.TELEMETRY_DO) {

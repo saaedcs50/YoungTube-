@@ -83,6 +83,8 @@ interface FeedItem {
   songVariantStatus?: 'AUTO_CLASSIFIED' | 'NEEDS_REVIEW' | 'UNSPECIFIED';
   songVariantRuleVersion?: string;
   songVariantClassifiedAt?: string;
+  /** Last metadata refresh timestamp from Catalog V2; missing means legacy/unverified. */
+  catalogMetadataCheckedAt?: string;
   fetchedAt: number;
   publishedAt?: string;
   hidden?: boolean;

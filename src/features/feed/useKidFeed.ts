@@ -208,6 +208,14 @@ const PER_CHANNEL_CAP = 15;
 const QUERY_CHUNK = 20;
 const CACHE_TRIM_ABOVE = 40;
 const CACHE_KEEP = 30;
+const CATALOG_METADATA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function isFreshCatalogMetadata(value?: string): boolean {
+  if (!value) return false;
+  const timestamp = Date.parse(value);
+  const age = Date.now() - timestamp;
+  return Number.isFinite(timestamp) && age >= 0 && age < CATALOG_METADATA_MAX_AGE_MS;
+}
 
 /** Keep the new catalog pool bounded like the legacy indexed feed: at most 15 videos per source. */
 function capCatalogItemsPerChannel(items: FeedItem[]): FeedItem[] {
@@ -420,10 +428,18 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
         });
         availableVideos = catalogItems;
       } else {
-        // Shadow mode keeps the legacy path. After a published generation has been
-        // observed, the local cache contains V2-approved content only, so an outage
-        // must never re-seed the legacy starter pool over it.
+        // Shadow mode keeps the legacy path. After V2 publication, local fallback
+        // rows remain usable only while their Catalog V2 metadata is inside retention.
         availableVideos = await loadBoundedFeed(enabledChannelIds, false, hasFamilyKey);
+        if (settings?.catalogMode === 'published') {
+          const staleIds: string[] = [];
+          availableVideos = availableVideos.filter((item) => {
+            const fresh = isFreshCatalogMetadata(item.catalogMetadataCheckedAt);
+            if (!fresh) staleIds.push(item.videoId);
+            return fresh;
+          });
+          if (staleIds.length > 0) void db.feedCache.bulkDelete(staleIds);
+        }
       }
 
       // Legacy-only starter fallback. Never seed starter/legacy videos in published mode.
@@ -746,6 +762,7 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
 
         const cached = cachedMap.get(inter.videoId);
         if (!cached) continue;
+        if (settings?.catalogMode === 'published' && !isFreshCatalogMetadata(cached.catalogMetadataCheckedAt)) continue;
         if (cached.hidden === true) continue;
         if (cached.isPortrait === true) continue;
 

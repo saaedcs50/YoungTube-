@@ -160,7 +160,7 @@ test('global legacy music boolean no longer hides non-song content or drives bad
   }
 });
 
-test('Shorts inference requires duration, date, and aspect ratio; URL path alone only requests review', () => {
+test('Shorts inference requires ratio metadata unless duration exceeds the absolute three-minute ceiling', () => {
   const evaluate = loaded.shorts.evaluateShortsPolicy;
   assert.equal(evaluate({ shortsPathSignal: true }).status, 'NEEDS_REVIEW');
   assert.equal(evaluate({ durationSeconds: 120, videoWidth: 720, videoHeight: 1280, publishedAt: '2025-01-01' }).status, 'SHORTS_LIKELY');
@@ -170,4 +170,6 @@ test('Shorts inference requires duration, date, and aspect ratio; URL path alone
   assert.equal(evaluate({ durationSeconds: 120, videoWidth: 720, videoHeight: 1280, publishedAt: '2025-11-15', officialArtistChannel: true }).status, 'LONG_FORM_LIKELY');
   assert.equal(evaluate({ durationSeconds: 120, videoWidth: 720, videoHeight: 1280, publishedAt: '2025-12-09', officialArtistChannel: true }).status, 'SHORTS_LIKELY');
   assert.equal(evaluate({ durationSeconds: 120, thumbnailIsPortrait: true, publishedAt: '2025-01-01' }).status, 'NEEDS_REVIEW');
+  assert.equal(evaluate({ durationSeconds: 181 }).status, 'LONG_FORM_LIKELY');
+  assert.equal(evaluate({ durationSeconds: 181, shortsPathSignal: true }).status, 'NEEDS_REVIEW');
 });

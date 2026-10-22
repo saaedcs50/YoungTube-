@@ -4,7 +4,7 @@
  * Source of the date/ratio/duration rules: YouTube Help, "Understand three-minute YouTube Shorts":
  * https://support.google.com/youtube/answer/15424877
  */
-export const SHORTS_POLICY_VERSION = 'youngtube-shorts-policy-v1';
+export const SHORTS_POLICY_VERSION = 'youngtube-shorts-policy-v2';
 
 export type ShortsCheckStatus =
   | 'SHORTS_LIKELY'
@@ -84,6 +84,15 @@ export function evaluateShortsPolicy(input: ShortsPolicyInput): ShortsPolicyResu
 
   if (shortsPathSignal && (duration === null || aspectRatio === null || Number.isNaN(publishedMs))) {
     return result('NEEDS_REVIEW', 'shorts_path_signal_only');
+  }
+
+  // The absolute three-minute ceiling rules out Shorts even when aspect ratio is
+  // unavailable. A conflicting /shorts URL signal still requires manual review.
+  if (duration !== null && duration > 180) {
+    return result(
+      shortsPathSignal ? 'NEEDS_REVIEW' : 'LONG_FORM_LIKELY',
+      shortsPathSignal ? 'conflicting_signals' : 'duration_over_policy_limit'
+    );
   }
 
   if (duration === null || aspectRatio === null || Number.isNaN(publishedMs)) {

@@ -5,6 +5,7 @@ import { test } from 'node:test';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const route = fs.readFileSync(path.join(root, 'worker/routes/catalog-v2.ts'), 'utf8');
+const workerIndex = fs.readFileSync(path.join(root, 'worker/index.ts'), 'utf8');
 const catalogClient = fs.readFileSync(path.join(root, 'src/services/catalogV2Feed.ts'), 'utf8');
 const kidFeed = fs.readFileSync(path.join(root, 'src/features/feed/useKidFeed.ts'), 'utf8');
 const cors = fs.readFileSync(path.join(root, 'worker/lib/cors.ts'), 'utf8');
@@ -60,4 +61,25 @@ test('client feed uses video-level taxonomy and applies minimum duration only wi
 test('public Catalog V2 read routes use the existing rate limiter', () => {
   assert.ok(cors.includes("'/api/catalog/v2/manifest'"));
   assert.ok(cors.includes("'/api/catalog/v2/feed'"));
+});
+
+
+test('catalog metadata retention is refreshed before age-out and stale pages cannot be published', () => {
+  assert.ok(route.includes('metadata_refresh_queued_at'));
+  assert.ok(route.includes("datetime(metadata_checked_at)<=datetime('now','-20 days')"));
+  assert.ok(route.includes('export async function scheduleCatalogMetadataRefresh'));
+  assert.ok(workerIndex.includes('await scheduleCatalogMetadataRefresh(env)'));
+  assert.ok(route.includes('metadataCheckedAtFloor'));
+  assert.ok(route.includes('{expiration:expiresAt}'));
+  assert.ok(route.includes('catalog_page_metadata_stale'));
+  assert.ok(route.includes("UPDATE catalog_generation_items SET payload_json='{}'"));
+});
+
+test('published feed is reconciled against current approved D1 records instead of trusting KV alone', () => {
+  assert.ok(route.includes("v.review_status='APPROVED'"));
+  assert.ok(route.includes("v.shorts_check_status='NOT_SHORTS'"));
+  assert.ok(route.includes("v.metadata_checked_at>=datetime('now','-30 days')"));
+  assert.ok(route.includes("gen!==active"));
+  assert.ok(kidFeed.includes('isFreshCatalogMetadata(cached.catalogMetadataCheckedAt)'));
+  assert.ok(catalogClient.includes('isFreshMetadataTimestamp(row.metadataCheckedAt)'));
 });
