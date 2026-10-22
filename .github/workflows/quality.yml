@@ -38,6 +38,9 @@ jobs:
       - name: Run content taxonomy and Shorts policy tests
         run: npm run test:content-policy
 
+      - name: Catalog V2 safety contract tests
+        run: npm run test:catalog
+
       - name: Type check application
         run: npm run lint
 
