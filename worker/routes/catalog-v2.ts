@@ -278,6 +278,47 @@ async function publishPage(env:Env,b:any):Promise<void>{
  await env.CATALOG_DB.prepare("UPDATE catalog_generation_items SET payload_json='{}' WHERE generation_id=?").bind(gen).run();
 }
 
+async function startRebuild(env:Env):Promise<Response>{
+ if(!env.CATALOG_DB||!env.CHANNELS_ARCHIVE||!env.CATALOG_DISCOVERY_QUEUE)return json({error:'catalog_bindings_unavailable',bindings:{kv:Boolean(env.CHANNELS_ARCHIVE),d1:Boolean(env.CATALOG_DB),discoveryQueue:Boolean(env.CATALOG_DISCOVERY_QUEUE),processingQueue:Boolean(env.CATALOG_PROCESSING_QUEUE)}},503);
+ const raw=await env.CHANNELS_ARCHIVE.get(CHANNELS_LATEST_MERGED);
+ if(!raw)return json({error:'legacy_catalog_missing'},409);
+ let channels:any[];
+ try{channels=JSON.parse(raw);}catch{return json({error:'legacy_catalog_invalid_json'},500);}
+ if(!Array.isArray(channels)||channels.length<10)return json({error:'legacy_catalog_failed_validation',sourceCount:Array.isArray(channels)?channels.length:0},409);
+ await seedCategories(env);
+ const sourceCount=await upsertSources(env,channels),pilot:string[]=[];
+ const seen=new Set<string>();
+ for(const id of CONTENT_CENTERS.map(c=>c.id)){
+  const match=channels.find(x=>x?.sourceId&&!seen.has(String(x.sourceId))&&categoryHints(x).includes(id));
+  if(match){pilot.push(String(match.sourceId));seen.add(String(match.sourceId));}
+ }
+ for(const channel of channels){
+  if(pilot.length>=20)break;
+  const id=String(channel?.sourceId||'');
+  if(id&&!seen.has(id)){pilot.push(id);seen.add(id);}
+ }
+ const ts=now();
+ await env.CATALOG_DB.prepare("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('shorts_pilot_sources',?,?) ON CONFLICT(config_key) DO UPDATE SET config_value=excluded.config_value,updated_at=excluded.updated_at").bind(JSON.stringify(pilot.slice(0,20)),ts).run();
+ const active=String(await env.CHANNELS_ARCHIVE.get('yt:v2:active-generation')||'legacy-kv');
+ const desiredMode=active==='legacy-kv'?'shadow':'published';
+ if(desiredMode==='shadow'){
+  await env.CATALOG_DB.prepare("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('catalog_mode','shadow',?) ON CONFLICT(config_key) DO UPDATE SET config_value=excluded.config_value,updated_at=excluded.updated_at").bind(ts).run();
+ }else{
+  await env.CATALOG_DB.prepare("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('catalog_mode','published',?) ON CONFLICT(config_key) DO UPDATE SET config_value=excluded.config_value,updated_at=excluded.updated_at").bind(ts).run();
+ }
+ const prior=await env.CATALOG_DB.prepare("SELECT job_id,status FROM ingest_jobs WHERE job_id LIKE 'legacy-migration:%'").all<any>();
+ const statuses=new Map((prior.results||[]).map((x:any)=>[String(x.job_id),String(x.status)]));
+ const todo=channels.filter(channel=>channel?.sourceId&&statuses.get('legacy-migration:'+String(channel.sourceId))!=='SUCCEEDED');
+ const statements=todo.map(channel=>{
+  const id=String(channel.sourceId),job='legacy-migration:'+id;
+  return env.CATALOG_DB!.prepare("INSERT INTO ingest_jobs(job_id,source_id,job_type,status,cursor_json,payload_json,attempts,queued_at,updated_at) VALUES (?,?,?,?,?,?,0,?,?) ON CONFLICT(job_id) DO UPDATE SET status='QUEUED',cursor_json=excluded.cursor_json,attempts=0,last_error=NULL,queued_at=excluded.queued_at,updated_at=excluded.updated_at WHERE ingest_jobs.status!='SUCCEEDED'").bind(job,id,'MIGRATE_SOURCE_PAGE','QUEUED',JSON.stringify({offset:0,pageSize:100,total:Array.isArray(channel.videos)?channel.videos.length:0}),JSON.stringify({sourceTitle:String(channel.title||channel.name||id)}),ts,ts);
+ });
+ for(let i=0;i<statements.length;i+=40)await env.CATALOG_DB.batch(statements.slice(i,i+40));
+ const messages=todo.map(channel=>({body:{type:'MIGRATE_SOURCE_PAGE',sourceId:String(channel.sourceId),offset:0,pageSize:100,jobId:'legacy-migration:'+String(channel.sourceId)},contentType:'json' as const}));
+ for(let i=0;i<messages.length;i+=100)await env.CATALOG_DISCOVERY_QUEUE.sendBatch(messages.slice(i,i+100));
+ return json({ok:true,mode:desiredMode,sourceCount,queuedSources:messages.length,alreadyMigratedSources:channels.length-messages.length,shortsPilotSources:Math.min(20,pilot.length),taxonomyVersion:CONTENT_TAXONOMY_VERSION,activeGenerationUnchanged:true,message:'Legacy KV remains active until the first catalog generation has completely published; imported videos require fresh YouTube metadata, Shorts checks, and manual approval.'},202);
+}
+
 export async function handleCatalogV2Routes(req:Request,env:Env,url:URL):Promise<Response|null>{
  const path=url.pathname,method=req.method.toUpperCase();
  if((path==='/api/categories'||path==='/api/admin/categories')&&method==='GET'){if(path==='/api/admin/categories'&&!checkAdminAuth(req,env))return json({error:'unauthorized'},401);return json(await getCategories(env),200,path==='/api/admin/categories'?'no-store':'public, max-age=120, s-maxage=300');}
