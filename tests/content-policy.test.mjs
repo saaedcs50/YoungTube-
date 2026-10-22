@@ -124,6 +124,22 @@ test('unicode boundaries reject misleading English and Arabic prefixes', () => {
   assert.equal(loaded.music.hasExplicitNoMusicClaim('A song without music!'), true);
 });
 
+test('legacy hasMusic value follows the canonical song path and stays unset for non-songs', () => {
+  const classifyCandidate = loaded.music.classifySongVariantForCandidate;
+  const legacyFlag = loaded.music.legacyHasMusicFlag;
+
+  const noMusic = classifyCandidate({ title: 'أنشودة الأطفال خالية من الموسيقى' });
+  assert.equal(noMusic.publicCategory, 'music_songs_no_music');
+  assert.equal(legacyFlag(noMusic), false);
+
+  const noRhythm = classifyCandidate({ title: 'أنشودة الأطفال بدون إيقاع' });
+  assert.equal(noRhythm.publicCategory, 'music_songs');
+  assert.equal(legacyFlag(noRhythm), true);
+
+  assert.equal(legacyFlag(classifyCandidate({ title: 'A lesson without music' })), undefined);
+  assert.equal(legacyFlag(null), undefined);
+});
+
 test('classification evidence stores a timestamp and rule version', () => {
   const result = loaded.music.classifySongVariantForCandidate({
     title: 'أغنية الحروف بدون موسيقى',
