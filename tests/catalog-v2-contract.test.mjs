@@ -87,3 +87,11 @@ test('published feed is reconciled against current approved D1 records instead o
   assert.ok(kidFeed.includes('isFreshCatalogMetadata(cached.catalogMetadataCheckedAt)'));
   assert.ok(catalogClient.includes('isFreshMetadataTimestamp(row.metadataCheckedAt)'));
 });
+
+
+test('archive migration is capped at the configured recent history depth', () => {
+  assert.ok(route.includes('history_depth_limit FROM sources WHERE source_id=?'));
+  assert.ok(route.includes('const historyDepth=Math.max(1,Math.min(200,Number(source?.history_depth_limit)||200));'));
+  assert.ok(route.includes('(await getArchive(env,sourceId)).slice(0,historyDepth)'));
+  assert.ok(route.includes('total:Math.min(200,Array.isArray(channel.videos)?channel.videos.length:0)'));
+});
