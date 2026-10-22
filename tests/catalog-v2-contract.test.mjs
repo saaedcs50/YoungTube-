@@ -15,8 +15,9 @@ test('Shorts path behavior is observed only for pilot batches and not treated as
 
 test('approval and generation publishing keep the Shorts and duration gates independent of topic classification', () => {
   assert.match(route, /v\.shorts_check_status!=='NOT_SHORTS'/);
-  assert.match(route, /Number\(v\.duration_seconds\|\|0\)<120/);
-  assert.match(route, /review_status='APPROVED' AND shorts_check_status='NOT_SHORTS' AND duration_seconds>=120/);
+  assert.match(route, /Number\(v\.duration_seconds\)<=0/);
+  assert.match(route, /review_status='APPROVED' AND shorts_check_status='NOT_SHORTS' AND duration_seconds>0/);
+  assert.doesNotMatch(route, /duration_seconds>=120/);
 });
 
 test('the default feed excludes opt-in gaming and no-music songs do not leak into the ordinary song path', () => {
@@ -28,5 +29,6 @@ test('archive migration is shadow-only and preserves the legacy KV feed until ge
   assert.match(route, /CHANNELS_LATEST_MERGED/);
   assert.match(route, /'catalog_mode','shadow'/);
   assert.match(route, /activeGenerationUnchanged:true/);
+  assert.match(route, /JSON.stringify\(\{mode:'published',schemaVersion:2/);
   assert.match(route, /JSON.stringify\(\{mode:'published',schemaVersion:2/);
 });
