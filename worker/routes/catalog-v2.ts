@@ -186,10 +186,11 @@ async function enrichBatch(env:Env,b:any):Promise<void>{
 }
 
 export async function scheduleCatalogMetadataRefresh(env:Env):Promise<void>{
- if(!env.CATALOG_DB||!env.CATALOG_PROCESSING_QUEUE||!env.YOUTUBE_API_KEY)return;
- // Hard-delete expired API-derived metadata from the catalog even if a refresh queue
- // was delayed or repeatedly failed. Rejected IDs keep only the curator decision.
+ if(!env.CATALOG_DB)return;
+ // Hard-delete expired API-derived metadata even if the YouTube key/queue is unavailable.
  await env.CATALOG_DB.prepare("UPDATE videos SET title='Metadata refresh pending',published_at=NULL,primary_category_id=NULL,format=NULL,music_variant='STANDARD_OR_UNSPECIFIED',music_classification_json=NULL,shorts_check_status='SHORTS_UNKNOWN',shorts_check_evidence_json=NULL,review_status=CASE WHEN review_status='REJECTED' THEN 'REJECTED' ELSE 'CANDIDATE' END,review_reason=CASE WHEN review_status='REJECTED' THEN 'manual_rejection' ELSE 'metadata_expired' END,review_evidence_json=CASE WHEN review_status='REJECTED' THEN review_evidence_json ELSE NULL END,policy_version=?,reviewed_at=CASE WHEN review_status='REJECTED' THEN reviewed_at ELSE NULL END,metadata_checked_at=NULL,metadata_refresh_queued_at=NULL,duration_seconds=NULL,frame_width=NULL,frame_height=NULL,shorts_path_signal=0,updated_at=? WHERE metadata_checked_at IS NOT NULL AND datetime(metadata_checked_at)<=datetime('now','-30 days')").bind(POLICY_VERSION,now()).run();
+ await env.CATALOG_DB.prepare("UPDATE catalog_generation_items SET payload_json='{}' WHERE generation_id IN (SELECT generation_id FROM catalog_generations WHERE status IN ('FAILED','RETIRED') AND datetime(created_at)<=datetime('now','-1 hour'))").run();
+ if(!env.CATALOG_PROCESSING_QUEUE||!env.YOUTUBE_API_KEY){await scheduleCatalogGenerationRefresh(env);return;}
  const result=await env.CATALOG_DB.prepare("SELECT video_id FROM videos WHERE review_status!='REJECTED' AND (metadata_checked_at IS NULL OR datetime(metadata_checked_at)<=datetime('now','-20 days')) AND (metadata_refresh_queued_at IS NULL OR datetime(metadata_refresh_queued_at)<=datetime('now','-1 day')) ORDER BY COALESCE(metadata_checked_at,'1970-01-01T00:00:00Z'),video_id LIMIT 100").all<any>();
  const ids=(result.results||[]).map((row:any)=>String(row.video_id||'')).filter(Boolean);
  if(ids.length){
@@ -235,6 +236,7 @@ async function scheduleCatalogGenerationRefresh(env:Env):Promise<void>{
  if(building){
   if(Date.now()-Date.parse(String(building.created_at||''))<60*60*1000)return;
   await env.CATALOG_DB.prepare("UPDATE catalog_generations SET status='FAILED',error='build_timeout' WHERE generation_id=? AND status='BUILDING'").bind(String(building.generation_id)).run();
+  await env.CATALOG_DB.prepare("UPDATE catalog_generation_items SET payload_json='{}' WHERE generation_id=?").bind(String(building.generation_id)).run();
  }
  const active=await env.CATALOG_DB.prepare("SELECT generation_id,activated_at,manifest_json FROM catalog_generations WHERE status='ACTIVE' ORDER BY activated_at DESC LIMIT 1").first<any>();
  if(!active)return;
