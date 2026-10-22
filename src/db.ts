@@ -21,6 +21,9 @@ interface Settings {
   supportPayOnboardingSeenAt?: number;
   hideMusicVideos?: boolean;
   enabledOptInCategories?: string[];
+  /** Last published Catalog V2 generation materialized into feedCache. */
+  catalogGenerationId?: string;
+  catalogMode?: 'legacy' | 'published';
   tasteShift?: {
     enabled: boolean;
     targetCategories: string[];

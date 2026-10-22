@@ -3,6 +3,7 @@ import db, { FeedItem } from '../../db';
 import { listRegistryChannels, RegistryChannel } from '../../data/channelRegistry';
 import { WORKER_URL } from '../../config';
 import { videoMatchesCategory } from '../../data/categoryRegistry';
+import { fetchPublishedCatalogFeed } from '../../services/catalogV2Feed';
 import {
   ensureChannelsArchiveSynced,
   scheduleBackgroundPortraitCheck,
@@ -208,6 +209,18 @@ const QUERY_CHUNK = 20;
 const CACHE_TRIM_ABOVE = 40;
 const CACHE_KEEP = 30;
 
+/** Keep the new catalog pool bounded like the legacy indexed feed: at most 15 videos per source. */
+function capCatalogItemsPerChannel(items: FeedItem[]): FeedItem[] {
+  const counts = new Map<string, number>();
+  const ordered = [...items].sort((a, b) => videoRecency(b) - videoRecency(a));
+  return ordered.filter((item) => {
+    const count = counts.get(item.channelId) || 0;
+    if (count >= PER_CHANNEL_CAP) return false;
+    counts.set(item.channelId, count + 1);
+    return true;
+  });
+}
+
 /** Bounded, recency-sorted load of enabled-channel videos (chunked anyOf, not 196 parallel queries). */
 export async function loadBoundedFeed(
   enabledChannelIds: string[],
@@ -372,14 +385,49 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
         .map((c) => c.sourceId);
 
       const hasFamilyKey = Boolean(settings?.familyYoutubeApiKey?.trim());
+      const enabledOptInCategories = settings?.enabledOptInCategories || [];
+      const publishedCatalog = await fetchPublishedCatalogFeed(enabledOptInCategories);
 
       let availableVideos: FeedItem[] = [];
-      if (enabledChannelIds.length > 0) {
+      if (publishedCatalog) {
+        const enabledSet = new Set(enabledChannelIds);
+        const catalogItems = capCatalogItemsPerChannel(
+          publishedCatalog.items.filter((item) =>
+            enabledSet.has(item.channelId) &&
+            !blockedChannelSet.has(item.channelId) &&
+            (!hasFamilyKey ||
+              (typeof item.videoDuration === 'number' &&
+                Number.isFinite(item.videoDuration) &&
+                item.videoDuration >= MIN_VIDEO_DURATION_SECONDS))
+          )
+        );
+        const previousGeneration = String(settings?.catalogGenerationId || '');
+        await db.transaction('rw', db.feedCache, db.settings, async () => {
+          // A generation change invalidates legacy/previous-generation cache entries.
+          // The published catalog contains only manually approved, Shorts-cleared rows.
+          if (previousGeneration !== publishedCatalog.generationId) {
+            await db.feedCache.clear();
+          }
+          await db.feedCache.bulkPut(catalogItems);
+          const latestSettings = await db.settings.get('main');
+          if (latestSettings) {
+            await db.settings.put({
+              ...latestSettings,
+              catalogMode: 'published',
+              catalogGenerationId: publishedCatalog.generationId,
+            });
+          }
+        });
+        availableVideos = catalogItems;
+      } else {
+        // Shadow mode keeps the legacy path. After a published generation has been
+        // observed, the local cache contains V2-approved content only, so an outage
+        // must never re-seed the legacy starter pool over it.
         availableVideos = await loadBoundedFeed(enabledChannelIds, false, hasFamilyKey);
       }
 
-      // If feedCache is empty, seed initial curated safe videos
-      if (availableVideos.length === 0) {
+      // Legacy-only starter fallback. Never seed starter/legacy videos in published mode.
+      if (!publishedCatalog && settings?.catalogMode !== 'published' && availableVideos.length === 0) {
         const totalCacheCount = await db.feedCache.count();
         if (totalCacheCount === 0) {
           const safeStarters = filterStarterVideos(STARTER_VIDEOS, blockedChannelSet, false, hasFamilyKey);
@@ -455,12 +503,18 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
             const restPool: FeedItem[] = [];
 
             for (const video of availableVideos) {
+              const explicitTaxonomy = [
+                ...(video.primaryCategoryId ? [video.primaryCategoryId] : []),
+                ...(video.secondaryCategoryIds || []),
+              ];
               const directCats = (video as any).categories || (video as any).category;
-              const cats: string[] = directCats
-                ? Array.isArray(directCats)
-                  ? directCats
-                  : [directCats]
-                : channelCatLookup.get(video.channelId) || [];
+              const cats: string[] = explicitTaxonomy.length > 0
+                ? explicitTaxonomy
+                : directCats
+                  ? Array.isArray(directCats)
+                    ? directCats
+                    : [directCats]
+                  : channelCatLookup.get(video.channelId) || [];
               if (cats.some((cat) => targetSet.has(cat))) targetPool.push(video);
               else restPool.push(video);
             }
@@ -764,7 +818,13 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
     if (selectedCategory !== 'all') {
       result = result.filter((video) => {
         const channelInfo = channelMap.get(video.channelId);
-        const channelCats = channelInfo?.categories || (video as any).categories || (video as any).category;
+        const explicitTaxonomy = [
+          ...(video.primaryCategoryId ? [video.primaryCategoryId] : []),
+          ...(video.secondaryCategoryIds || []),
+        ];
+        const channelCats = explicitTaxonomy.length > 0
+          ? explicitTaxonomy
+          : channelInfo?.categories || (video as any).categories || (video as any).category;
         return videoMatchesCategory(
           video.title,
           channelCats,
@@ -792,7 +852,13 @@ export function useKidFeed({ refreshTrigger = 0, suppressedVideoIds = [] }: UseK
           // Category filter if active
           if (selectedCategory !== 'all') {
             const channelInfo = channelMap.get(item.channelId);
-            const channelCats = channelInfo?.categories || (item as any).categories || (item as any).category;
+            const explicitTaxonomy = [
+              ...(item.primaryCategoryId ? [item.primaryCategoryId] : []),
+              ...(item.secondaryCategoryIds || []),
+            ];
+            const channelCats = explicitTaxonomy.length > 0
+              ? explicitTaxonomy
+              : channelInfo?.categories || (item as any).categories || (item as any).category;
             if (!videoMatchesCategory(
               item.title,
               channelCats,

@@ -28,4 +28,5 @@ test('archive migration is shadow-only and preserves the legacy KV feed until ge
   assert.match(route, /CHANNELS_LATEST_MERGED/);
   assert.match(route, /'catalog_mode','shadow'/);
   assert.match(route, /activeGenerationUnchanged:true/);
+  assert.match(route, /JSON.stringify\(\{mode:'published',schemaVersion:2/);
 });
