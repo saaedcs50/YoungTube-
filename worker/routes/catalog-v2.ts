@@ -138,7 +138,7 @@ async function probeShortsPath(videoId:string):Promise<any>{
 async function enrichBatch(env:Env,b:any):Promise<void>{
  if(!env.CATALOG_DB||!env.YOUTUBE_API_KEY)throw new Error('metadata_bindings_unavailable');
  const rawIds:any[]=Array.isArray(b.ids)?b.ids:[];
- const ids:string[]=Array.from(new Set<string>(rawIds.map((x:any)=>String(x||'').trim()).filter((x:string)=>Boolean(x)))).slice(0,10);
+ const ids:string[]=Array.from(new Set<string>(rawIds.map((x:any)=>String(x||'').trim()).filter((x:string)=>Boolean(x)))).slice(0,20);
  if(!ids.length)return;
  const placeholders=ids.map(()=>'?').join(',');
  const stored=await env.CATALOG_DB.prepare('SELECT video_id,title,published_at,duration_seconds,review_status,reviewed_at,policy_version,primary_category_id,secondary_tags_json,format,music_variant,music_classification_json,review_reason,review_evidence_json,metadata_checked_at FROM videos WHERE video_id IN ('+placeholders+')').bind(...ids).all<any>();
@@ -194,13 +194,13 @@ export async function scheduleCatalogMetadataRefresh(env:Env):Promise<void>{
  await env.CATALOG_DB.prepare("UPDATE videos SET title='Metadata refresh pending',published_at=NULL,primary_category_id=NULL,format=NULL,music_variant='STANDARD_OR_UNSPECIFIED',music_classification_json=NULL,shorts_check_status='SHORTS_UNKNOWN',shorts_check_evidence_json=NULL,review_status=CASE WHEN review_status='REJECTED' THEN 'REJECTED' ELSE 'CANDIDATE' END,review_reason=CASE WHEN review_status='REJECTED' THEN 'manual_rejection' ELSE 'metadata_expired' END,review_evidence_json=CASE WHEN review_status='REJECTED' THEN review_evidence_json ELSE NULL END,policy_version=?,reviewed_at=CASE WHEN review_status='REJECTED' THEN reviewed_at ELSE NULL END,metadata_checked_at=NULL,metadata_refresh_queued_at=NULL,duration_seconds=NULL,frame_width=NULL,frame_height=NULL,shorts_path_signal=0,updated_at=? WHERE metadata_checked_at IS NOT NULL AND datetime(metadata_checked_at)<=datetime('now','-30 days')").bind(POLICY_VERSION,now()).run();
  await env.CATALOG_DB.prepare("UPDATE catalog_generation_items SET payload_json='{}' WHERE generation_id IN (SELECT generation_id FROM catalog_generations WHERE status IN ('FAILED','RETIRED') AND datetime(created_at)<=datetime('now','-1 hour'))").run();
  if(!env.CATALOG_PROCESSING_QUEUE||!env.YOUTUBE_API_KEY){await scheduleCatalogGenerationRefresh(env);return;}
- const result=await env.CATALOG_DB.prepare("SELECT video_id FROM videos WHERE review_status!='REJECTED' AND (metadata_checked_at IS NULL OR datetime(metadata_checked_at)<=datetime('now','-20 days')) AND (metadata_refresh_queued_at IS NULL OR datetime(metadata_refresh_queued_at)<=datetime('now','-1 day')) ORDER BY COALESCE(metadata_checked_at,'1970-01-01T00:00:00Z'),video_id LIMIT 250").all<any>();
+ const result=await env.CATALOG_DB.prepare("SELECT video_id FROM videos WHERE review_status!='REJECTED' AND (metadata_checked_at IS NULL OR datetime(metadata_checked_at)<=datetime('now','-20 days')) AND (metadata_refresh_queued_at IS NULL OR datetime(metadata_refresh_queued_at)<=datetime('now','-1 day')) ORDER BY COALESCE(metadata_checked_at,'1970-01-01T00:00:00Z'),video_id LIMIT 400").all<any>();
  const ids=(result.results||[]).map((row:any)=>String(row.video_id||'')).filter(Boolean);
  if(ids.length){
   const queuedAt=now();
   for(let i=0;i<ids.length;i+=100)await env.CATALOG_DB.batch(ids.slice(i,i+100).map(id=>env.CATALOG_DB!.prepare('UPDATE videos SET metadata_refresh_queued_at=? WHERE video_id=?').bind(queuedAt,id)));
   try{
-   for(let i=0;i<ids.length;i+=10)await env.CATALOG_PROCESSING_QUEUE.send({type:'ENRICH_VIDEO_BATCH',ids:ids.slice(i,i+10),scheduledRefresh:true},{contentType:'json'});
+   for(let i=0;i<ids.length;i+=20)await env.CATALOG_PROCESSING_QUEUE.send({type:'ENRICH_VIDEO_BATCH',ids:ids.slice(i,i+20),scheduledRefresh:true},{contentType:'json'});
   }catch(error){
    for(let i=0;i<ids.length;i+=100)await env.CATALOG_DB.batch(ids.slice(i,i+100).map(id=>env.CATALOG_DB!.prepare('UPDATE videos SET metadata_refresh_queued_at=NULL WHERE video_id=?').bind(id)));
    throw error;
