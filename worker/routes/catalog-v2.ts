@@ -86,10 +86,13 @@ async function migratePage(env:Env,b:any):Promise<void>{
  const offset=Math.max(0,Number(b.offset)||0);
  const pageSize=Math.max(10,Math.min(100,Number(b.pageSize)||100));
  const jobId=String(b.jobId||('legacy-migration:'+sourceId));
- const source=await env.CATALOG_DB.prepare('SELECT default_category_hints_json,source_type,title FROM sources WHERE source_id=?').bind(sourceId).first<any>();
+ const source=await env.CATALOG_DB.prepare('SELECT default_category_hints_json,source_type,title,history_depth_limit FROM sources WHERE source_id=?').bind(sourceId).first<any>();
  let hints:string[]=[];
  try{hints=JSON.parse(String(source?.default_category_hints_json||'[]'));}catch{}
- const archive=await getArchive(env,sourceId);
+ const historyDepth=Math.max(1,Math.min(200,Number(source?.history_depth_limit)||200));
+ // Archives are maintained newest-first by mergeAndStoreKVArchive. Migrate only the configured recent window;
+ // do not pull unbounded legacy history into the new catalog on rebuilds.
+ const archive=(await getArchive(env,sourceId)).slice(0,historyDepth);
  const page=archive.slice(offset,offset+pageSize),ts=now(),writes:any[]=[],enrich:string[]=[];
  for(const v of page){
   const id=String(v?.videoId||v?.id||'').trim();
@@ -316,7 +319,7 @@ async function startRebuild(env:Env):Promise<Response>{
  const todo=channels.filter(channel=>channel?.sourceId&&statuses.get('legacy-migration:'+String(channel.sourceId))!=='SUCCEEDED');
  const statements=todo.map(channel=>{
   const id=String(channel.sourceId),job='legacy-migration:'+id;
-  return env.CATALOG_DB!.prepare("INSERT INTO ingest_jobs(job_id,source_id,job_type,status,cursor_json,payload_json,attempts,queued_at,updated_at) VALUES (?,?,?,?,?,?,0,?,?) ON CONFLICT(job_id) DO UPDATE SET status='QUEUED',cursor_json=excluded.cursor_json,attempts=0,last_error=NULL,queued_at=excluded.queued_at,updated_at=excluded.updated_at WHERE ingest_jobs.status!='SUCCEEDED'").bind(job,id,'MIGRATE_SOURCE_PAGE','QUEUED',JSON.stringify({offset:0,pageSize:100,total:Array.isArray(channel.videos)?channel.videos.length:0}),JSON.stringify({sourceTitle:String(channel.title||channel.name||id)}),ts,ts);
+  return env.CATALOG_DB!.prepare("INSERT INTO ingest_jobs(job_id,source_id,job_type,status,cursor_json,payload_json,attempts,queued_at,updated_at) VALUES (?,?,?,?,?,?,0,?,?) ON CONFLICT(job_id) DO UPDATE SET status='QUEUED',cursor_json=excluded.cursor_json,attempts=0,last_error=NULL,queued_at=excluded.queued_at,updated_at=excluded.updated_at WHERE ingest_jobs.status!='SUCCEEDED'").bind(job,id,'MIGRATE_SOURCE_PAGE','QUEUED',JSON.stringify({offset:0,pageSize:100,total:Math.min(200,Array.isArray(channel.videos)?channel.videos.length:0)}),JSON.stringify({sourceTitle:String(channel.title||channel.name||id)}),ts,ts);
  });
  for(let i=0;i<statements.length;i+=40)await env.CATALOG_DB.batch(statements.slice(i,i+40));
  const messages=todo.map(channel=>({body:{type:'MIGRATE_SOURCE_PAGE',sourceId:String(channel.sourceId),offset:0,pageSize:100,jobId:'legacy-migration:'+String(channel.sourceId)},contentType:'json' as const}));
