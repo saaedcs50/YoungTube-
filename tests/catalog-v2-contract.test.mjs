@@ -7,6 +7,7 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const route = fs.readFileSync(path.join(root, 'worker/routes/catalog-v2.ts'), 'utf8');
 const catalogClient = fs.readFileSync(path.join(root, 'src/services/catalogV2Feed.ts'), 'utf8');
 const kidFeed = fs.readFileSync(path.join(root, 'src/features/feed/useKidFeed.ts'), 'utf8');
+const cors = fs.readFileSync(path.join(root, 'worker/lib/cors.ts'), 'utf8');
 
 test('Shorts path behavior is observed only for pilot batches and not treated as verified evidence', () => {
   assert.match(route, /b\.pilot===true\?await probeShortsPath\(id\):null/);
@@ -32,7 +33,6 @@ test('archive migration is shadow-only and preserves the legacy KV feed until ge
   assert.match(route, /'catalog_mode','shadow'/);
   assert.match(route, /activeGenerationUnchanged:true/);
   assert.match(route, /JSON.stringify\(\{mode:'published',schemaVersion:2/);
-  assert.match(route, /JSON.stringify\(\{mode:'published',schemaVersion:2/);
 });
 
 
@@ -54,4 +54,10 @@ test('client feed uses video-level taxonomy and applies minimum duration only wi
   assert.ok(kidFeed.includes('item.videoDuration >= MIN_VIDEO_DURATION_SECONDS'));
   assert.ok(catalogClient.includes('primaryCategoryId: row.primaryCategoryId'));
   assert.ok(catalogClient.includes("row.format === 'SONG_OR_NASHEED'"));
+});
+
+
+test('public Catalog V2 read routes use the existing rate limiter', () => {
+  assert.ok(cors.includes("'/api/catalog/v2/manifest'"));
+  assert.ok(cors.includes("'/api/catalog/v2/feed'"));
 });
