@@ -95,9 +95,23 @@ async function migratePage(env:Env,b:any):Promise<void>{
  for(let i=0;i<writes.length;i+=40)await env.CATALOG_DB.batch(writes.slice(i,i+40));
  const next=offset+pageSize,more=next<archive.length;
  await env.CATALOG_DB.prepare("INSERT INTO ingest_jobs(job_id,source_id,job_type,status,cursor_json,payload_json,attempts,queued_at,started_at,completed_at,updated_at) VALUES (?,?,?,?,?,?,0,?,?,?,?) ON CONFLICT(job_id) DO UPDATE SET status=excluded.status,cursor_json=excluded.cursor_json,started_at=COALESCE(ingest_jobs.started_at,excluded.started_at),completed_at=excluded.completed_at,updated_at=excluded.updated_at,last_error=NULL").bind(jobId,sourceId,'MIGRATE_SOURCE_PAGE',more?'QUEUED':'SUCCEEDED',JSON.stringify({offset:more?next:archive.length,pageSize,total:archive.length}),JSON.stringify({sourceTitle:String(source?.title||sourceId)}),ts,ts,more?null:ts,ts).run();
- if(offset===0&&enrich.length&&env.CATALOG_PROCESSING_QUEUE){const cfg=await env.CATALOG_DB.prepare('SELECT config_value FROM catalog_config WHERE config_key=?').bind('shorts_pilot_sources').first<any>();let pilot:string[]=[];try{pilot=JSON.parse(String(cfg?.config_value||'[]'));}catch{}if(pilot.includes(sourceId))await env.CATALOG_PROCESSING_QUEUE.send({type:'ENRICH_VIDEO_BATCH',ids:enrich,sourceId},{contentType:'json'});}
+ if(offset===0&&enrich.length&&env.CATALOG_PROCESSING_QUEUE){const cfg=await env.CATALOG_DB.prepare('SELECT config_value FROM catalog_config WHERE config_key=?').bind('shorts_pilot_sources').first<any>();let pilot:string[]=[];try{pilot=JSON.parse(String(cfg?.config_value||'[]'));}catch{}if(pilot.includes(sourceId))await env.CATALOG_PROCESSING_QUEUE.send({type:'ENRICH_VIDEO_BATCH',ids:enrich,sourceId,pilot:true},{contentType:'json'});}
  if(more){if(!env.CATALOG_DISCOVERY_QUEUE)throw new Error('discovery_queue_unavailable');await env.CATALOG_DISCOVERY_QUEUE.send({type:'MIGRATE_SOURCE_PAGE',sourceId,offset:next,pageSize,jobId},{contentType:'json'});}
  else await env.CATALOG_DB.prepare('UPDATE sources SET last_successful_scan_at=?,updated_at=? WHERE source_id=?').bind(ts,ts,sourceId).run();
+}
+async function probeShortsPath(videoId:string):Promise<any>{
+ const target='https://www.youtube.com/shorts/'+encodeURIComponent(videoId);
+ try{
+  const response=await fetch(target,{method:'GET',redirect:'manual',headers:{Range:'bytes=0-0','User-Agent':'Mozilla/5.0 YoungTube-Catalog-Probe'}});
+  const location=response.headers.get('location');
+  let locationPath:string|null=null;
+  try{locationPath=location?new URL(location,target).pathname:null;}catch{}
+  const evidence={probeVersion:'youtube-shorts-path-probe-v1',status:response.status,locationPath,contentType:response.headers.get('content-type'),testedAt:now(),usedForDecision:false};
+  try{await response.body?.cancel();}catch{}
+  return evidence;
+ }catch{
+  return {probeVersion:'youtube-shorts-path-probe-v1',status:null,locationPath:null,error:'probe_failed',testedAt:now(),usedForDecision:false};
+ }
 }
 async function enrichBatch(env:Env,b:any):Promise<void>{
  if(!env.CATALOG_DB||!env.YOUTUBE_API_KEY)throw new Error('metadata_bindings_unavailable');
@@ -107,9 +121,11 @@ async function enrichBatch(env:Env,b:any):Promise<void>{
  for(const id of ids){const item=found.get(id);if(!item){writes.push(env.CATALOG_DB.prepare("UPDATE videos SET review_status='UNAVAILABLE',review_reason='youtube_metadata_unavailable',metadata_checked_at=?,updated_at=? WHERE video_id=? AND reviewed_at IS NULL").bind(ts,ts,id));continue;}
   const duration=typeof item.contentDetails?.duration==='string'?parseIsoDuration(item.contentDetails.duration):null,published=String(item.snippet?.publishedAt||''),dims=await getJpegDimensions('https://i.ytimg.com/vi/'+id+'/frame0.jpg');
   const decision=evaluateShortsPolicy({durationSeconds:duration,thumbnailIsPortrait:dims ? dims.height > dims.width : null,publishedAt:published});
+  const shortsPathProbe=b.pilot===true?await probeShortsPath(id):null;
+  const evidence={...decision,shortsPathProbe};
   const shorts=decision.status==='SHORTS_LIKELY'?'SHORTS':decision.status==='LONG_FORM_LIKELY'?'NOT_SHORTS':decision.status==='NEEDS_REVIEW'?'NEEDS_REVIEW':'SHORTS_UNKNOWN';
   const review=shorts==='SHORTS'?'SHORT_BLOCKED':'NEEDS_REVIEW',reason=shorts==='SHORTS'?'shorts_policy_block':shorts==='NOT_SHORTS'&&duration!==null&&duration<120?'duration_below_120_seconds':shorts==='NOT_SHORTS'?'awaiting_manual_content_review':'shorts_policy_unresolved';
-  writes.push(env.CATALOG_DB.prepare('UPDATE videos SET published_at=COALESCE(?,published_at),duration_seconds=?,frame_width=?,frame_height=?,shorts_check_status=?,shorts_check_evidence_json=?,review_status=?,review_reason=?,policy_version=?,metadata_checked_at=?,updated_at=? WHERE video_id=? AND reviewed_at IS NULL').bind(published||null,duration,dims?.width||null,dims?.height||null,shorts,JSON.stringify(decision),review,reason,POLICY_VERSION,ts,ts,id));
+  writes.push(env.CATALOG_DB.prepare('UPDATE videos SET published_at=COALESCE(?,published_at),duration_seconds=?,frame_width=?,frame_height=?,shorts_check_status=?,shorts_check_evidence_json=?,shorts_path_signal=0,review_status=?,review_reason=?,policy_version=?,metadata_checked_at=?,updated_at=? WHERE video_id=? AND reviewed_at IS NULL').bind(published||null,duration,dims?.width||null,dims?.height||null,shorts,JSON.stringify(evidence),review,reason,POLICY_VERSION,ts,ts,id));
  }
  for(let i=0;i<writes.length;i+=30)await env.CATALOG_DB.batch(writes.slice(i,i+30));
 }
