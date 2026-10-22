@@ -101,9 +101,9 @@ async function migratePage(env:Env,b:any):Promise<void>{
 }
 async function enrichBatch(env:Env,b:any):Promise<void>{
  if(!env.CATALOG_DB||!env.YOUTUBE_API_KEY)throw new Error('metadata_bindings_unavailable');
- const ids=[...new Set((Array.isArray(b.ids)?b.ids:[]).map((x:any)=>String(x||'').trim()).filter(Boolean))].slice(0,10);if(!ids.length)return;
+ const rawIds:any[]=Array.isArray(b.ids)?b.ids:[];const ids:string[]=Array.from(new Set<string>(rawIds.map((x:any)=>String(x||'').trim()).filter((x:string)=>Boolean(x)))).slice(0,10);if(!ids.length)return;
  const upstream=await fetchVideos({apiKey:env.YOUTUBE_API_KEY.trim(),ids,part:'contentDetails,snippet'});if(!upstream.ok)throw new Error('youtube_metadata_http_'+upstream.status);
- const payload:any=await upstream.json(),found=new Map((Array.isArray(payload.items)?payload.items:[]).map((v:any)=>[String(v.id||''),v])),ts=now(),writes:any[]=[];
+ const payload:any=await upstream.json();const found=new Map<string,any>((Array.isArray(payload.items)?payload.items:[]).map((v:any)=>[String(v.id||''),v] as [string,any]));const ts=now(),writes:any[]=[];
  for(const id of ids){const item=found.get(id);if(!item){writes.push(env.CATALOG_DB.prepare("UPDATE videos SET review_status='UNAVAILABLE',review_reason='youtube_metadata_unavailable',metadata_checked_at=?,updated_at=? WHERE video_id=? AND reviewed_at IS NULL").bind(ts,ts,id));continue;}
   const duration=typeof item.contentDetails?.duration==='string'?parseIsoDuration(item.contentDetails.duration):null,published=String(item.snippet?.publishedAt||''),dims=await getJpegDimensions('https://i.ytimg.com/vi/'+id+'/frame0.jpg');
   const decision=evaluateShortsPolicy({durationSeconds:duration,videoWidth:dims?.width,videoHeight:dims?.height,publishedAt:published});
