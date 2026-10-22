@@ -124,13 +124,15 @@ test('integration: client and Worker both consume the same shared helper', () =>
   // Both import the one shared helper (no duplicated phrase rules).
   assert.match(filtering, /from '\.\.\/shared\/musicClassification'/);
   assert.match(publicRead, /from '\.\.\/\.\.\/shared\/musicClassification'/);
-  assert.match(filtering, /hasExplicitNoMusicClaim\(video\.title\)/);
-  assert.match(publicRead, /hasExplicitNoMusicClaim\(titleStr\)/);
+  assert.match(filtering, /legacyHasMusicFlag\(songClassification\)/);
+  assert.match(publicRead, /legacyHasMusicFlag\(song\)/);
   // The old hardcoded two-phrase duplication is gone from both call sites.
   assert.equal(filtering.includes("includes('no music')"), false);
   assert.equal(filtering.includes("includes('بدون موسيقى')"), false);
   assert.equal(publicRead.includes("includes('no music')"), false);
   assert.equal(publicRead.includes("includes('بدون موسيقى')"), false);
+  assert.equal(filtering.includes('hasExplicitNoMusicClaim(video.title)'), false);
+  assert.equal(publicRead.includes('hasExplicitNoMusicClaim(titleStr)'), false);
 });
 
 test('bounded matching accepts punctuation and exact end-of-string claims', () => {
