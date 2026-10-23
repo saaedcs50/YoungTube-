@@ -111,6 +111,11 @@ test('metadata enrichment batches respect the worker subrequest budget', () => {
   assert.ok(workerIndex.includes('up to 400 aged Catalog V2 records per six-hour cron tick'));
 });
 
+test('manual content review attestation is required and recorded before approval', () => {
+  assert.ok(route.includes("if(b.safetyReviewConfirmed!==true)return json({error:'manual_content_review_required'},400);"));
+  assert.ok(route.includes("safetyReviewConfirmed:true,safetyReviewConfirmedAt:ts"));
+});
+
 test('catalog review queue exposes metadata timestamp for a matching admin approval gate', () => {
   assert.ok(route.includes('v.frame_height,v.metadata_checked_at,(SELECT s.title FROM video_sources'));
 });
