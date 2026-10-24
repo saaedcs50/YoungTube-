@@ -20,9 +20,11 @@ test('multimodal screening uses Gemini 3.8 and batches up to ten separate public
 });
 
 test('automatic approvals are limited to high-confidence, age-appropriate, evidence-backed low-risk categories', () => {
-  assert.ok(reviewer.includes("AUTO_REVIEW_CATEGORIES = ['learn', 'arts_crafts', 'nature_life']"));
+  assert.ok(reviewer.includes("AUTO_REVIEW_CATEGORIES = ['learn', 'science_discovery', 'stories_programs', 'arts_crafts', 'nature_life', 'music_songs']"));
   assert.ok(reviewer.includes('assessment.confidence >= 0.98'));
   assert.ok(reviewer.includes('assessment.policyFlags.length === 0'));
+  assert.ok(reviewer.includes("expectedCategory !== 'music_songs' || assessment.audioCoverage === 'sufficient'"));
+  assert.ok(reviewer.includes('audioCoverage: { type: \'string\', enum: [\'sufficient\', \'partial\', \'unavailable\', \'not_applicable\'] }'));
   assert.ok(reviewer.includes('validEvidence.size >= 2'));
   assert.ok(reviewer.includes('/^(\\d{1,3}):([0-5]\\d)$/'));
   assert.ok(reviewer.includes('assessment.category === expectedCategory'));
@@ -30,6 +32,8 @@ test('automatic approvals are limited to high-confidence, age-appropriate, evide
 
 test('the queue is batched, windowed, and protected by a scheduler lock with configurable limits', () => {
   assert.ok(route.includes("['off','shadow','enforce']"));
+  assert.ok(route.includes("primary_category_id IN ('learn','science_discovery','stories_programs','arts_crafts','nature_life','music_songs')"));
+  assert.ok(route.includes('audioCoverage:assessment.audioCoverage'));
   assert.ok(route.includes('AUTO_REVIEW_DEFAULT_DAILY_VIDEO_LIMIT = 2000'));
   assert.ok(route.includes('AUTO_REVIEW_DEFAULT_DAILY_SECONDS_LIMIT = 8 * 60 * 60'));
   assert.ok(route.includes('AUTO_REVIEW_MAX_DAILY_SECONDS_LIMIT = 72 * 60 * 60'));
