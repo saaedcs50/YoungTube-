@@ -81,9 +81,10 @@ export function isHighConfidenceSafeAssessment(
 }
 
 export function isHighConfidencePolicyViolation(assessment: VideoSafetyAssessment): boolean {
+  const blockingFlags = new Set(['sexual_content', 'nudity', 'graphic_violence', 'dangerous_imitation', 'weapons', 'self_harm', 'hate_or_harassment', 'illegal_drugs', 'strong_profanity', 'privacy_or_exploitation']);
   return assessment.verdict === 'UNSAFE'
     && assessment.confidence >= 0.98
-    && assessment.policyFlags.some((flag) => flag !== 'none');
+    && assessment.policyFlags.some((flag) => blockingFlags.has(flag));
 }
 
 export async function scanPublicYouTubeVideoForSafety(
