@@ -67,7 +67,7 @@ export function isAutoReviewCategory(value: unknown): value is AutoReviewCategor
 }
 
 function parseEvidenceTimestamp(value: string, durationSeconds: number): number | null {
-  const match = /^(\\d{1,3}):([0-5]\\d)$/.exec(value);
+  const match = /^(\d{1,3}):([0-5]\d)$/.exec(value);
   if (!match) return null;
   const seconds = Number(match[1]) * 60 + Number(match[2]);
   return Number.isFinite(seconds) && seconds >= 0 && seconds < durationSeconds ? seconds : null;
