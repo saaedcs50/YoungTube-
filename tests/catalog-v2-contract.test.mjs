@@ -117,5 +117,5 @@ test('manual content review attestation is required and recorded before approval
 });
 
 test('catalog review queue exposes metadata timestamp for a matching admin approval gate', () => {
-  assert.ok(route.includes('v.frame_height,v.metadata_checked_at,(SELECT s.title FROM video_sources'));
+  assert.ok(route.includes('v.frame_height,v.metadata_checked_at,v.auto_reviewed_at,v.auto_review_queued_at,v.review_evidence_json,(SELECT s.title FROM video_sources'));
 });
