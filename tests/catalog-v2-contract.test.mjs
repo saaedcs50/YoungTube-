@@ -108,7 +108,7 @@ test('metadata refresh capacity stays within the 30-day retention window for the
 test('metadata enrichment batches respect the worker subrequest budget', () => {
   assert.ok(route.includes('.slice(0,20)'));
   assert.ok(route.includes("for(let i=0;i<ids.length;i+=20)await env.CATALOG_PROCESSING_QUEUE.send({type:'ENRICH_VIDEO_BATCH',ids:ids.slice(i,i+20),scheduledRefresh:true},{contentType:'json'});"));
-  assert.ok(workerIndex.includes('up to 400 aged Catalog V2 records per six-hour cron tick'));
+  assert.ok(workerIndex.includes('up to 4,000 aged Catalog V2 records per six-hour cron tick'));
 });
 
 test('manual content review attestation is required and recorded before approval', () => {
