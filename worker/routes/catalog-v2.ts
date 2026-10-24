@@ -255,7 +255,7 @@ async function autoReviewVideo(env:Env,b:any):Promise<void>{
   await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL,review_reason='auto_review_daily_budget_wait',updated_at=? WHERE video_id=?").bind(ts,id).run();return;
  }
  const scanned=await scanPublicYouTubeVideoForSafety(env.GEMINI_API_KEY,id,String(video.title||''),category);
- if(!scanned.ok){
+ if(scanned.ok===false){
   const safeReason=scanned.error==='provider_rate_limited'?'auto_review_rate_limited':scanned.error==='video_not_accessible'?'auto_review_video_not_accessible':scanned.error==='invalid_model_output'?'auto_review_invalid_model_output':'auto_review_provider_unavailable';
   await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL,review_status='NEEDS_REVIEW',review_reason=?,updated_at=? WHERE video_id=?").bind(safeReason,ts,id).run();return;
  }
