@@ -36,7 +36,7 @@ test('review automation has an explicit off/shadow/enforce mode and a bounded da
 
 test('no metadata-only, short, stale, unknown-Shorts, or uncertain candidate can enter the automated approval path', () => {
   assert.ok(route.includes("v.shorts_check_status!=='NOT_SHORTS'"));
-  assert.ok(route.includes('Number(v.duration_seconds)<120'));
+  assert.ok(route.includes('duration<120||duration>AUTO_REVIEW_MAX_VIDEO_SECONDS'));
   assert.ok(route.includes("Date.now()-Date.parse(String(v.metadata_checked_at))>=20*24*60*60*1000"));
   assert.ok(route.includes('isHighConfidenceSafeAssessment'));
   assert.ok(route.includes('AUTO_REVIEW_DAILY_VIDEO_LIMIT = 24'));
