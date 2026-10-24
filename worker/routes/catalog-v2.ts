@@ -317,7 +317,7 @@ async function autoReviewVideoBatch(env:Env,b:any):Promise<void>{
   }
   eligible.push({videoId:id,title:String(video.title||''),category,duration,video});
  }
- if(!eligible.length){await updateQueueMarker();return;}
+ if(!eligible.length){await updateQueueMarker();await scheduleCatalogAutoReview(env);return;}
 
  const totalSeconds=eligible.reduce((total,row)=>total+row.duration,0);
  const reserved=await env.CATALOG_DB.prepare("INSERT INTO catalog_auto_review_usage (usage_date,scanned_count,scanned_video_seconds,updated_at) VALUES (date('now'),?,?,?) ON CONFLICT(usage_date) DO UPDATE SET scanned_count=scanned_count+excluded.scanned_count,scanned_video_seconds=scanned_video_seconds+excluded.scanned_video_seconds,updated_at=excluded.updated_at WHERE scanned_count+excluded.scanned_count<=? AND scanned_video_seconds+excluded.scanned_video_seconds<=? RETURNING usage_date").bind(eligible.length,totalSeconds,ts,settings.dailyVideoLimit,settings.dailyVideoSecondsLimit).first<any>();
@@ -358,6 +358,7 @@ async function autoReviewVideoBatch(env:Env,b:any):Promise<void>{
   }
  }
  if(updates.length)await env.CATALOG_DB.batch(updates);
+ await scheduleCatalogAutoReview(env);
 }
 export async function scheduleCatalogMetadataRefresh(env:Env):Promise<void>{
  if(!env.CATALOG_DB)return;
