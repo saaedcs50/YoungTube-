@@ -123,7 +123,7 @@ export default {
     }
 
     try {
-      // Refresh up to 400 aged Catalog V2 records per six-hour cron tick and
+      // Refresh up to 4,000 aged Catalog V2 records per six-hour cron tick and
       // rebuild a generation when membership changes or its oldest metadata nears expiry.
       await scheduleCatalogMetadataRefresh(env);
     } catch (err) {
