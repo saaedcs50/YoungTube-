@@ -7,7 +7,7 @@ import {
 } from '../../shared/contentTaxonomy';
 import { classifySongVariantForCandidate, isLikelySongContentTitle, MUSIC_CLASSIFICATION_VERSION } from '../../shared/musicClassification';
 import { evaluateShortsPolicy, SHORTS_POLICY_VERSION } from '../../shared/shortsPolicy';
-import { VIDEO_SAFETY_REVIEW_VERSION, isAutoReviewCategory, isHighConfidenceSafeAssessment, isHighConfidencePolicyViolation, scanPublicYouTubeVideoForSafety } from '../lib/catalog-auto-review';
+import { VIDEO_SAFETY_REVIEW_VERSION, AUTO_REVIEW_BATCH_SIZE, isAutoReviewCategory, isHighConfidenceSafeAssessment, isHighConfidencePolicyViolation, scanPublicYouTubeVideosForSafety } from '../lib/catalog-auto-review';
 import { getJpegDimensions, parseIsoDuration } from '../lib/helpers';
 import { fetchVideos } from '../lib/youtube-api';
 import type { Env } from '../lib/types';
@@ -16,9 +16,13 @@ const now = () => new Date().toISOString();
 const ALL_IDS = ['all', ...CONTENT_CENTERS.map(c => c.id), ...OPT_IN_CATEGORY_DEFINITIONS.map(c => c.id), ...SONG_VARIANT_CATEGORIES.map(c => c.id)];
 const SYSTEM_IDS = new Set<string>([...ALL_IDS, ...LEGACY_CATEGORY_IDS]);
 const POLICY_VERSION = CONTENT_TAXONOMY_VERSION + '|' + MUSIC_CLASSIFICATION_VERSION + '|' + SHORTS_POLICY_VERSION + '|' + VIDEO_SAFETY_REVIEW_VERSION;
-const AUTO_REVIEW_DAILY_VIDEO_LIMIT = 24;
-const AUTO_REVIEW_DAILY_SECONDS_LIMIT = 14400;
-const AUTO_REVIEW_MAX_VIDEO_SECONDS = 600;
+const AUTO_REVIEW_DEFAULT_DAILY_VIDEO_LIMIT = 2000;
+const AUTO_REVIEW_MAX_DAILY_VIDEO_LIMIT = 10000;
+const AUTO_REVIEW_DEFAULT_DAILY_SECONDS_LIMIT = 8 * 60 * 60;
+const AUTO_REVIEW_MAX_DAILY_SECONDS_LIMIT = 72 * 60 * 60;
+const AUTO_REVIEW_MAX_VIDEO_SECONDS = 1800;
+const AUTO_REVIEW_ENQUEUE_WINDOW_VIDEOS = 500;
+const AUTO_REVIEW_RATE_LIMIT_PAUSE_MS = 24 * 60 * 60 * 1000;
 const json = (data: unknown, status = 200, cache = 'no-store') => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache } });
 
 function list(value: any): any[] {
@@ -197,25 +201,60 @@ async function enrichBatch(env:Env,b:any):Promise<void>{
 
 
 type CatalogAutoReviewMode = 'off' | 'shadow' | 'enforce';
+interface CatalogAutoReviewSettings {
+ mode: CatalogAutoReviewMode;
+ dailyVideoLimit: number;
+ dailyVideoSecondsLimit: number;
+ pauseUntil: string | null;
+}
+async function getCatalogAutoReviewSettings(env:Env):Promise<CatalogAutoReviewSettings>{
+ if(!env.CATALOG_DB)return {mode:'off',dailyVideoLimit:AUTO_REVIEW_DEFAULT_DAILY_VIDEO_LIMIT,dailyVideoSecondsLimit:AUTO_REVIEW_DEFAULT_DAILY_SECONDS_LIMIT,pauseUntil:null};
+ const q=await env.CATALOG_DB.prepare("SELECT config_key,config_value FROM catalog_config WHERE config_key IN ('auto_review_mode','auto_review_daily_video_limit','auto_review_daily_seconds_limit','auto_review_pause_until')").all<any>();
+ const cfg=Object.fromEntries((q.results||[]).map((row:any)=>[String(row.config_key),String(row.config_value)]));
+ const rawMode=String(cfg.auto_review_mode||'off');
+ const rawVideos=Number(cfg.auto_review_daily_video_limit||AUTO_REVIEW_DEFAULT_DAILY_VIDEO_LIMIT);
+ const rawSeconds=Number(cfg.auto_review_daily_seconds_limit||AUTO_REVIEW_DEFAULT_DAILY_SECONDS_LIMIT);
+ return {
+  mode:rawMode==='shadow'||rawMode==='enforce'?rawMode:'off',
+  dailyVideoLimit:Number.isFinite(rawVideos)?Math.max(1,Math.min(AUTO_REVIEW_MAX_DAILY_VIDEO_LIMIT,Math.floor(rawVideos))):AUTO_REVIEW_DEFAULT_DAILY_VIDEO_LIMIT,
+  dailyVideoSecondsLimit:Number.isFinite(rawSeconds)?Math.max(120,Math.min(AUTO_REVIEW_MAX_DAILY_SECONDS_LIMIT,Math.floor(rawSeconds))):AUTO_REVIEW_DEFAULT_DAILY_SECONDS_LIMIT,
+  pauseUntil:cfg.auto_review_pause_until||null,
+ };
+}
 async function getCatalogAutoReviewMode(env:Env):Promise<CatalogAutoReviewMode>{
- if(!env.CATALOG_DB)return 'off';
- const row=await env.CATALOG_DB.prepare("SELECT config_value FROM catalog_config WHERE config_key='auto_review_mode'").first<any>();
- const value=String(row?.config_value||'off');
- return value==='shadow'||value==='enforce'?value:'off';
+ return (await getCatalogAutoReviewSettings(env)).mode;
 }
 async function scheduleCatalogAutoReview(env:Env):Promise<void>{
  if(!env.CATALOG_DB||!env.CATALOG_PROCESSING_QUEUE||!env.GEMINI_API_KEY)return;
- const mode=await getCatalogAutoReviewMode(env);
- if(mode==='off')return;
+ const lockToken=crypto.randomUUID(),lockAt=now();
+ const lock=await env.CATALOG_DB.prepare("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('auto_review_scheduler_lock',?,?) ON CONFLICT(config_key) DO UPDATE SET config_value=excluded.config_value,updated_at=excluded.updated_at WHERE datetime(catalog_config.updated_at)<=datetime('now','-2 minutes') RETURNING config_value").bind(lockToken,lockAt).first<any>();
+ if(!lock)return;
+ try{
+  await scheduleCatalogAutoReviewLocked(env);
+ }finally{
+  await env.CATALOG_DB.prepare("DELETE FROM catalog_config WHERE config_key='auto_review_scheduler_lock' AND config_value=?").bind(lockToken).run().catch(()=>undefined);
+ }
+}
+async function scheduleCatalogAutoReviewLocked(env:Env):Promise<void>{
+ if(!env.CATALOG_DB||!env.CATALOG_PROCESSING_QUEUE||!env.GEMINI_API_KEY)return;
+ const settings=await getCatalogAutoReviewSettings(env);
+ if(settings.mode==='off')return;
+ if(settings.pauseUntil&&Date.parse(settings.pauseUntil)>Date.now())return;
+
  await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL WHERE auto_review_queued_at IS NOT NULL AND datetime(auto_review_queued_at)<=datetime('now','-1 day') AND auto_reviewed_at IS NULL").run();
+
  const usage=await env.CATALOG_DB.prepare("SELECT scanned_count,scanned_video_seconds FROM catalog_auto_review_usage WHERE usage_date=date('now')").first<any>();
  const pending=await env.CATALOG_DB.prepare("SELECT COUNT(*) AS count,COALESCE(SUM(duration_seconds),0) AS seconds FROM videos WHERE auto_review_queued_at IS NOT NULL AND datetime(auto_review_queued_at)>datetime('now','-1 day') AND auto_reviewed_at IS NULL").first<any>();
  const scannedCount=Number(usage?.scanned_count||0),scannedSeconds=Number(usage?.scanned_video_seconds||0);
  const pendingCount=Number(pending?.count||0),pendingSeconds=Number(pending?.seconds||0);
- const slots=Math.min(AUTO_REVIEW_DAILY_VIDEO_LIMIT-scannedCount-pendingCount,AUTO_REVIEW_DAILY_VIDEO_LIMIT);
- const secondsLeft=AUTO_REVIEW_DAILY_SECONDS_LIMIT-scannedSeconds-pendingSeconds;
+ const slots=Math.min(
+  settings.dailyVideoLimit-scannedCount-pendingCount,
+  AUTO_REVIEW_ENQUEUE_WINDOW_VIDEOS-pendingCount,
+ );
+ const secondsLeft=settings.dailyVideoSecondsLimit-scannedSeconds-pendingSeconds;
  if(slots<=0||secondsLeft<120)return;
- const q=await env.CATALOG_DB.prepare("SELECT video_id,duration_seconds FROM videos WHERE review_status IN ('CANDIDATE','NEEDS_REVIEW') AND reviewed_at IS NULL AND metadata_checked_at>=datetime('now','-20 days') AND shorts_check_status='NOT_SHORTS' AND duration_seconds BETWEEN 120 AND ? AND primary_category_id IN ('learn','arts_crafts','nature_life') AND auto_reviewed_at IS NULL AND auto_review_queued_at IS NULL AND (review_reason IS NULL OR review_reason NOT IN ('auto_review_provider_unavailable','auto_review_rate_limited','auto_review_invalid_model_output','auto_review_video_not_accessible') OR updated_at<=datetime('now','-1 day')) ORDER BY published_at DESC,video_id LIMIT ?").bind(AUTO_REVIEW_MAX_VIDEO_SECONDS,Math.min(slots,AUTO_REVIEW_DAILY_VIDEO_LIMIT)).all<any>();
+
+ const q=await env.CATALOG_DB.prepare("SELECT video_id,duration_seconds FROM videos WHERE review_status IN ('CANDIDATE','NEEDS_REVIEW') AND reviewed_at IS NULL AND metadata_checked_at>=datetime('now','-20 days') AND shorts_check_status='NOT_SHORTS' AND duration_seconds BETWEEN 120 AND ? AND primary_category_id IN ('learn','arts_crafts','nature_life') AND auto_reviewed_at IS NULL AND auto_review_queued_at IS NULL AND (review_reason IS NULL OR review_reason NOT IN ('auto_review_provider_unavailable','auto_review_rate_limited','auto_review_invalid_model_output','auto_review_video_not_accessible','auto_review_daily_budget_wait') OR updated_at<=datetime('now','-1 day') OR (review_reason='auto_review_daily_budget_wait' AND date(updated_at)<date('now'))) ORDER BY published_at DESC,video_id LIMIT ?").bind(AUTO_REVIEW_MAX_VIDEO_SECONDS,Math.min(slots,AUTO_REVIEW_ENQUEUE_WINDOW_VIDEOS)).all<any>();
  const selected:any[]=[];let reservedSeconds=0;
  for(const row of q.results||[]){
   const seconds=Number(row.duration_seconds||0);
@@ -224,61 +263,102 @@ async function scheduleCatalogAutoReview(env:Env):Promise<void>{
   if(selected.length>=slots)break;
  }
  if(!selected.length)return;
+
  const queuedAt=now();
- await env.CATALOG_DB.batch(selected.map(row=>env.CATALOG_DB!.prepare('UPDATE videos SET auto_review_queued_at=?,updated_at=? WHERE video_id=? AND auto_review_queued_at IS NULL AND auto_reviewed_at IS NULL').bind(queuedAt,queuedAt,row.videoId)));
+ const placeholders=selected.map(()=>'?').join(',');
+ const reserved=await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=?,updated_at=? WHERE video_id IN ("+placeholders+") AND auto_review_queued_at IS NULL AND auto_reviewed_at IS NULL AND reviewed_at IS NULL AND review_status IN ('CANDIDATE','NEEDS_REVIEW') RETURNING video_id,duration_seconds").bind(queuedAt,queuedAt,...selected.map((row:any)=>row.videoId)).all<any>();
+ const rows=(reserved.results||[]).map((row:any)=>({videoId:String(row.video_id),seconds:Number(row.duration_seconds||0)}));
+ if(!rows.length)return;
+ const messages:any[]=[];
+ for(let i=0;i<rows.length;i+=AUTO_REVIEW_BATCH_SIZE){
+  messages.push({body:{type:'AUTO_REVIEW_VIDEO_BATCH',videoIds:rows.slice(i,i+AUTO_REVIEW_BATCH_SIZE).map(row=>row.videoId)},contentType:'json'});
+ }
  try{
-  await env.CATALOG_PROCESSING_QUEUE.sendBatch(selected.map(row=>({body:{type:'AUTO_REVIEW_VIDEO',videoId:row.videoId},contentType:'json'})));
+  for(let i=0;i<messages.length;i+=100)await env.CATALOG_PROCESSING_QUEUE.sendBatch(messages.slice(i,i+100));
  }catch(error){
-  await env.CATALOG_DB.batch(selected.map(row=>env.CATALOG_DB!.prepare('UPDATE videos SET auto_review_queued_at=NULL,updated_at=? WHERE video_id=? AND auto_reviewed_at IS NULL').bind(now(),row.videoId)));
+  const ids=rows.map(row=>row.videoId);
+  for(let i=0;i<ids.length;i+=100)await env.CATALOG_DB.batch(ids.slice(i,i+100).map(id=>env.CATALOG_DB!.prepare('UPDATE videos SET auto_review_queued_at=NULL,updated_at=? WHERE video_id=? AND auto_reviewed_at IS NULL').bind(now(),id)));
   throw error;
  }
 }
-async function autoReviewVideo(env:Env,b:any):Promise<void>{
+async function autoReviewVideoBatch(env:Env,b:any):Promise<void>{
  if(!env.CATALOG_DB)return;
- const id=String(b?.videoId||'').trim();
- if(!id)return;
- const video=await env.CATALOG_DB.prepare('SELECT video_id,title,primary_category_id,duration_seconds,shorts_check_status,review_status,reviewed_at,metadata_checked_at,review_evidence_json FROM videos WHERE video_id=?').bind(id).first<any>();
- if(!video)return;
- if(video.reviewed_at||['APPROVED','REJECTED','UNAVAILABLE','SHORT_BLOCKED'].includes(String(video.review_status||''))){
-  await env.CATALOG_DB.prepare('UPDATE videos SET auto_review_queued_at=NULL,updated_at=? WHERE video_id=?').bind(now(),id).run();return;
+ const ids=Array.from(new Set<string>((Array.isArray(b?.videoIds)?b.videoIds:[b?.videoId]).map((value:any)=>String(value||'').trim()).filter(Boolean))).slice(0,AUTO_REVIEW_BATCH_SIZE);
+ if(!ids.length)return;
+ const placeholders=ids.map(()=>'?').join(',');
+ const q=await env.CATALOG_DB.prepare('SELECT video_id,title,primary_category_id,duration_seconds,shorts_check_status,review_status,reviewed_at,metadata_checked_at,review_evidence_json,auto_review_queued_at FROM videos WHERE video_id IN ('+placeholders+')').bind(...ids).all<any>();
+ const byId=new Map<string,any>((q.results||[]).map((v:any)=>[String(v.video_id),v]));
+ const ts=now(),settings=await getCatalogAutoReviewSettings(env);
+ const updateQueueMarker=async(reason?:string)=>{
+  await env.CATALOG_DB!.batch(ids.map(id=>env.CATALOG_DB!.prepare(reason
+   ?"UPDATE videos SET auto_review_queued_at=NULL,review_reason=?,updated_at=? WHERE video_id=? AND auto_reviewed_at IS NULL"
+   :"UPDATE videos SET auto_review_queued_at=NULL,updated_at=? WHERE video_id=? AND auto_reviewed_at IS NULL")
+   .bind(...(reason?[reason,now(),id]:[now(),id])));
+ };
+ if(settings.pauseUntil&&Date.parse(settings.pauseUntil)>Date.now()){
+  await updateQueueMarker('auto_review_rate_limited');return;
  }
- const mode=await getCatalogAutoReviewMode(env);
- if(mode==='off'||!env.GEMINI_API_KEY){
-  await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL,review_reason='auto_review_not_configured',updated_at=? WHERE video_id=?").bind(now(),id).run();return;
+ if(settings.mode==='off'||!env.GEMINI_API_KEY){
+  await updateQueueMarker('auto_review_not_configured');return;
  }
- const ts=now(),category=String(video.primary_category_id||''),duration=Number(video.duration_seconds||0);
- if(video.shorts_check_status!=='NOT_SHORTS'||duration<120||duration>AUTO_REVIEW_MAX_VIDEO_SECONDS||!isAutoReviewCategory(category)||!video.metadata_checked_at||Date.now()-Date.parse(String(video.metadata_checked_at))>=20*24*60*60*1000){
-  await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL,review_status='NEEDS_REVIEW',review_reason='auto_review_scope_excluded',updated_at=? WHERE video_id=?").bind(ts,id).run();return;
- }
- const reserved=await env.CATALOG_DB.prepare("INSERT INTO catalog_auto_review_usage (usage_date,scanned_count,scanned_video_seconds,updated_at) VALUES (date('now'),1,?,?) ON CONFLICT(usage_date) DO UPDATE SET scanned_count=scanned_count+1,scanned_video_seconds=scanned_video_seconds+excluded.scanned_video_seconds,updated_at=excluded.updated_at WHERE scanned_count<? AND scanned_video_seconds+excluded.scanned_video_seconds<=? RETURNING usage_date").bind(duration,ts,AUTO_REVIEW_DAILY_VIDEO_LIMIT,AUTO_REVIEW_DAILY_SECONDS_LIMIT).first<any>();
- if(!reserved){
-  await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL,review_reason='auto_review_daily_budget_wait',updated_at=? WHERE video_id=?").bind(ts,id).run();return;
- }
- const scanned=await scanPublicYouTubeVideoForSafety(env.GEMINI_API_KEY,id,String(video.title||''),category);
- if(scanned.ok===false){
-  const safeReason=scanned.error==='provider_rate_limited'?'auto_review_rate_limited':scanned.error==='video_not_accessible'?'auto_review_video_not_accessible':scanned.error==='invalid_model_output'?'auto_review_invalid_model_output':'auto_review_provider_unavailable';
-  await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL,review_status='NEEDS_REVIEW',review_reason=?,updated_at=? WHERE video_id=?").bind(safeReason,ts,id).run();return;
- }
- const assessment=scanned.assessment;
- const safe=isHighConfidenceSafeAssessment(assessment,category,duration);
- const violation=isHighConfidencePolicyViolation(assessment);
- let evidence:any={};try{evidence=JSON.parse(String(video.review_evidence_json||'{}'));}catch{}
- evidence.autoReview={mode,model:scanned.model,policyVersion:scanned.policyVersion,verdict:assessment.verdict,confidence:assessment.confidence,category:assessment.category,ageAppropriate:assessment.ageAppropriate,contentCoverage:assessment.contentCoverage,policyFlags:assessment.policyFlags,evidenceTimestamps:assessment.evidenceTimestamps,summary:assessment.summary,scannedAt:ts};
- if(mode==='shadow'){
-  await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL,auto_reviewed_at=?,review_reason='auto_review_shadow_observation',review_evidence_json=?,updated_at=? WHERE video_id=?").bind(ts,JSON.stringify(evidence),ts,id).run();return;
- }
- if(safe){
-  evidence.decision='automated_approval';
-  await env.CATALOG_DB.prepare("UPDATE videos SET primary_category_id=?,review_status='APPROVED',review_reason=NULL,review_evidence_json=?,policy_version=?,reviewed_at=?,auto_reviewed_at=?,auto_review_queued_at=NULL,updated_at=? WHERE video_id=? AND reviewed_at IS NULL AND review_status IN ('CANDIDATE','NEEDS_REVIEW')").bind(category,JSON.stringify(evidence),POLICY_VERSION,ts,ts,ts,id).run();return;
- }
- if(violation){
-  evidence.decision='automated_rejection';
-  await env.CATALOG_DB.prepare("UPDATE videos SET review_status='REJECTED',review_reason='auto_review_policy_violation',review_evidence_json=?,policy_version=?,reviewed_at=?,auto_reviewed_at=?,auto_review_queued_at=NULL,updated_at=? WHERE video_id=? AND reviewed_at IS NULL AND review_status IN ('CANDIDATE','NEEDS_REVIEW')").bind(JSON.stringify(evidence),POLICY_VERSION,ts,ts,ts,id).run();return;
- }
- evidence.decision='needs_review';
- await env.CATALOG_DB.prepare("UPDATE videos SET review_status='NEEDS_REVIEW',review_reason=?,review_evidence_json=?,policy_version=?,auto_reviewed_at=?,auto_review_queued_at=NULL,updated_at=? WHERE video_id=? AND reviewed_at IS NULL AND review_status IN ('CANDIDATE','NEEDS_REVIEW')").bind(assessment.verdict==='UNSAFE'?'auto_review_safety_uncertain':'auto_review_inconclusive',JSON.stringify(evidence),POLICY_VERSION,ts,ts,id).run();
-}
 
+ const eligible:any[]=[];
+ for(const id of ids){
+  const video=byId.get(id);
+  if(!video)continue;
+  if(video.reviewed_at||['APPROVED','REJECTED','UNAVAILABLE','SHORT_BLOCKED'].includes(String(video.review_status||''))){
+   await env.CATALOG_DB.prepare('UPDATE videos SET auto_review_queued_at=NULL,updated_at=? WHERE video_id=?').bind(now(),id).run();
+   continue;
+  }
+  const category=String(video.primary_category_id||''),duration=Number(video.duration_seconds||0);
+  if(video.shorts_check_status!=='NOT_SHORTS'||duration<120||duration>AUTO_REVIEW_MAX_VIDEO_SECONDS||!isAutoReviewCategory(category)||!video.metadata_checked_at||Date.now()-Date.parse(String(video.metadata_checked_at))>=20*24*60*60*1000){
+   await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL,review_status='NEEDS_REVIEW',review_reason='auto_review_scope_excluded',updated_at=? WHERE video_id=?").bind(now(),id).run();
+   continue;
+  }
+  eligible.push({videoId:id,title:String(video.title||''),category,duration,video});
+ }
+ if(!eligible.length){await updateQueueMarker();return;}
+
+ const totalSeconds=eligible.reduce((total,row)=>total+row.duration,0);
+ const reserved=await env.CATALOG_DB.prepare("INSERT INTO catalog_auto_review_usage (usage_date,scanned_count,scanned_video_seconds,updated_at) VALUES (date('now'),?,?,?) ON CONFLICT(usage_date) DO UPDATE SET scanned_count=scanned_count+excluded.scanned_count,scanned_video_seconds=scanned_video_seconds+excluded.scanned_video_seconds,updated_at=excluded.updated_at WHERE scanned_count+excluded.scanned_count<=? AND scanned_video_seconds+excluded.scanned_video_seconds<=? RETURNING usage_date").bind(eligible.length,totalSeconds,ts,settings.dailyVideoLimit,settings.dailyVideoSecondsLimit).first<any>();
+ if(!reserved){await updateQueueMarker('auto_review_daily_budget_wait');return;}
+
+ const scan=await scanPublicYouTubeVideosForSafety(env.GEMINI_API_KEY,eligible.map(row=>({videoId:row.videoId,title:row.title,expectedCategory:row.category})));
+ if(scan.ok===false){
+  const reason=scan.error==='provider_rate_limited'?'auto_review_rate_limited':scan.error==='video_not_accessible'?'auto_review_video_not_accessible':scan.error==='invalid_model_output'?'auto_review_invalid_model_output':'auto_review_provider_unavailable';
+  if(scan.error==='provider_rate_limited'){
+   const pauseUntil=new Date(Date.now()+AUTO_REVIEW_RATE_LIMIT_PAUSE_MS).toISOString();
+   await env.CATALOG_DB.prepare("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('auto_review_pause_until',?,?) ON CONFLICT(config_key) DO UPDATE SET config_value=excluded.config_value,updated_at=excluded.updated_at").bind(pauseUntil,now()).run();
+  }
+  await env.CATALOG_DB.batch(eligible.map(row=>env.CATALOG_DB!.prepare("UPDATE videos SET auto_review_queued_at=NULL,review_status='NEEDS_REVIEW',review_reason=?,updated_at=? WHERE video_id=? AND reviewed_at IS NULL AND review_status IN ('CANDIDATE','NEEDS_REVIEW')").bind(reason,now(),row.videoId)));
+  return;
+ }
+
+ const assessmentById=new Map(scan.assessments.map(item=>[item.videoId,item.assessment]));
+ const updates:any[]=[];
+ for(const row of eligible){
+  const assessment=assessmentById.get(row.videoId);
+  if(!assessment)continue;
+  const safe=isHighConfidenceSafeAssessment(assessment,row.category,row.duration);
+  const violation=isHighConfidencePolicyViolation(assessment);
+  let evidence:any={};try{evidence=JSON.parse(String(row.video.review_evidence_json||'{}'));}catch{}
+  evidence.autoReview={mode:settings.mode,model:scan.model,policyVersion:scan.policyVersion,verdict:assessment.verdict,confidence:assessment.confidence,category:assessment.category,ageAppropriate:assessment.ageAppropriate,contentCoverage:assessment.contentCoverage,policyFlags:assessment.policyFlags,evidenceTimestamps:assessment.evidenceTimestamps,summary:assessment.summary,scannedAt:ts};
+  const where="WHERE video_id=? AND reviewed_at IS NULL AND review_status IN ('CANDIDATE','NEEDS_REVIEW') AND shorts_check_status='NOT_SHORTS' AND duration_seconds=? AND primary_category_id=? AND metadata_checked_at=? AND auto_reviewed_at IS NULL";
+  if(settings.mode==='shadow'){
+   updates.push(env.CATALOG_DB.prepare("UPDATE videos SET auto_reviewed_at=?,auto_review_queued_at=NULL,review_reason='auto_review_shadow_observation',review_evidence_json=?,updated_at=? "+where).bind(ts,JSON.stringify(evidence),ts,row.videoId,row.duration,row.category,row.video.metadata_checked_at));
+  }else if(safe){
+   evidence.decision='automated_approval';
+   updates.push(env.CATALOG_DB.prepare("UPDATE videos SET review_status='APPROVED',primary_category_id=?,review_reason=NULL,review_evidence_json=?,policy_version=?,reviewed_at=?,auto_reviewed_at=?,auto_review_queued_at=NULL,updated_at=? "+where).bind(row.category,JSON.stringify(evidence),POLICY_VERSION,ts,ts,ts,row.videoId,row.duration,row.category,row.video.metadata_checked_at));
+  }else if(violation){
+   evidence.decision='automated_rejection';
+   updates.push(env.CATALOG_DB.prepare("UPDATE videos SET review_status='REJECTED',review_reason='auto_review_policy_violation',review_evidence_json=?,policy_version=?,reviewed_at=?,auto_reviewed_at=?,auto_review_queued_at=NULL,updated_at=? "+where).bind(JSON.stringify(evidence),POLICY_VERSION,ts,ts,ts,row.videoId,row.duration,row.category,row.video.metadata_checked_at));
+  }else{
+   evidence.decision='needs_review';
+   updates.push(env.CATALOG_DB.prepare("UPDATE videos SET review_status='NEEDS_REVIEW',review_reason=?,review_evidence_json=?,policy_version=?,auto_reviewed_at=?,auto_review_queued_at=NULL,updated_at=? "+where).bind(assessment.verdict==='UNSAFE'?'auto_review_safety_uncertain':'auto_review_inconclusive',JSON.stringify(evidence),POLICY_VERSION,ts,ts,row.videoId,row.duration,row.category,row.video.metadata_checked_at));
+  }
+ }
+ if(updates.length)await env.CATALOG_DB.batch(updates);
+}
 export async function scheduleCatalogMetadataRefresh(env:Env):Promise<void>{
  if(!env.CATALOG_DB)return;
  // Hard-delete expired API-derived metadata even if the YouTube key/queue is unavailable.
