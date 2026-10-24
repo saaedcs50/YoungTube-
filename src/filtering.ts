@@ -10,7 +10,7 @@ import {
 } from './services/globalBlocks';
 import {
   classifySongVariantForCandidate,
-  hasExplicitNoMusicClaim,
+  legacyHasMusicFlag,
   MUSIC_CLASSIFICATION_VERSION,
 } from '../shared/musicClassification';
 
@@ -575,11 +575,10 @@ export async function filterAndCacheVideos(
       }) || undefined;
       const isSongContent = Boolean(songClassification);
 
-      // Legacy boolean compatibility is song-only now. A lesson or cartoon
-      // titled "without music" must not acquire a no-music badge/flag.
-      const hasMusic = songClassification
-        ? !hasExplicitNoMusicClaim(video.title)
-        : undefined;
+      // Preserve the old boolean field only when the video-level classifier
+      // recognizes a song/nasheed. Its value must follow the canonical public
+      // path, not a narrower duplicate phrase list.
+      const hasMusic = legacyHasMusicFlag(songClassification);
 
       if (songClassification?.publicCategory === 'music_songs_no_music') {
         noMusicCount++;

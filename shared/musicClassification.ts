@@ -442,6 +442,18 @@ export function classifySongVariant(input: {
   };
 }
 
+/**
+ * Compatibility mapping for the retired boolean field. False means only that
+ * the video title qualifies for the explicit no-music song path; it is not
+ * audio verification. Non-song videos have no song/music boolean at all.
+ */
+export function legacyHasMusicFlag(
+  classification: SongVariantClassification | null | undefined
+): boolean | undefined {
+  if (!classification) return undefined;
+  return classification.publicCategory !== 'music_songs_no_music';
+}
+
 export function matchesPublicSongCategory(input: {
   title: string;
   description?: string;
