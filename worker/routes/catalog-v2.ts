@@ -293,7 +293,7 @@ async function autoReviewVideoBatch(env:Env,b:any):Promise<void>{
   await env.CATALOG_DB!.batch(ids.map(id=>env.CATALOG_DB!.prepare(reason
    ?"UPDATE videos SET auto_review_queued_at=NULL,review_reason=?,updated_at=? WHERE video_id=? AND auto_reviewed_at IS NULL"
    :"UPDATE videos SET auto_review_queued_at=NULL,updated_at=? WHERE video_id=? AND auto_reviewed_at IS NULL")
-   .bind(...(reason?[reason,now(),id]:[now(),id])));
+   .bind(...(reason?[reason,now(),id]:[now(),id]))));
  };
  if(settings.pauseUntil&&Date.parse(settings.pauseUntil)>Date.now()){
   await updateQueueMarker('auto_review_rate_limited');return;
