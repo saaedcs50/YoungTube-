@@ -38,7 +38,7 @@ test('no metadata-only, short, stale, unknown-Shorts, or uncertain candidate can
   assert.ok(route.includes('Number(v.duration_seconds)<120'));
   assert.ok(route.includes("Date.now()-Date.parse(String(v.metadata_checked_at))>=20*24*60*60*1000"));
   assert.ok(route.includes('isHighConfidenceSafeAssessment'));
-  assert.ok(route.includes("video_id LIMIT 24"));
+  assert.ok(route.includes('AUTO_REVIEW_DAILY_VIDEO_LIMIT = 24'));
 });
 
 test('human review is an exception path, not a prerequisite for every automatically approved video', () => {
