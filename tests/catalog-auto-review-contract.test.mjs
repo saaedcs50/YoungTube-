@@ -20,7 +20,8 @@ test('automatic approvals are limited to high-confidence, age-appropriate, evide
   assert.ok(reviewer.includes("AUTO_REVIEW_CATEGORIES = ['learn', 'arts_crafts', 'nature_life']"));
   assert.ok(reviewer.includes('assessment.confidence >= 0.98'));
   assert.ok(reviewer.includes('assessment.policyFlags.length === 0'));
-  assert.ok(reviewer.includes('assessment.evidenceTimestamps.length >= 2'));
+  assert.ok(reviewer.includes('validEvidence.size >= 2'));
+  assert.ok(reviewer.includes('/^(\\d{1,3}):([0-5]\\d)$/'));
   assert.ok(reviewer.includes('assessment.category === expectedCategory'));
 });
 
@@ -42,7 +43,7 @@ test('no metadata-only, short, stale, unknown-Shorts, or uncertain candidate can
 });
 
 test('human review is an exception path, not a prerequisite for every automatically approved video', () => {
-  assert.ok(route.includes("decision:'automated_approval'"));
+  assert.ok(route.includes("evidence.decision='automated_approval'"));
   assert.ok(route.includes("safetyReviewConfirmed:true,safetyReviewConfirmedAt:ts"));
   assert.ok(route.includes("if(b.safetyReviewConfirmed!==true)return json({error:'manual_content_review_required'},400);"));
 });
