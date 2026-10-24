@@ -260,7 +260,7 @@ async function autoReviewVideo(env:Env,b:any):Promise<void>{
   await env.CATALOG_DB.prepare("UPDATE videos SET auto_review_queued_at=NULL,review_status='NEEDS_REVIEW',review_reason=?,updated_at=? WHERE video_id=?").bind(safeReason,ts,id).run();return;
  }
  const assessment=scanned.assessment;
- const safe=isHighConfidenceSafeAssessment(assessment,category);
+ const safe=isHighConfidenceSafeAssessment(assessment,category,duration);
  const violation=isHighConfidencePolicyViolation(assessment);
  let evidence:any={};try{evidence=JSON.parse(String(video.review_evidence_json||'{}'));}catch{}
  evidence.autoReview={mode,model:scanned.model,policyVersion:scanned.policyVersion,verdict:assessment.verdict,confidence:assessment.confidence,category:assessment.category,ageAppropriate:assessment.ageAppropriate,contentCoverage:assessment.contentCoverage,policyFlags:assessment.policyFlags,evidenceTimestamps:assessment.evidenceTimestamps,summary:assessment.summary,scannedAt:ts};
