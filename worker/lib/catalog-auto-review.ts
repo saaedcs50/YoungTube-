@@ -30,7 +30,7 @@ const POLICY_FLAGS = [
   'sexual_content', 'nudity', 'graphic_violence', 'dangerous_imitation',
   'weapons', 'self_harm', 'hate_or_harassment', 'illegal_drugs',
   'strong_profanity', 'adult_themes', 'frightening_content', 'misinformation',
-  'privacy_or_exploitation', 'other', 'none',
+  'privacy_or_exploitation', 'other',
 ] as const;
 
 const RESPONSE_SCHEMA = {
