@@ -16,7 +16,7 @@ test('multimodal screening uses Gemini 3.8 and batches up to ten separate public
   assert.ok(reviewer.includes("uri: 'https://www.youtube.com/watch?v='"));
   assert.ok(reviewer.includes("response_format: { type: 'text', mime_type: 'application/json'"));
   assert.ok(reviewer.includes('seenIds.size !== normalized.length'));
-  assert.ok(reviewer.includes('return { ok: false, error: \\'provider_unavailable\\' }'));
+  assert.ok(reviewer.includes("return { ok: false, error: 'provider_unavailable' }"));
 });
 
 test('automatic approvals are limited to high-confidence, age-appropriate, evidence-backed low-risk categories', () => {
@@ -24,7 +24,7 @@ test('automatic approvals are limited to high-confidence, age-appropriate, evide
   assert.ok(reviewer.includes('assessment.confidence >= 0.98'));
   assert.ok(reviewer.includes('assessment.policyFlags.length === 0'));
   assert.ok(reviewer.includes('validEvidence.size >= 2'));
-  assert.ok(reviewer.includes('/^(\\\\d{1,3}):([0-5]\\\\d)$/'));
+  assert.ok(reviewer.includes('/^(\\d{1,3}):([0-5]\\d)$/'));
   assert.ok(reviewer.includes('assessment.category === expectedCategory'));
 });
 
@@ -48,8 +48,8 @@ test('uncertain, stale, short, or unsupported videos cannot enter automatic appr
   assert.ok(route.includes('duration<120||duration>AUTO_REVIEW_MAX_VIDEO_SECONDS'));
   assert.ok(route.includes("Date.now()-Date.parse(String(video.metadata_checked_at))>=20*24*60*60*1000"));
   assert.ok(route.includes('isHighConfidenceSafeAssessment'));
-  assert.ok(route.includes('evidence.decision=\\'automated_approval\\''));
-  assert.ok(route.includes('if(scan.error===\\'provider_rate_limited\\')'));
+  assert.ok(route.includes("evidence.decision='automated_approval'"));
+  assert.ok(route.includes("if(scan.error==='provider_rate_limited')"));
   assert.ok(route.includes("VALUES ('auto_review_pause_until',?,?)"));
 });
 
