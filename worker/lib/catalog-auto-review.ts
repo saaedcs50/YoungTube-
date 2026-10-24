@@ -66,16 +66,26 @@ export function isAutoReviewCategory(value: unknown): value is AutoReviewCategor
   return typeof value === 'string' && (AUTO_REVIEW_CATEGORIES as readonly string[]).includes(value);
 }
 
+function parseEvidenceTimestamp(value: string, durationSeconds: number): number | null {
+  const match = /^(\\d{1,3}):([0-5]\\d)$/.exec(value);
+  if (!match) return null;
+  const seconds = Number(match[1]) * 60 + Number(match[2]);
+  return Number.isFinite(seconds) && seconds >= 0 && seconds < durationSeconds ? seconds : null;
+}
+
 export function isHighConfidenceSafeAssessment(
   assessment: VideoSafetyAssessment,
   expectedCategory: string,
+  durationSeconds: number,
 ): boolean {
+  const parsedEvidence = assessment.evidenceTimestamps.map((value) => parseEvidenceTimestamp(value, durationSeconds));
+  const validEvidence = new Set(parsedEvidence.filter((value): value is number => value !== null));
   return assessment.verdict === 'SAFE'
     && assessment.confidence >= 0.98
     && assessment.ageAppropriate === true
     && assessment.contentCoverage === 'sufficient'
     && assessment.policyFlags.length === 0
-    && assessment.evidenceTimestamps.length >= 2
+    && validEvidence.size >= 2
     && isAutoReviewCategory(expectedCategory)
     && assessment.category === expectedCategory;
 }
@@ -118,7 +128,7 @@ export async function scanPublicYouTubeVideoForSafety(
         model: VIDEO_SAFETY_REVIEW_MODEL,
         store: false,
         input: [
-          { type: 'video', uri: 'https://www.youtube.com/watch?v=' + encodeURIComponent(videoId) },
+          { type: 'video', uri: 'https://www.youtube.com/watch?v=' + encodeURIComponent(videoId), processing: 'agentic' },
           { type: 'text', text: prompt },
         ],
         response_format: { type: 'text', mime_type: 'application/json', schema: RESPONSE_SCHEMA },
