@@ -11,7 +11,7 @@ import { VIDEO_SAFETY_REVIEW_VERSION, AUTO_REVIEW_BATCH_SIZE, isAutoReviewCatego
 import { getJpegDimensions, parseIsoDuration } from '../lib/helpers';
 import { fetchVideos } from '../lib/youtube-api';
 import type { Env } from '../lib/types';
-import { remainingShadowSampleSlots } from '../lib/catalog-auto-review-scheduling';
+import { AUTO_REVIEW_SHADOW_SAMPLE_LIMIT, remainingShadowSampleSlots } from '../lib/catalog-auto-review-scheduling';
 
 const now = () => new Date().toISOString();
 const ALL_IDS = ['all', ...CONTENT_CENTERS.map(c => c.id), ...OPT_IN_CATEGORY_DEFINITIONS.map(c => c.id), ...SONG_VARIANT_CATEGORIES.map(c => c.id)];
@@ -23,7 +23,6 @@ const AUTO_REVIEW_DEFAULT_DAILY_SECONDS_LIMIT = 8 * 60 * 60;
 const AUTO_REVIEW_MAX_DAILY_SECONDS_LIMIT = 72 * 60 * 60;
 const AUTO_REVIEW_MAX_VIDEO_SECONDS = 1800;
 const AUTO_REVIEW_ENQUEUE_WINDOW_VIDEOS = 500;
-const AUTO_REVIEW_SHADOW_SAMPLE_LIMIT = 10;
 const AUTO_REVIEW_RATE_LIMIT_PAUSE_MS = 24 * 60 * 60 * 1000;
 const json = (data: unknown, status = 200, cache = 'no-store') => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache } });
 
