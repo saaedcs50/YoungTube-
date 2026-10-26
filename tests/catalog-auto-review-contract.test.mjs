@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
+import { AUTO_REVIEW_SHADOW_SAMPLE_LIMIT, remainingShadowSampleSlots } from '../worker/lib/catalog-auto-review-scheduling.ts';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const route = fs.readFileSync(path.join(root, 'worker/routes/catalog-v2.ts'), 'utf8');
@@ -61,4 +62,39 @@ test('human review remains available for exceptions, not required before every a
   assert.ok(route.includes("evidence.decision='automated_approval'"));
   assert.ok(route.includes("safetyReviewConfirmed:true,safetyReviewConfirmedAt:ts"));
   assert.ok(route.includes("if(b.safetyReviewConfirmed!==true)return json({error:'manual_content_review_required'},400);"));
+});
+
+
+test('initial Shadow trial is hard-capped at ten unique scheduled video slots', () => {
+  assert.equal(AUTO_REVIEW_SHADOW_SAMPLE_LIMIT, 10);
+  assert.equal(remainingShadowSampleSlots(0), 10);
+  assert.equal(remainingShadowSampleSlots(1), 9);
+  assert.equal(remainingShadowSampleSlots(9), 1);
+  assert.equal(remainingShadowSampleSlots(10), 0);
+  assert.equal(remainingShadowSampleSlots(500), 0);
+  assert.equal(remainingShadowSampleSlots(Number.NaN), 0);
+  assert.equal(remainingShadowSampleSlots(0, Number.NaN), 0);
+
+  // The scheduler persists reservations; later Cron invocations reuse the same
+  // counter instead of treating each invocation as a fresh ten-video sample.
+  assert.ok(route.includes("auto_review_shadow_reserved_count"));
+  assert.ok(route.includes("shadowReservedCount=(shadowReservedCount||0)+rows.length"));
+  assert.ok(route.includes("remainingShadowSampleSlots(shadowReservedCount,AUTO_REVIEW_SHADOW_SAMPLE_LIMIT)"));
+  assert.ok(route.includes("'sample_limit_reached'"));
+  assert.ok(route.includes("AUTO_REVIEW_SHADOW_SAMPLE_LIMIT"));
+});
+
+test('auto-review scheduling exposes and persists explicit diagnostics rather than silently returning', () => {
+  for (const name of [
+    'scheduleOutcome', 'eligibleCount', 'scheduledCount', 'batchesSent',
+    'shadowSampleLimit', 'shadowReservedCount', 'auto_review_last_schedule',
+  ]) assert.ok(route.includes(name), `scheduler diagnostics must include ${name}`);
+  for (const outcome of [
+    'scheduled', 'mode_off', 'not_configured', 'bindings_unavailable', 'paused',
+    'budget_exhausted', 'no_eligible_video', 'sample_limit_reached',
+    'enqueue_window_full', 'reservation_race', 'send_failed', 'lock_busy', 'scheduler_error',
+  ]) assert.ok(route.includes(`'${outcome}'`), `scheduler outcome ${outcome} should be represented`);
+  assert.ok(route.includes("const schedule=await scheduleCatalogAutoReview(env)"));
+  assert.ok(route.includes("shadowSampleLimit:AUTO_REVIEW_SHADOW_SAMPLE_LIMIT"));
+  assert.ok(route.includes("lastSchedule"));
 });
