@@ -577,9 +577,35 @@ export async function scanPublicYouTubeVideoForSafety(
   title: string,
   expectedCategory: string,
 ): Promise<{ ok: true; model: string; policyVersion: string; assessment: VideoSafetyAssessment } | { ok: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic }> {
-  const result = await scanPublicYouTubeVideosForSafety(apiKey, [{ videoId, title, expectedCategory }]);
-  if (result.ok === false) return result;
-  const item = result.assessments[0];
-  if (!item) return { ok: false, error: 'invalid_model_output' };
-  return { ok: true, model: result.model, policyVersion: result.policyVersion, assessment: item.assessment };
+  const started = await startPublicYouTubeVideosSafetyInteraction(apiKey, [{ videoId, title, expectedCategory }]);
+  if (started.ok === false) return started;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    const result = await pollPublicYouTubeVideosSafetyInteraction(apiKey, started.interactionId, [videoId]);
+    if (result.ok && result.pending) continue;
+    await deletePublicYouTubeVideosSafetyInteraction(apiKey, started.interactionId);
+    if (result.ok === false) return result;
+    const item = result.assessments[0];
+    if (!item) return {
+      ok: false,
+      error: 'invalid_model_output',
+      diagnostic: providerDiagnostic('response_validation', 1, {
+        interactionId: started.interactionId,
+        message: 'Provider completed without returning the requested video assessment.',
+        error: 'invalid_model_output',
+      }),
+    };
+    return { ok: true, model: result.model, policyVersion: result.policyVersion, assessment: item.assessment };
+  }
+  await deletePublicYouTubeVideosSafetyInteraction(apiKey, started.interactionId);
+  return {
+    ok: false,
+    error: 'provider_unavailable',
+    diagnostic: providerDiagnostic('interaction', 1, {
+      interactionId: started.interactionId,
+      interactionStatus: 'timeout',
+      message: 'Provider interaction exceeded the single-video polling window.',
+      error: 'provider_unavailable',
+    }),
+  };
 }
