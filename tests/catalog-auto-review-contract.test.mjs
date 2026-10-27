@@ -16,7 +16,7 @@ test('multimodal screening uses Gemini 3.8 and batches up to ten separate public
   assert.ok(reviewer.includes("type: 'video',"));
   assert.ok(reviewer.includes("uri: 'https://www.youtube.com/watch?v='"));
   assert.ok(reviewer.includes("response_format: { type: 'text', mime_type: 'application/json'"));
-  assert.ok(reviewer.includes('seenIds.size !== normalized.length'));
+  assert.ok(reviewer.includes('seenIds.size !== expectedVideoIds.length'));
   assert.ok(reviewer.includes("error: 'provider_unavailable', diagnostic"));
 });
 
@@ -43,7 +43,7 @@ test('the queue is batched, windowed, and protected by a scheduler lock with con
   assert.ok(route.includes("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('auto_review_scheduler_lock'"));
   assert.ok(route.includes("path==='/api/admin/catalog/auto-review-budget'"));
   assert.ok(route.includes("if(hours>8&&b?.paidTierConfirmed!==true)"));
-  assert.ok(route.includes('scanPublicYouTubeVideosForSafety(env.GEMINI_API_KEY'));
+  assert.ok(route.includes('startPublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY'));
   assert.ok(types.includes('GEMINI_API_KEY?: string'));
   assert.ok(migration.includes('catalog_auto_review_usage'));
 });
@@ -54,7 +54,7 @@ test('uncertain, stale, short, or unsupported videos cannot enter automatic appr
   assert.ok(route.includes("Date.now()-Date.parse(String(video.metadata_checked_at))>=20*24*60*60*1000"));
   assert.ok(route.includes('isHighConfidenceSafeAssessment'));
   assert.ok(route.includes("evidence.decision='automated_approval'"));
-  assert.ok(route.includes("if(scan.error==='provider_rate_limited')"));
+  assert.ok(route.includes("if(error==='provider_rate_limited')"));
   assert.ok(route.includes("VALUES ('auto_review_pause_until',?,?)"));
 });
 
@@ -104,9 +104,9 @@ test('Gemini provider failures preserve safe HTTP diagnostics and distinguish au
   for (const diagnosticField of ['httpStatus', 'providerCode', 'providerStatus', 'timestamp', 'stage']) {
     assert.ok(reviewer.includes(diagnosticField), `provider diagnostics should capture ${diagnosticField}`);
   }
-  assert.ok(reviewer.includes("response.status === 429"));
-  assert.ok(reviewer.includes("response.status === 400"));
-  assert.ok(reviewer.includes("response.status === 401 || response.status === 403"));
+  assert.ok(reviewer.includes("status === 429"));
+  assert.ok(reviewer.includes("status === 400"));
+  assert.ok(reviewer.includes("status === 401 || status === 403"));
   assert.ok(reviewer.includes("'provider_auth_failed'"));
   assert.ok(reviewer.includes("'provider_request_invalid'"));
   assert.ok(reviewer.includes("replace(/AIza[0-9A-Za-z_-]{20,}/g, '[redacted-key]')"));
@@ -124,4 +124,41 @@ test('failed Shadow cohort can be retried once without increasing the unique ten
   assert.ok(route.includes("attemptType:'retry_failed_sample'"));
   assert.ok(route.includes('Retry attempts consume daily usage, but do not reserve additional unique Shadow sample slots.'));
   assert.ok(route.includes("auto_review_shadow_reserved_count"));
+});
+
+
+test('Gemini video review uses background Interactions with durable queue polling instead of a long synchronous Worker request', () => {
+  assert.ok(reviewer.includes('background: true'));
+  assert.ok(reviewer.includes('store: true'));
+  assert.ok(reviewer.includes('startPublicYouTubeVideosSafetyInteraction'));
+  assert.ok(reviewer.includes('pollPublicYouTubeVideosSafetyInteraction'));
+  assert.ok(reviewer.includes('deletePublicYouTubeVideosSafetyInteraction'));
+  assert.ok(route.includes("type:'AUTO_REVIEW_POLL_INTERACTION'"));
+  assert.ok(route.includes("b.type==='AUTO_REVIEW_POLL_INTERACTION'"));
+  assert.ok(route.includes('async function pollAutoReviewInteraction'));
+  assert.ok(route.includes('pollAttempt'));
+  assert.ok(route.includes('diagnosticOnly'));
+  assert.ok(route.includes('Failed to enqueue the background diagnostic poll.'));
+  assert.ok(route.includes('auto_review_provider_diagnostic_lock'));
+  assert.ok(route.includes('diagnosticAfterFailure'));
+});
+
+test('the one-video provider diagnostic returns pending immediately and never records a video review result', () => {
+  assert.ok(route.includes("path==='/api/admin/catalog/auto-review-diagnostic'"));
+  assert.ok(route.includes("startPublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,[{videoId:String(failed.video_id)"));
+  assert.ok(route.includes('return json({ok:true,pending:true,diagnostic,diagnosticOnly:true,reviewResultSaved:false,shadowCountUnchanged:true,modeUnchanged:true},202)'));
+  const diagnosticStart = route.indexOf("if(path==='/api/admin/catalog/auto-review-diagnostic'");
+  const retryStart = route.indexOf("if(path==='/api/admin/catalog/auto-review-retry-failed-shadow'", diagnosticStart);
+  assert.ok(diagnosticStart >= 0 && retryStart > diagnosticStart);
+  const body = route.slice(diagnosticStart, retryStart);
+  assert.doesNotMatch(body, /UPDATE videos SET review_status/);
+  assert.doesNotMatch(body, /auto_reviewed_at=/);
+  assert.ok(body.includes('diagnosticOnly:true'));
+});
+
+test('background interactions are deleted after terminal results and timed out interactions do not loop forever', () => {
+  assert.ok(reviewer.includes("method: 'DELETE'"));
+  assert.ok(route.includes("await deletePublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,interactionId)"));
+  assert.ok(route.includes('if(attempt>=59)'));
+  assert.ok(route.includes("interactionStatus:'timeout'"));
 });
