@@ -113,7 +113,7 @@ export interface VideoSafetyProviderDiagnostic {
   timestamp: string;
   model: string;
   httpStatus?: number;
-  providerCode?: number;
+  providerCode?: number | string;
   providerStatus?: string;
   message?: string;
   error?: string;
@@ -408,7 +408,10 @@ export async function startPublicYouTubeVideosSafetyInteraction(
           ...prepared.videos.map((video) => ({
             type: 'video',
             uri: 'https://www.youtube.com/watch?v=' + encodeURIComponent(video.videoId),
-            processing: 'agentic',
+            // Static processing avoids a current Interactions API regression affecting
+            // background agentic video requests; the model still receives actual video
+            // frames and applies the evidence/timestamp policy in the prompt.
+            processing: 'static',
           })),
         ],
         response_format: { type: 'text', mime_type: 'application/json', schema: BATCH_RESPONSE_SCHEMA },
@@ -540,13 +543,30 @@ export async function pollPublicYouTubeVideosSafetyInteraction(
     };
   }
   if (status !== 'completed') {
-    const message = safeProviderMessage(payload?.errors?.[0]?.message)
+    const providerFailure = payload?.error && typeof payload.error === 'object'
+      ? payload.error
+      : Array.isArray(payload?.errors) && payload.errors[0] && typeof payload.errors[0] === 'object'
+        ? payload.errors[0]
+        : payload?.last_error && typeof payload.last_error === 'object'
+          ? payload.last_error
+          : null;
+    const rawMessage = providerFailure?.message
+      ?? (typeof payload?.error === 'string' ? payload.error : undefined)
+      ?? payload?.message;
+    const message = safeProviderMessage(rawMessage)
       || ('Provider interaction ended with status ' + (status || 'unknown') + '.');
+    const rawCode = providerFailure?.code ?? providerFailure?.status ?? payload?.error_code;
+    const providerStatus = typeof rawCode === 'string'
+      ? rawCode.slice(0, 100)
+      : (typeof providerFailure?.status === 'string' ? providerFailure.status.slice(0, 100) : undefined);
+    const numericCode = typeof rawCode === 'number' && Number.isFinite(rawCode) ? rawCode : undefined;
     const error: VideoSafetyProviderError = status === 'incomplete' ? 'invalid_model_output' : 'provider_unavailable';
     const diagnostic = providerDiagnostic('interaction', count, {
       httpStatus: response.status,
       interactionId,
       interactionStatus: status || 'unknown',
+      ...(providerStatus ? { providerStatus } : {}),
+      ...(numericCode !== undefined ? { providerCode: numericCode } : {}),
       message,
       error,
     });
