@@ -132,7 +132,7 @@ export type VideoSafetyProviderError =
   | 'video_not_accessible';
 
 export type VideoSafetyBatchResult =
-  | { ok: true; model: string; policyVersion: string; assessments: Array<{ videoId: string; assessment: VideoSafetyAssessment }> }
+  | { ok: true; pending?: false; model: string; policyVersion: string; assessments: Array<{ videoId: string; assessment: VideoSafetyAssessment }> }
   | { ok: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic };
 
 const BATCH_RESPONSE_SCHEMA = {
