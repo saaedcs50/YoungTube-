@@ -17,7 +17,7 @@ test('multimodal screening uses Gemini 3.8 and batches up to ten separate public
   assert.ok(reviewer.includes("uri: 'https://www.youtube.com/watch?v='"));
   assert.ok(reviewer.includes("response_format: { type: 'text', mime_type: 'application/json'"));
   assert.ok(reviewer.includes('seenIds.size !== normalized.length'));
-  assert.ok(reviewer.includes("return { ok: false, error: 'provider_unavailable' }"));
+  assert.ok(reviewer.includes("error: 'provider_unavailable', diagnostic"));
 });
 
 test('automatic approvals are limited to high-confidence, age-appropriate, evidence-backed low-risk categories', () => {
