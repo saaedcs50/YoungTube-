@@ -17,7 +17,7 @@ test('multimodal screening uses Gemini 3.8 and batches up to ten separate public
   assert.ok(reviewer.includes("uri: 'https://www.youtube.com/watch?v='"));
   assert.ok(reviewer.includes("response_format: { type: 'text', mime_type: 'application/json'"));
   assert.ok(reviewer.includes('seenIds.size !== normalized.length'));
-  assert.ok(reviewer.includes("return { ok: false, error: 'provider_unavailable' }"));
+  assert.ok(reviewer.includes("error: 'provider_unavailable', diagnostic"));
 });
 
 test('automatic approvals are limited to high-confidence, age-appropriate, evidence-backed low-risk categories', () => {
@@ -97,4 +97,31 @@ test('auto-review scheduling exposes and persists explicit diagnostics rather th
   assert.ok(route.includes("const schedule=await scheduleCatalogAutoReview(env)"));
   assert.ok(route.includes("shadowSampleLimit:AUTO_REVIEW_SHADOW_SAMPLE_LIMIT"));
   assert.ok(route.includes("lastSchedule"));
+});
+
+
+test('Gemini provider failures preserve safe HTTP diagnostics and distinguish auth/config errors from model failures', () => {
+  for (const diagnosticField of ['httpStatus', 'providerCode', 'providerStatus', 'timestamp', 'stage']) {
+    assert.ok(reviewer.includes(diagnosticField), `provider diagnostics should capture ${diagnosticField}`);
+  }
+  assert.ok(reviewer.includes("response.status === 429"));
+  assert.ok(reviewer.includes("response.status === 400"));
+  assert.ok(reviewer.includes("response.status === 401 || response.status === 403"));
+  assert.ok(reviewer.includes("'provider_auth_failed'"));
+  assert.ok(reviewer.includes("'provider_request_invalid'"));
+  assert.ok(reviewer.includes("replace(/AIza[0-9A-Za-z_-]{20,}/g, '[redacted-key]')"));
+  assert.ok(reviewer.includes("console.error('catalog_auto_review_provider_failure'"));
+  assert.ok(route.includes("auto_review_last_provider_diagnostic"));
+  assert.ok(route.includes("path==='/api/admin/catalog/auto-review-diagnostic'"));
+});
+
+test('failed Shadow cohort can be retried once without increasing the unique ten-video reservation cap', () => {
+  assert.ok(route.includes("path==='/api/admin/catalog/auto-review-retry-failed-shadow'"));
+  assert.ok(route.includes("auto_review_shadow_retry_count"));
+  assert.ok(route.includes("retryCount>=1"));
+  assert.ok(route.includes("reusedExistingReservations:true"));
+  assert.ok(route.includes("uniqueShadowReservationCountUnchanged:true"));
+  assert.ok(route.includes("attemptType:'retry_failed_sample'"));
+  assert.ok(route.includes('Retry attempts consume daily usage, but do not reserve additional unique Shadow sample slots.'));
+  assert.ok(route.includes("auto_review_shadow_reserved_count"));
 });
