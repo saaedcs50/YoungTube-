@@ -286,12 +286,15 @@ async function scheduleCatalogAutoReviewLocked(env:Env):Promise<AutoReviewSchedu
  const secondsLeft=settings.dailyVideoSecondsLimit-scannedSeconds-pendingSeconds;
  let shadowReservedCount:number|null=null,shadowRemainingSlots=Number.POSITIVE_INFINITY;
  if(settings.mode==='shadow'){
-  const [shadowRows,reservedRow,totalUsageRow]=await Promise.all([
+  const [shadowRows,reservedRow,failedReservations]=await Promise.all([
    env.CATALOG_DB.prepare("SELECT COUNT(*) AS count FROM videos WHERE auto_reviewed_at IS NOT NULL AND json_extract(review_evidence_json,'$.autoReview.mode')='shadow'").first<any>(),
    env.CATALOG_DB.prepare("SELECT config_value FROM catalog_config WHERE config_key='auto_review_shadow_reserved_count'").first<any>(),
-   env.CATALOG_DB.prepare("SELECT COALESCE(SUM(scanned_count),0) AS count FROM catalog_auto_review_usage").first<any>(),
+   env.CATALOG_DB.prepare("SELECT COUNT(*) AS count FROM videos WHERE review_reason IN ('auto_review_provider_unavailable','auto_review_provider_auth_failed','auto_review_provider_request_invalid','auto_review_invalid_model_output','auto_review_video_not_accessible','auto_review_rate_limited') AND auto_reviewed_at IS NULL").first<any>(),
   ]);
-  const historicalFloor=Math.max(Number(shadowRows?.count||0)+pendingCount,Number(totalUsageRow?.count||0));
+  // Retry attempts consume daily usage, but do not reserve additional unique Shadow sample slots.
+  // Use unique video rows, completed Shadow rows, pending reservations, and the persistent counter;
+  // never derive unique sample slots from cumulative attempt usage.
+  const historicalFloor=Math.max(Number(shadowRows?.count||0)+pendingCount,Number(failedReservations?.count||0));
   const savedCount=reservedRow?Number(reservedRow.config_value):0;
   shadowReservedCount=Math.max(Number.isFinite(savedCount)?Math.floor(savedCount):0,historicalFloor);
   if(!reservedRow||savedCount<shadowReservedCount){
