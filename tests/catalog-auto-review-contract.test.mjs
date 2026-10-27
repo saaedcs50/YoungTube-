@@ -125,3 +125,40 @@ test('failed Shadow cohort can be retried once without increasing the unique ten
   assert.ok(route.includes('Retry attempts consume daily usage, but do not reserve additional unique Shadow sample slots.'));
   assert.ok(route.includes("auto_review_shadow_reserved_count"));
 });
+
+
+test('Gemini video review uses background Interactions with durable queue polling instead of a long synchronous Worker request', () => {
+  assert.ok(reviewer.includes('background: true'));
+  assert.ok(reviewer.includes('store: true'));
+  assert.ok(reviewer.includes('startPublicYouTubeVideosSafetyInteraction'));
+  assert.ok(reviewer.includes('pollPublicYouTubeVideosSafetyInteraction'));
+  assert.ok(reviewer.includes('deletePublicYouTubeVideosSafetyInteraction'));
+  assert.ok(route.includes("type:'AUTO_REVIEW_POLL_INTERACTION'"));
+  assert.ok(route.includes("b.type==='AUTO_REVIEW_POLL_INTERACTION'"));
+  assert.ok(route.includes('async function pollAutoReviewInteraction'));
+  assert.ok(route.includes('pollAttempt'));
+  assert.ok(route.includes('diagnosticOnly'));
+  assert.ok(route.includes('Failed to enqueue the background diagnostic poll.'));
+  assert.ok(route.includes('auto_review_provider_diagnostic_lock'));
+  assert.ok(route.includes('diagnosticAfterFailure'));
+});
+
+test('the one-video provider diagnostic returns pending immediately and never records a video review result', () => {
+  assert.ok(route.includes("path==='/api/admin/catalog/auto-review-diagnostic'"));
+  assert.ok(route.includes("startPublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,[{videoId:String(failed.video_id)"));
+  assert.ok(route.includes('return json({ok:true,pending:true,diagnostic,diagnosticOnly:true,reviewResultSaved:false,shadowCountUnchanged:true,modeUnchanged:true},202)'));
+  const diagnosticStart = route.indexOf("if(path==='/api/admin/catalog/auto-review-diagnostic'");
+  const retryStart = route.indexOf("if(path==='/api/admin/catalog/auto-review-retry-failed-shadow'", diagnosticStart);
+  assert.ok(diagnosticStart >= 0 && retryStart > diagnosticStart);
+  const body = route.slice(diagnosticStart, retryStart);
+  assert.doesNotMatch(body, /UPDATE videos SET review_status/);
+  assert.doesNotMatch(body, /auto_reviewed_at=/);
+  assert.ok(body.includes('diagnosticOnly:true'));
+});
+
+test('background interactions are deleted after terminal results and timed out interactions do not loop forever', () => {
+  assert.ok(reviewer.includes("method: 'DELETE'"));
+  assert.ok(route.includes("await deletePublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,interactionId)"));
+  assert.ok(route.includes('if(attempt>=59)'));
+  assert.ok(route.includes("interactionStatus:'timeout'"));
+});
