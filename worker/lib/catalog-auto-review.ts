@@ -55,14 +55,52 @@ const RESPONSE_SCHEMA = {
 };
 
 function textFromResponse(payload: any): string {
-  if (typeof payload?.output_text === 'string' && payload.output_text.trim()) return payload.output_text;
+  if (typeof payload?.output_text === 'string' && payload.output_text.trim()) return payload.output_text.trim();
+
+  const steps = Array.isArray(payload?.steps) ? payload.steps : [];
+  // Interactions may contain thought, processing, tool, or intermediate steps
+  // before the final model output. Joining every step corrupts structured JSON.
+  const modelOutputSteps = steps.filter((step: any) => step?.type === 'model_output');
+  const preferredSteps = modelOutputSteps.length > 0 ? modelOutputSteps : steps.filter((step: any) => {
+    const name = String(step?.type || step?.name || '').toLowerCase();
+    return name === 'output' || name === 'text';
+  });
   const chunks: string[] = [];
-  for (const step of Array.isArray(payload?.steps) ? payload.steps : []) {
+  for (const step of preferredSteps) {
     for (const part of Array.isArray(step?.content) ? step.content : []) {
       if (typeof part?.text === 'string') chunks.push(part.text);
+      else if (part?.type === 'text' && typeof part?.content === 'string') chunks.push(part.content);
     }
   }
-  return chunks.join('\n').trim();
+  if (chunks.length > 0) return chunks.join('\n').trim();
+
+  // Some Interactions responses expose text through an output container rather
+  // than the steps array. Accept known text containers, but do not stringify the
+  // complete payload because that can mix metadata or intermediate steps into JSON.
+  if (typeof payload?.output === 'string' && payload.output.trim()) return payload.output.trim();
+  if (typeof payload?.output?.text === 'string' && payload.output.text.trim()) return payload.output.text.trim();
+  if (Array.isArray(payload?.output)) {
+    const outputText = payload.output.filter((part: any) => part?.type === 'text' && typeof part?.text === 'string').map((part: any) => part.text);
+    if (outputText.length > 0) return outputText.join('\n').trim();
+  }
+  return '';
+}
+
+function parseStructuredJsonText(text: string): any {
+  let candidate = String(text || '').trim();
+  if (!candidate) throw new Error('empty_model_output');
+  candidate = candidate.replace(/^\uFEFF/, '').trim();
+  const fenced = candidate.match(/^\x60{3}(?:json)?\s*([\s\S]*?)\s*\x60{3}$/i);
+  if (fenced) candidate = fenced[1].trim();
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    // Recover only a complete object boundary; never manufacture fields or verdicts.
+    const first = candidate.indexOf('{');
+    const last = candidate.lastIndexOf('}');
+    if (first >= 0 && last > first) return JSON.parse(candidate.slice(first, last + 1));
+    throw new Error('invalid_json_model_output');
+  }
 }
 
 export function isAutoReviewCategory(value: unknown): value is AutoReviewCategory {
@@ -299,14 +337,34 @@ function parseCompletedInteraction(
     model: VIDEO_SAFETY_REVIEW_MODEL,
     videoCount: expectedVideoIds.length,
   };
+  const responseText = textFromResponse(payload);
   let parsed: any;
   try {
-    parsed = JSON.parse(textFromResponse(payload));
+    parsed = parseStructuredJsonText(responseText);
   } catch {
+    const steps = Array.isArray(payload?.steps) ? payload.steps : [];
+    const stepTypes = steps.slice(0, 8).map((step: any) => String(step?.type || step?.name || 'unknown').slice(0, 60));
+    const contentPartTypes = steps.flatMap((step: any) => Array.isArray(step?.content) ? step.content.slice(0, 8).map((part: any) => String(part?.type || (typeof part)).slice(0, 40)) : []).slice(0, 16);
+    const textValue = String(responseText || '').trim();
+    const outputShape = !textValue ? 'empty'
+      : /^\x60{3}(?:json)?\b/i.test(textValue) ? 'fenced_json'
+        : textValue.startsWith('{') ? 'json_object'
+          : textValue.startsWith('[') ? 'json_array'
+            : textValue.includes('{') && textValue.includes('}') ? 'text_with_json_object'
+              : 'non_json_text';
     return {
       ok: false,
       error: 'invalid_model_output',
-      diagnostic: { ...diagnosticBase, httpStatus: 200, message: 'Provider output was not valid JSON.', error: 'invalid_model_output' },
+      diagnostic: {
+        ...diagnosticBase,
+        httpStatus: 200,
+        message: 'Provider output could not be parsed as the required JSON assessment.',
+        outputLength: textValue.length,
+        outputShape,
+        stepTypes,
+        contentPartTypes,
+        error: 'invalid_model_output',
+      },
     };
   }
   if (!Array.isArray(parsed?.assessments) || parsed.assessments.length !== expectedVideoIds.length) {
