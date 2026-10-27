@@ -133,7 +133,7 @@ export type VideoSafetyProviderError =
 
 export type VideoSafetyBatchResult =
   | { ok: true; pending: false; model: string; policyVersion: string; assessments: Array<{ videoId: string; assessment: VideoSafetyAssessment }> }
-  | { ok: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic };
+  | { ok: false; pending?: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic };
 
 const BATCH_RESPONSE_SCHEMA = {
   type: 'object',
