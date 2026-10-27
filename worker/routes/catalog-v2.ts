@@ -757,22 +757,42 @@ export async function handleCatalogV2Routes(req:Request,env:Env,url:URL):Promise
   if(settings.mode!=='shadow')return json({error:'diagnostic_requires_shadow_mode',mode:settings.mode},409);
   if(!env.GEMINI_API_KEY)return json({error:'gemini_api_key_not_configured'},409);
   if(settings.pauseUntil&&Date.parse(settings.pauseUntil)>Date.now())return json({error:'provider_pause_active',pauseUntil:settings.pauseUntil},409);
-  const failed=await env.CATALOG_DB.prepare("SELECT video_id,title,primary_category_id,duration_seconds FROM videos WHERE review_reason IN ('auto_review_provider_unavailable','auto_review_provider_auth_failed','auto_review_provider_request_invalid','auto_review_invalid_model_output','auto_review_video_not_accessible') AND auto_reviewed_at IS NULL AND auto_review_queued_at IS NULL AND reviewed_at IS NULL AND shorts_check_status='NOT_SHORTS' AND duration_seconds BETWEEN 120 AND ? AND metadata_checked_at>=datetime('now','-20 days') AND primary_category_id IN ('learn','science_discovery','stories_programs','arts_crafts','nature_life','music_songs') ORDER BY updated_at DESC,video_id LIMIT 1").bind(AUTO_REVIEW_MAX_VIDEO_SECONDS).first<any>();
-  if(!failed)return json({error:'no_failed_shadow_video_available_for_diagnostic'},409);
-  const duration=Number(failed.duration_seconds||0);
-  const quota=await env.CATALOG_DB.prepare("SELECT scanned_count,scanned_video_seconds FROM catalog_auto_review_usage WHERE usage_date=date('now')").first<any>();
-  if(Number(quota?.scanned_count||0)+1>settings.dailyVideoLimit||Number(quota?.scanned_video_seconds||0)+duration>settings.dailyVideoSecondsLimit)return json({error:'daily_budget_exhausted'},409);
-  const quotaReserved=await env.CATALOG_DB.prepare("INSERT INTO catalog_auto_review_usage (usage_date,scanned_count,scanned_video_seconds,updated_at) VALUES (date('now'),1,?,?) ON CONFLICT(usage_date) DO UPDATE SET scanned_count=scanned_count+1,scanned_video_seconds=scanned_video_seconds+excluded.scanned_video_seconds,updated_at=excluded.updated_at WHERE scanned_count+1<=? AND scanned_video_seconds+excluded.scanned_video_seconds<=? RETURNING usage_date").bind(duration,now(),settings.dailyVideoLimit,settings.dailyVideoSecondsLimit).first<any>();
-  if(!quotaReserved)return json({error:'daily_budget_exhausted'},409);
-  const scan=await scanPublicYouTubeVideosForSafety(env.GEMINI_API_KEY,[{videoId:String(failed.video_id),title:String(failed.title||''),expectedCategory:String(failed.primary_category_id||'')}]);
-  if(scan.ok===false){
-   const diagnostic:VideoSafetyProviderDiagnostic=scan.diagnostic?{...scan.diagnostic,outcome:'failed',timestamp:now(),error:scan.error,videoCount:1,diagnosticOnly:true}:{outcome:'failed',stage:'response_validation',timestamp:now(),model:'gemini-3.8-flash',error:scan.error,videoCount:1,diagnosticOnly:true,message:'Provider request failed without structured diagnostics.'};
+  const lockToken=crypto.randomUUID(),lockAt=now();
+  const diagnosticLock=await env.CATALOG_DB.prepare("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('auto_review_provider_diagnostic_lock',?,?) ON CONFLICT(config_key) DO UPDATE SET config_value=excluded.config_value,updated_at=excluded.updated_at WHERE datetime(catalog_config.updated_at)<=datetime('now','-2 minutes') RETURNING config_value").bind(lockToken,lockAt).first<any>();
+  if(!diagnosticLock)return json({error:'provider_diagnostic_already_running'},409);
+  try{
+   const previousDiagnostic=await env.CATALOG_DB.prepare("SELECT config_value,updated_at FROM catalog_config WHERE config_key='auto_review_last_provider_diagnostic'").first<any>();
+   let previousParsed:any=null;try{previousParsed=JSON.parse(String(previousDiagnostic?.config_value||'null'));}catch{}
+   if(previousParsed?.outcome==='pending'&&Date.now()-Date.parse(String(previousParsed.timestamp||previousDiagnostic?.updated_at||''))<12*60*1000){
+    return json({error:'provider_diagnostic_already_running',diagnostic:previousParsed},409);
+   }
+   const failed=await env.CATALOG_DB.prepare("SELECT video_id,title,primary_category_id,duration_seconds FROM videos WHERE review_reason IN ('auto_review_provider_unavailable','auto_review_provider_auth_failed','auto_review_provider_request_invalid','auto_review_invalid_model_output','auto_review_video_not_accessible','auto_review_rate_limited') AND auto_reviewed_at IS NULL AND auto_review_queued_at IS NULL AND reviewed_at IS NULL AND shorts_check_status='NOT_SHORTS' AND duration_seconds BETWEEN 120 AND ? AND metadata_checked_at>=datetime('now','-20 days') AND primary_category_id IN ('learn','science_discovery','stories_programs','arts_crafts','nature_life','music_songs') ORDER BY updated_at DESC,video_id LIMIT 1").bind(AUTO_REVIEW_MAX_VIDEO_SECONDS).first<any>();
+   if(!failed)return json({error:'no_failed_shadow_video_available_for_diagnostic'},409);
+   const duration=Number(failed.duration_seconds||0);
+   const quota=await env.CATALOG_DB.prepare("SELECT scanned_count,scanned_video_seconds FROM catalog_auto_review_usage WHERE usage_date=date('now')").first<any>();
+   if(Number(quota?.scanned_count||0)+1>settings.dailyVideoLimit||Number(quota?.scanned_video_seconds||0)+duration>settings.dailyVideoSecondsLimit)return json({error:'daily_budget_exhausted'},409);
+   const quotaReserved=await env.CATALOG_DB.prepare("INSERT INTO catalog_auto_review_usage (usage_date,scanned_count,scanned_video_seconds,updated_at) VALUES (date('now'),1,?,?) ON CONFLICT(usage_date) DO UPDATE SET scanned_count=scanned_count+1,scanned_video_seconds=scanned_video_seconds+excluded.scanned_video_seconds,updated_at=excluded.updated_at WHERE scanned_count+1<=? AND scanned_video_seconds+excluded.scanned_video_seconds<=? RETURNING usage_date").bind(duration,now(),settings.dailyVideoLimit,settings.dailyVideoSecondsLimit).first<any>();
+   if(!quotaReserved)return json({error:'daily_budget_exhausted'},409);
+   const started=await startPublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,[{videoId:String(failed.video_id),title:String(failed.title||''),expectedCategory:String(failed.primary_category_id||'')}]);
+   if(started.ok===false){
+    const diagnostic:VideoSafetyProviderDiagnostic={...started.diagnostic,outcome:'failed',timestamp:now(),error:started.error,videoCount:1,diagnosticOnly:true};
+    await persistAutoReviewProviderDiagnostic(env,diagnostic);
+    return json({ok:false,error:started.error,diagnostic,diagnosticOnly:true,reviewResultSaved:false,shadowCountUnchanged:true,modeUnchanged:true},200);
+   }
+   const diagnostic:VideoSafetyProviderDiagnostic={outcome:'pending',stage:'interaction',timestamp:now(),model:started.model,videoCount:1,diagnosticOnly:true,interactionId:started.interactionId,interactionStatus:started.status,message:'Gemini accepted the diagnostic request. The interaction will be polled asynchronously; no review result will be saved.'};
    await persistAutoReviewProviderDiagnostic(env,diagnostic);
-   return json({ok:false,error:scan.error,diagnostic,diagnosticOnly:true,reviewResultSaved:false,shadowCountUnchanged:true,modeUnchanged:true},200);
+   try{
+    await queueAutoReviewPoll(env,{interactionId:started.interactionId,videoIds:[String(failed.video_id)],diagnosticOnly:true,pollAttempt:0},10);
+   }catch{
+    await deletePublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,started.interactionId);
+    const errorDiagnostic:VideoSafetyProviderDiagnostic={...diagnostic,outcome:'failed',timestamp:now(),error:'provider_unavailable',interactionStatus:'poll_enqueue_failed',message:'Failed to enqueue the background diagnostic poll.'};
+    await persistAutoReviewProviderDiagnostic(env,errorDiagnostic);
+    return json({ok:false,error:'diagnostic_poll_enqueue_failed',diagnostic:errorDiagnostic,diagnosticOnly:true,reviewResultSaved:false,shadowCountUnchanged:true,modeUnchanged:true},503);
+   }
+   return json({ok:true,pending:true,diagnostic,diagnosticOnly:true,reviewResultSaved:false,shadowCountUnchanged:true,modeUnchanged:true},202);
+  }finally{
+   await env.CATALOG_DB.prepare("DELETE FROM catalog_config WHERE config_key='auto_review_provider_diagnostic_lock' AND config_value=?").bind(lockToken).run().catch(()=>undefined);
   }
-  const diagnostic:VideoSafetyProviderDiagnostic={outcome:'success',stage:'response',timestamp:now(),model:scan.model,httpStatus:200,videoCount:1,diagnosticOnly:true,message:'The provider accepted the request and returned a valid assessment. The assessment was not applied or saved as a review result.'};
-  await persistAutoReviewProviderDiagnostic(env,diagnostic);
-  return json({ok:true,diagnostic,diagnosticOnly:true,reviewResultSaved:false,shadowCountUnchanged:true,modeUnchanged:true},200);
  }
  if(path==='/api/admin/catalog/auto-review-retry-failed-shadow'&&method==='POST'){
   if(!checkAdminAuth(req,env))return json({error:'unauthorized'},401);
@@ -852,5 +872,5 @@ export async function handleCatalogV2Routes(req:Request,env:Env,url:URL):Promise
  return null;
 }
 export async function handleCatalogV2QueueBatch(batch:any,env:Env):Promise<void>{
- for(const message of batch.messages||[]){try{const b=message.body||{};if(b.type==='MIGRATE_SOURCE_PAGE')await migratePage(env,b);else if(b.type==='ENRICH_VIDEO_BATCH')await enrichBatch(env,b);else if(b.type==='AUTO_REVIEW_VIDEO_BATCH')await autoReviewVideoBatch(env,b);else if(b.type==='AUTO_REVIEW_VIDEO')await autoReviewVideoBatch(env,{videoIds:[b.videoId]});else if(b.type==='PUBLISH_GENERATION_PAGE')await publishPage(env,b);else console.warn('Unknown catalog queue message');message.ack();}catch(e){const text=e instanceof Error?e.message:'catalog_queue_error';try{if(env.CATALOG_DB&&message.body?.jobId)await env.CATALOG_DB.prepare("UPDATE ingest_jobs SET status='RETRYING',attempts=attempts+1,last_error=?,updated_at=? WHERE job_id=? AND status!='SUCCEEDED'").bind(text.slice(0,500),now(),String(message.body.jobId)).run();}catch{}console.error('Catalog queue failed',text);message.retry({delaySeconds:Math.min(300,15*Math.max(1,Number(message.attempts||1)))});}}
+ for(const message of batch.messages||[]){try{const b=message.body||{};if(b.type==='MIGRATE_SOURCE_PAGE')await migratePage(env,b);else if(b.type==='ENRICH_VIDEO_BATCH')await enrichBatch(env,b);else if(b.type==='AUTO_REVIEW_VIDEO_BATCH')await autoReviewVideoBatch(env,b);else if(b.type==='AUTO_REVIEW_VIDEO')await autoReviewVideoBatch(env,{videoIds:[b.videoId]});else if(b.type==='AUTO_REVIEW_POLL_INTERACTION')await pollAutoReviewInteraction(env,b);else if(b.type==='PUBLISH_GENERATION_PAGE')await publishPage(env,b);else console.warn('Unknown catalog queue message');message.ack();}catch(e){const text=e instanceof Error?e.message:'catalog_queue_error';try{if(env.CATALOG_DB&&message.body?.jobId)await env.CATALOG_DB.prepare("UPDATE ingest_jobs SET status='RETRYING',attempts=attempts+1,last_error=?,updated_at=? WHERE job_id=? AND status!='SUCCEEDED'").bind(text.slice(0,500),now(),String(message.body.jobId)).run();}catch{}console.error('Catalog queue failed',text);message.retry({delaySeconds:Math.min(300,15*Math.max(1,Number(message.attempts||1)))});}}
 }
