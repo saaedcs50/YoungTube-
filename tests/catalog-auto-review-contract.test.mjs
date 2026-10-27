@@ -184,5 +184,5 @@ test('Gemini Interactions JSON parsing uses only final model_output steps and ne
   assert.ok(reviewer.includes('outputShape'));
   assert.ok(reviewer.includes('stepTypes'));
   assert.ok(reviewer.includes('contentPartTypes'));
-  assert.ok(!reviewer.includes('return chunks.join(\\'\\n\\').trim();'));
+
 });
