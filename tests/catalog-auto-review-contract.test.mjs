@@ -104,9 +104,9 @@ test('Gemini provider failures preserve safe HTTP diagnostics and distinguish au
   for (const diagnosticField of ['httpStatus', 'providerCode', 'providerStatus', 'timestamp', 'stage']) {
     assert.ok(reviewer.includes(diagnosticField), `provider diagnostics should capture ${diagnosticField}`);
   }
-  assert.ok(reviewer.includes("response.status === 429"));
-  assert.ok(reviewer.includes("response.status === 400"));
-  assert.ok(reviewer.includes("response.status === 401 || response.status === 403"));
+  assert.ok(reviewer.includes("status === 429"));
+  assert.ok(reviewer.includes("status === 400"));
+  assert.ok(reviewer.includes("status === 401 || status === 403"));
   assert.ok(reviewer.includes("'provider_auth_failed'"));
   assert.ok(reviewer.includes("'provider_request_invalid'"));
   assert.ok(reviewer.includes("replace(/AIza[0-9A-Za-z_-]{20,}/g, '[redacted-key]')"));
