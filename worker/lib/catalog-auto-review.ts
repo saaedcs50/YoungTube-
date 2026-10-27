@@ -287,7 +287,7 @@ export async function scanPublicYouTubeVideosForSafety(
         ? 'provider_request_invalid'
         : response.status === 401 || response.status === 403
           ? 'provider_auth_failed'
-          : (response.status === 404 || response.status === 410) && /(youtube|video|media|unavailable|not found)/i.test(message)
+          : (response.status === 404 || response.status === 410) && /((youtube|video|media).*(not found|unavailable|private|inaccessible)|not a public video)/i.test(message)
             ? 'video_not_accessible'
             : 'provider_unavailable';
     const detailedDiagnostic = { ...diagnostic, error };
@@ -380,7 +380,7 @@ export async function scanPublicYouTubeVideoForSafety(
   videoId: string,
   title: string,
   expectedCategory: string,
-): Promise<{ ok: true; model: string; policyVersion: string; assessment: VideoSafetyAssessment } | { ok: false; error: 'provider_rate_limited' | 'provider_unavailable' | 'invalid_model_output' | 'video_not_accessible' }> {
+): Promise<{ ok: true; model: string; policyVersion: string; assessment: VideoSafetyAssessment } | { ok: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic }> {
   const result = await scanPublicYouTubeVideosForSafety(apiKey, [{ videoId, title, expectedCategory }]);
   if (result.ok === false) return result;
   const item = result.assessments[0];
