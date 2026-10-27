@@ -162,3 +162,13 @@ test('background interactions are deleted after terminal results and timed out i
   assert.ok(route.includes('if(attempt>=59)'));
   assert.ok(route.includes("interactionStatus:'timeout'"));
 });
+
+
+test('Gemini video interactions default to static processing and retain terminal provider error details', () => {
+  assert.ok(reviewer.includes("processing: 'static'"));
+  assert.ok(!reviewer.includes("processing: 'agentic'"));
+  assert.ok(reviewer.includes('const providerFailure = payload?.error'));
+  assert.ok(reviewer.includes('providerFailure?.code'));
+  assert.ok(reviewer.includes("providerStatus ? { providerStatus }"));
+  assert.ok(reviewer.includes("safeProviderMessage(rawMessage)"));
+});
