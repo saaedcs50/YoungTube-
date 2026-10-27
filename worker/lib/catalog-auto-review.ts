@@ -21,7 +21,7 @@ export interface VideoSafetyAssessment {
 }
 export type VideoSafetyScanResult =
   | { ok: true; model: string; policyVersion: string; assessment: VideoSafetyAssessment }
-  | { ok: false; error: 'provider_rate_limited' | 'provider_unavailable' | 'invalid_model_output' | 'video_not_accessible' };
+  | { ok: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic };
 
 const CATEGORY_IDS = [
   'learn', 'science_discovery', 'stories_programs', 'music_songs',
