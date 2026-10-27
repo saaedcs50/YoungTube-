@@ -108,8 +108,8 @@ export interface VideoSafetyCandidate {
   expectedCategory: string;
 }
 export interface VideoSafetyProviderDiagnostic {
-  outcome: 'success' | 'failed';
-  stage: 'network' | 'http' | 'response_json' | 'response_validation' | 'response';
+  outcome: 'pending' | 'success' | 'failed';
+  stage: 'network' | 'http' | 'response_json' | 'response_validation' | 'response' | 'interaction';
   timestamp: string;
   model: string;
   httpStatus?: number;
@@ -119,6 +119,8 @@ export interface VideoSafetyProviderDiagnostic {
   error?: string;
   videoCount?: number;
   diagnosticOnly?: boolean;
+  interactionId?: string;
+  interactionStatus?: string;
 }
 
 export type VideoSafetyProviderError =
@@ -182,13 +184,78 @@ function parseAssessment(parsed: any): VideoSafetyAssessment | null {
   };
 }
 
-export async function scanPublicYouTubeVideosForSafety(
-  apiKey: string,
-  videos: VideoSafetyCandidate[],
-): Promise<VideoSafetyBatchResult> {
-  if (!apiKey.trim() || !Array.isArray(videos) || videos.length < 1 || videos.length > AUTO_REVIEW_BATCH_SIZE) {
-    return { ok: false, error: 'invalid_model_output' };
-  }
+export interface VideoSafetyInteractionStart {
+  ok: true;
+  interactionId: string;
+  status: string;
+  model: string;
+  videoCount: number;
+}
+export type VideoSafetyInteractionStartResult =
+  | VideoSafetyInteractionStart
+  | { ok: false; error: VideoSafetyProviderError; diagnostic: VideoSafetyProviderDiagnostic };
+export type VideoSafetyInteractionPollResult =
+  | { ok: true; pending: true; status: string; diagnostic: VideoSafetyProviderDiagnostic }
+  | VideoSafetyBatchResult;
+
+function safeProviderMessage(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  return value
+    .replace(/AIza[0-9A-Za-z_-]{20,}/g, '[redacted-key]')
+    .replace(/(x-goog-api-key\s*[:=]\s*)[^\s,;]+/gi, '$1[redacted]')
+    .replace(/([?&]key=)[^&\s]+/gi, '$1[redacted]')
+    .slice(0, 300);
+}
+
+function providerDiagnostic(
+  stage: VideoSafetyProviderDiagnostic['stage'],
+  videoCount: number,
+  fields: Partial<VideoSafetyProviderDiagnostic> = {},
+): VideoSafetyProviderDiagnostic {
+  return {
+    outcome: 'failed',
+    stage,
+    timestamp: new Date().toISOString(),
+    model: VIDEO_SAFETY_REVIEW_MODEL,
+    videoCount,
+    ...fields,
+  };
+}
+
+function parseProviderHttpFailure(
+  response: Response,
+  providerError: any,
+  videoCount: number,
+): { error: VideoSafetyProviderError; diagnostic: VideoSafetyProviderDiagnostic } {
+  const code = Number(providerError?.code);
+  const status = Number(response.status);
+  const message = safeProviderMessage(providerError?.message);
+  const providerStatus = typeof providerError?.status === 'string'
+    ? providerError.status.slice(0, 80)
+    : undefined;
+  const error: VideoSafetyProviderError = status === 429
+    ? 'provider_rate_limited'
+    : status === 400
+      ? 'provider_request_invalid'
+      : status === 401 || status === 403
+        ? 'provider_auth_failed'
+        : (status === 404 || status === 410) && /((youtube|video|media).*(not found|unavailable|private|inaccessible)|not a public video)/i.test(String(message || ''))
+          ? 'video_not_accessible'
+          : 'provider_unavailable';
+  return {
+    error,
+    diagnostic: providerDiagnostic('http', videoCount, {
+      httpStatus: status,
+      ...(Number.isFinite(code) ? { providerCode: code } : {}),
+      ...(providerStatus ? { providerStatus } : {}),
+      ...(message ? { message } : {}),
+      error,
+    }),
+  };
+}
+
+function normaliseCandidates(videos: VideoSafetyCandidate[]): { videos: VideoSafetyCandidate[]; prompt: string } | null {
+  if (!Array.isArray(videos) || videos.length < 1 || videos.length > AUTO_REVIEW_BATCH_SIZE) return null;
   const normalized = videos.map((video) => ({
     videoId: String(video.videoId || '').trim(),
     title: String(video.title || '').slice(0, 240),
@@ -197,7 +264,7 @@ export async function scanPublicYouTubeVideosForSafety(
   if (
     normalized.some((video) => !video.videoId || !isAutoReviewCategory(video.expectedCategory))
     || new Set(normalized.map((video) => video.videoId)).size !== normalized.length
-  ) return { ok: false, error: 'invalid_model_output' };
+  ) return null;
 
   const prompt = [
     'Audit each supplied public YouTube video for a curated video app for children roughly ages 3–12.',
@@ -218,37 +285,110 @@ export async function scanPublicYouTubeVideosForSafety(
     ].join('\n')),
     'Return a single JSON object conforming to the required schema. Each assessment.videoId must exactly match one input.',
   ].join('\n');
+  return { videos: normalized, prompt };
+}
 
-  const makeDiagnostic = (
-    stage: VideoSafetyProviderDiagnostic['stage'],
-    fields: Partial<VideoSafetyProviderDiagnostic> = {},
-  ): VideoSafetyProviderDiagnostic => ({
-    outcome: 'failed',
-    stage,
+function parseCompletedInteraction(
+  payload: any,
+  expectedVideoIds: string[],
+): VideoSafetyBatchResult {
+  const diagnosticBase = {
+    outcome: 'failed' as const,
+    stage: 'response_validation' as const,
     timestamp: new Date().toISOString(),
     model: VIDEO_SAFETY_REVIEW_MODEL,
-    videoCount: normalized.length,
-    ...fields,
-  });
-  const safeProviderMessage = (value: unknown): string | undefined => {
-    if (typeof value !== 'string' || !value.trim()) return undefined;
-    return value
-      .replace(/AIza[0-9A-Za-z_-]{20,}/g, '[redacted-key]')
-      .replace(/(x-goog-api-key\\s*[:=]\\s*)[^\\s,;]+/gi, '$1[redacted]')
-      .replace(/([?&]key=)[^&\\s]+/gi, '$1[redacted]')
-      .slice(0, 300);
+    videoCount: expectedVideoIds.length,
   };
-  const httpDiagnostic = async (response: Response): Promise<VideoSafetyProviderDiagnostic> => {
-    const payload = await response.clone().json().catch(() => null) as any;
-    const providerError = payload && typeof payload === 'object' ? payload.error : null;
-    const code = Number(providerError?.code);
-    return makeDiagnostic('http', {
-      httpStatus: response.status,
-      ...(Number.isFinite(code) ? { providerCode: code } : {}),
-      ...(typeof providerError?.status === 'string' ? { providerStatus: String(providerError.status).slice(0, 80) } : {}),
-      ...(safeProviderMessage(providerError?.message) ? { message: safeProviderMessage(providerError.message) } : {}),
+  let parsed: any;
+  try {
+    parsed = JSON.parse(textFromResponse(payload));
+  } catch {
+    return {
+      ok: false,
+      error: 'invalid_model_output',
+      diagnostic: { ...diagnosticBase, httpStatus: 200, message: 'Provider output was not valid JSON.', error: 'invalid_model_output' },
+    };
+  }
+  if (!Array.isArray(parsed?.assessments) || parsed.assessments.length !== expectedVideoIds.length) {
+    return {
+      ok: false,
+      error: 'invalid_model_output',
+      diagnostic: {
+        ...diagnosticBase,
+        httpStatus: 200,
+        message: 'Provider JSON did not contain exactly one assessment per input video.',
+        error: 'invalid_model_output',
+      },
+    };
+  }
+
+  const expectedIds = new Set(expectedVideoIds);
+  const seenIds = new Set<string>();
+  const assessments: Array<{ videoId: string; assessment: VideoSafetyAssessment }> = [];
+  for (const item of parsed.assessments) {
+    const videoId = typeof item?.videoId === 'string' ? item.videoId.trim() : '';
+    if (!expectedIds.has(videoId) || seenIds.has(videoId)) {
+      return {
+        ok: false,
+        error: 'invalid_model_output',
+        diagnostic: {
+          ...diagnosticBase,
+          httpStatus: 200,
+          message: 'Provider returned an unexpected or duplicate video ID.',
+          error: 'invalid_model_output',
+        },
+      };
+    }
+    const assessment = parseAssessment(item);
+    if (!assessment) {
+      return {
+        ok: false,
+        error: 'invalid_model_output',
+        diagnostic: {
+          ...diagnosticBase,
+          httpStatus: 200,
+          message: 'Provider assessment did not match the required response schema.',
+          error: 'invalid_model_output',
+        },
+      };
+    }
+    seenIds.add(videoId);
+    assessments.push({ videoId, assessment });
+  }
+  if (seenIds.size !== expectedVideoIds.length) {
+    return {
+      ok: false,
+      error: 'invalid_model_output',
+      diagnostic: {
+        ...diagnosticBase,
+        httpStatus: 200,
+        message: 'Provider omitted one or more input video IDs.',
+        error: 'invalid_model_output',
+      },
+    };
+  }
+  return {
+    ok: true,
+    model: VIDEO_SAFETY_REVIEW_MODEL,
+    policyVersion: VIDEO_SAFETY_REVIEW_VERSION,
+    assessments,
+  };
+}
+
+export async function startPublicYouTubeVideosSafetyInteraction(
+  apiKey: string,
+  videos: VideoSafetyCandidate[],
+): Promise<VideoSafetyInteractionStartResult> {
+  const prepared = normaliseCandidates(videos);
+  const count = Array.isArray(videos) ? videos.length : 0;
+  if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim() || !prepared) {
+    const diagnostic = providerDiagnostic('response_validation', count, {
+      message: 'The provider request was missing a key or contained an invalid video batch.',
+      error: 'invalid_model_output',
     });
-  };
+    console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
+    return { ok: false, error: 'invalid_model_output', diagnostic };
+  }
 
   let response: Response;
   try {
@@ -257,122 +397,178 @@ export async function scanPublicYouTubeVideosForSafety(
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
       body: JSON.stringify({
         model: VIDEO_SAFETY_REVIEW_MODEL,
-        store: false,
+        // Background execution is required for video analysis that may outlast a
+        // normal HTTP request. Google requires store=true for background execution;
+        // callers delete the interaction immediately after a terminal result.
+        store: true,
+        background: true,
         input: [
-          { type: 'text', text: prompt },
-          ...normalized.map((video) => ({
+          { type: 'text', text: prepared.prompt },
+          ...prepared.videos.map((video) => ({
             type: 'video',
             uri: 'https://www.youtube.com/watch?v=' + encodeURIComponent(video.videoId),
             processing: 'agentic',
           })),
         ],
         response_format: { type: 'text', mime_type: 'application/json', schema: BATCH_RESPONSE_SCHEMA },
-        generation_config: { max_output_tokens: Math.min(12000, 700 + normalized.length * 650) },
+        generation_config: { max_output_tokens: Math.min(12000, 700 + prepared.videos.length * 650) },
       }),
     });
   } catch (error) {
-    const diagnostic = makeDiagnostic('network', {
+    const diagnostic = providerDiagnostic('network', count, {
       message: error instanceof Error ? error.name.slice(0, 80) : 'UnknownNetworkError',
+      error: 'provider_unavailable',
     });
     console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
     return { ok: false, error: 'provider_unavailable', diagnostic };
   }
 
   if (!response.ok) {
-    const diagnostic = await httpDiagnostic(response);
-    const message = String(diagnostic.message || '').toLowerCase();
-    const error: VideoSafetyProviderError = response.status === 429
-      ? 'provider_rate_limited'
-      : response.status === 400
-        ? 'provider_request_invalid'
-        : response.status === 401 || response.status === 403
-          ? 'provider_auth_failed'
-          : (response.status === 404 || response.status === 410) && /((youtube|video|media).*(not found|unavailable|private|inaccessible)|not a public video)/i.test(message)
-            ? 'video_not_accessible'
-            : 'provider_unavailable';
-    const detailedDiagnostic = { ...diagnostic, error };
-    console.error('catalog_auto_review_provider_failure', JSON.stringify(detailedDiagnostic));
-    return { ok: false, error, diagnostic: detailedDiagnostic };
+    const payload = await response.clone().json().catch(() => null) as any;
+    const failure = parseProviderHttpFailure(response, payload?.error, count);
+    console.error('catalog_auto_review_provider_failure', JSON.stringify(failure.diagnostic));
+    return { ok: false, ...failure };
   }
 
   let payload: any;
   try {
     payload = await response.json();
   } catch {
-    const diagnostic = makeDiagnostic('response_json', { httpStatus: response.status, message: 'Provider returned a non-JSON response.' });
-    console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
-    return { ok: false, error: 'invalid_model_output', diagnostic };
-  }
-  if (payload?.status && payload.status !== 'completed') {
-    const diagnostic = makeDiagnostic('response_validation', {
+    const diagnostic = providerDiagnostic('response_json', count, {
       httpStatus: response.status,
-      providerStatus: String(payload.status).slice(0, 80),
-      message: 'Provider interaction did not complete in the synchronous request.',
+      message: 'Provider returned a non-JSON response.',
+      error: 'invalid_model_output',
     });
     console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
     return { ok: false, error: 'invalid_model_output', diagnostic };
   }
 
-  let parsed: any;
-  try {
-    parsed = JSON.parse(textFromResponse(payload));
-  } catch {
-    const diagnostic = makeDiagnostic('response_validation', { httpStatus: response.status, message: 'Provider output was not valid JSON.' });
+  const interactionId = typeof payload?.id === 'string' ? payload.id.trim() : '';
+  const status = typeof payload?.status === 'string' ? payload.status : '';
+  if (!interactionId) {
+    const diagnostic = providerDiagnostic('response_validation', count, {
+      httpStatus: response.status,
+      providerStatus: status || undefined,
+      message: safeProviderMessage(payload?.errors?.[0]?.message) || 'Provider accepted the request but did not return an interaction ID.',
+      error: 'invalid_model_output',
+    });
     console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
     return { ok: false, error: 'invalid_model_output', diagnostic };
   }
-  if (!Array.isArray(parsed?.assessments) || parsed.assessments.length !== normalized.length) {
-    const diagnostic = {
-      outcome: 'failed' as const,
-      stage: 'response_validation' as const,
-      timestamp: new Date().toISOString(),
-      model: VIDEO_SAFETY_REVIEW_MODEL,
-      videoCount: normalized.length,
+  if (['failed', 'cancelled', 'incomplete'].includes(status)) {
+    const providerMessage = safeProviderMessage(payload?.errors?.[0]?.message);
+    const error: VideoSafetyProviderError = status === 'incomplete' ? 'invalid_model_output' : 'provider_unavailable';
+    const diagnostic = providerDiagnostic('interaction', count, {
       httpStatus: response.status,
-      message: 'Provider JSON did not contain exactly one assessment per input video.',
+      interactionId,
+      interactionStatus: status,
+      ...(providerMessage ? { message: providerMessage } : {}),
+      error,
+    });
+    return { ok: false, error, diagnostic };
+  }
+  return {
+    ok: true,
+    interactionId,
+    status: status || 'in_progress',
+    model: VIDEO_SAFETY_REVIEW_MODEL,
+    videoCount: count,
+  };
+}
+
+export async function pollPublicYouTubeVideosSafetyInteraction(
+  apiKey: string,
+  interactionId: string,
+  expectedVideoIds: string[],
+): Promise<VideoSafetyInteractionPollResult> {
+  const count = expectedVideoIds.length;
+  let response: Response;
+  try {
+    response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions/' + encodeURIComponent(interactionId), {
+      method: 'GET',
+      headers: { 'x-goog-api-key': apiKey.trim() },
+    });
+  } catch (error) {
+    const diagnostic = providerDiagnostic('network', count, {
+      interactionId,
+      message: error instanceof Error ? error.name.slice(0, 80) : 'UnknownNetworkError',
+      error: 'provider_unavailable',
+    });
+    console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
+    return { ok: false, error: 'provider_unavailable', diagnostic };
+  }
+
+  if (!response.ok) {
+    const payload = await response.clone().json().catch(() => null) as any;
+    const failure = parseProviderHttpFailure(response, payload?.error, count);
+    failure.diagnostic.interactionId = interactionId;
+    console.error('catalog_auto_review_provider_failure', JSON.stringify(failure.diagnostic));
+    return { ok: false, ...failure };
+  }
+
+  let payload: any;
+  try {
+    payload = await response.json();
+  } catch {
+    const diagnostic = providerDiagnostic('response_json', count, {
+      httpStatus: response.status,
+      interactionId,
+      message: 'Provider returned a non-JSON interaction response.',
       error: 'invalid_model_output',
-    };
+    });
     console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
     return { ok: false, error: 'invalid_model_output', diagnostic };
   }
 
-  const expectedIds = new Set(normalized.map((video) => video.videoId));
-  const seenIds = new Set<string>();
-  const assessments: Array<{ videoId: string; assessment: VideoSafetyAssessment }> = [];
-  for (const item of parsed.assessments) {
-    const videoId = typeof item?.videoId === 'string' ? item.videoId.trim() : '';
-    if (!expectedIds.has(videoId) || seenIds.has(videoId)) {
-      const diagnostic: VideoSafetyProviderDiagnostic = {
-        outcome: 'failed', stage: 'response_validation', timestamp: new Date().toISOString(),
-        model: VIDEO_SAFETY_REVIEW_MODEL, videoCount: normalized.length, httpStatus: response.status,
-        message: 'Provider returned an unexpected or duplicate video ID.', error: 'invalid_model_output',
-      };
-      console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
-      return { ok: false, error: 'invalid_model_output', diagnostic };
-    }
-    const assessment = parseAssessment(item);
-    if (!assessment) {
-      const diagnostic: VideoSafetyProviderDiagnostic = {
-        outcome: 'failed', stage: 'response_validation', timestamp: new Date().toISOString(),
-        model: VIDEO_SAFETY_REVIEW_MODEL, videoCount: normalized.length, httpStatus: response.status,
-        message: 'Provider assessment did not match the required response schema.', error: 'invalid_model_output',
-      };
-      console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
-      return { ok: false, error: 'invalid_model_output', diagnostic };
-    }
-    seenIds.add(videoId);
-    assessments.push({ videoId, assessment });
-  }
-  if (seenIds.size !== normalized.length) {
-    const diagnostic: VideoSafetyProviderDiagnostic = {
-      outcome: 'failed', stage: 'response_validation', timestamp: new Date().toISOString(),
-      model: VIDEO_SAFETY_REVIEW_MODEL, videoCount: normalized.length, httpStatus: response.status,
-      message: 'Provider omitted one or more input video IDs.', error: 'invalid_model_output',
+  const status = String(payload?.status || '');
+  if (status === 'in_progress') {
+    return {
+      ok: true,
+      pending: true,
+      status,
+      diagnostic: {
+        outcome: 'pending',
+        stage: 'interaction',
+        timestamp: new Date().toISOString(),
+        model: VIDEO_SAFETY_REVIEW_MODEL,
+        videoCount: count,
+        interactionId,
+        interactionStatus: status,
+        message: 'Gemini is processing the video analysis in the background.',
+      },
     };
-    console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
-    return { ok: false, error: 'invalid_model_output', diagnostic };
   }
-  return { ok: true, model: VIDEO_SAFETY_REVIEW_MODEL, policyVersion: VIDEO_SAFETY_REVIEW_VERSION, assessments };
+  if (status !== 'completed') {
+    const message = safeProviderMessage(payload?.errors?.[0]?.message)
+      || ('Provider interaction ended with status ' + (status || 'unknown') + '.');
+    const error: VideoSafetyProviderError = status === 'incomplete' ? 'invalid_model_output' : 'provider_unavailable';
+    const diagnostic = providerDiagnostic('interaction', count, {
+      httpStatus: response.status,
+      interactionId,
+      interactionStatus: status || 'unknown',
+      message,
+      error,
+    });
+    console.error('catalog_auto_review_provider_failure', JSON.stringify(diagnostic));
+    return { ok: false, error, diagnostic };
+  }
+
+  return parseCompletedInteraction(payload, expectedVideoIds);
+}
+
+export async function deletePublicYouTubeVideosSafetyInteraction(
+  apiKey: string,
+  interactionId: string,
+): Promise<void> {
+  try {
+    await fetch('https://generativelanguage.googleapis.com/v1beta/interactions/' + encodeURIComponent(interactionId), {
+      method: 'DELETE',
+      headers: { 'x-goog-api-key': apiKey.trim() },
+    });
+  } catch {
+    // The stored interaction has provider-side retention as a fallback; do not
+    // allow a cleanup network error to turn a completed video review into failure.
+  }
 }
 
 export async function scanPublicYouTubeVideoForSafety(
