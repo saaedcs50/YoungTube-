@@ -501,7 +501,7 @@ async function pollAutoReviewInteraction(env:Env,b:any):Promise<void>{
  }
  const poll=await pollPublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,interactionId,ids);
  const attempt=Math.max(0,Math.floor(Number(b.pollAttempt)||0));
- if(poll.ok&&poll.pending){
+ if(poll.pending===true){
   if(attempt>=59){
    await deletePublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,interactionId);
    const diagnostic:VideoSafetyProviderDiagnostic={...poll.diagnostic,outcome:'failed',timestamp:now(),error:'provider_unavailable',diagnosticOnly,interactionStatus:'timeout',message:'Gemini background interaction exceeded the 10-minute polling window.'};
