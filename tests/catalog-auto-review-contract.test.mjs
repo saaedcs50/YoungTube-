@@ -54,7 +54,7 @@ test('uncertain, stale, short, or unsupported videos cannot enter automatic appr
   assert.ok(route.includes("Date.now()-Date.parse(String(video.metadata_checked_at))>=20*24*60*60*1000"));
   assert.ok(route.includes('isHighConfidenceSafeAssessment'));
   assert.ok(route.includes("evidence.decision='automated_approval'"));
-  assert.ok(route.includes("if(scan.error==='provider_rate_limited')"));
+  assert.ok(route.includes("if(error==='provider_rate_limited')"));
   assert.ok(route.includes("VALUES ('auto_review_pause_until',?,?)"));
 });
 
