@@ -159,6 +159,10 @@ export interface VideoSafetyProviderDiagnostic {
   diagnosticOnly?: boolean;
   interactionId?: string;
   interactionStatus?: string;
+  outputLength?: number;
+  outputShape?: 'empty' | 'fenced_json' | 'json_object' | 'json_array' | 'text_with_json_object' | 'non_json_text';
+  stepTypes?: string[];
+  contentPartTypes?: string[];
 }
 
 export type VideoSafetyProviderError =
