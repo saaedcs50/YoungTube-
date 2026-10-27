@@ -21,7 +21,7 @@ export interface VideoSafetyAssessment {
 }
 export type VideoSafetyScanResult =
   | { ok: true; model: string; policyVersion: string; assessment: VideoSafetyAssessment }
-  | { ok: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic };
+  | { ok: false; pending?: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic };
 
 const CATEGORY_IDS = [
   'learn', 'science_discovery', 'stories_programs', 'music_songs',
@@ -583,7 +583,7 @@ export async function scanPublicYouTubeVideoForSafety(
   for (let attempt = 0; attempt < 60; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 5000));
     const result = await pollPublicYouTubeVideosSafetyInteraction(apiKey, started.interactionId, [videoId]);
-    if (result.ok && result.pending) continue;
+    if (result.pending === true) continue;
     await deletePublicYouTubeVideosSafetyInteraction(apiKey, started.interactionId);
     if (result.ok === false) return result;
     const item = result.assessments[0];
