@@ -172,3 +172,17 @@ test('Gemini video interactions default to static processing and retain terminal
   assert.ok(reviewer.includes("providerStatus ? { providerStatus }"));
   assert.ok(reviewer.includes("safeProviderMessage(rawMessage)"));
 });
+
+
+test('Gemini Interactions JSON parsing uses only final model_output steps and never joins intermediate processing text', () => {
+  assert.ok(reviewer.includes("step?.type === 'model_output'"));
+  assert.ok(reviewer.includes('const modelOutputSteps'));
+  assert.ok(reviewer.includes('const preferredSteps'));
+  assert.ok(reviewer.includes("if (fenced) candidate = fenced[1].trim()"));
+  assert.ok(reviewer.includes("const first = candidate.indexOf('{')"));
+  assert.ok(reviewer.includes("Provider output could not be parsed as the required JSON assessment."));
+  assert.ok(reviewer.includes('outputShape'));
+  assert.ok(reviewer.includes('stepTypes'));
+  assert.ok(reviewer.includes('contentPartTypes'));
+
+});
