@@ -43,7 +43,7 @@ test('the queue is batched, windowed, and protected by a scheduler lock with con
   assert.ok(route.includes("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('auto_review_scheduler_lock'"));
   assert.ok(route.includes("path==='/api/admin/catalog/auto-review-budget'"));
   assert.ok(route.includes("if(hours>8&&b?.paidTierConfirmed!==true)"));
-  assert.ok(route.includes('scanPublicYouTubeVideosForSafety(env.GEMINI_API_KEY'));
+  assert.ok(route.includes('startPublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY'));
   assert.ok(types.includes('GEMINI_API_KEY?: string'));
   assert.ok(migration.includes('catalog_auto_review_usage'));
 });
