@@ -15,7 +15,8 @@
     "test:music": "node --test tests/music-classification.test.mjs",
     "test:content-policy": "node --test tests/content-policy.test.mjs",
     "typecheck:worker": "tsc --noEmit -p tsconfig.worker.json",
-    "test:catalog": "node --test tests/catalog-v2-contract.test.mjs tests/catalog-auto-review-contract.test.mjs"
+    "test:catalog": "node --test tests/catalog-v2-contract.test.mjs tests/catalog-auto-review-contract.test.mjs",
+    "audit:worker:live": "node scripts/audit-live-worker.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
