@@ -76,7 +76,7 @@ function fixture(overrides = {}) {
   const calls = [];
   const fetchImpl = async (input, init = {}) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
-    calls.push({ url: url.toString(), method: init.method || 'GET', headers: init.headers || {} });
+    calls.push({ url: url.toString(), method: init.method || 'GET', headers: init.headers || {}, hasBody: init.body !== undefined });
     if ((init.method || 'GET') !== 'GET') throw new Error('non-GET request was attempted');
     const type = url.hostname === 'api.github.com' ? 'github'
       : url.hostname === 'api.cloudflare.com' ? (url.pathname.endsWith('/deployments') ? 'deployments' : 'settings')
@@ -125,6 +125,7 @@ test('full deployment SHA in annotation matches current GitHub SHA', () => {
 test('an actual short SHA prefix matches, but arbitrary substring does not', () => {
   assert.equal(inspectDeploymentSha({ annotations: { 'workers/message': `deploy ${GITHUB_SHA.slice(0, 7)}` } }, GITHUB_SHA).status, AUDIT_STATUS.PASS);
   assert.equal(inspectDeploymentSha({ annotations: { 'workers/message': `deploy ${GITHUB_SHA.slice(2, 9)}` } }, GITHUB_SHA).status, AUDIT_STATUS.FAIL);
+  assert.equal(inspectDeploymentSha({ annotations: { 'workers/message': `deploy ${GITHUB_SHA.slice(0, 7)} and 0123456789abcdef` } }, GITHUB_SHA).status, AUDIT_STATUS.UNKNOWN);
 });
 
 test('a deployment annotation with a non-matching SHA fails source linkage', async () => {
@@ -135,6 +136,12 @@ test('a deployment annotation with a non-matching SHA fails source linkage', asy
 test('missing deployment annotation is UNKNOWN and never PASS', async () => {
   const { report } = await audit({ deployment: { annotations: undefined } });
   assert.equal(find(report, 'deployment.sha_matches_github').status, AUDIT_STATUS.UNKNOWN);
+});
+
+test('a traffic percentage without an identifiable version cannot pass', async () => {
+  const { report } = await audit({ deployment: { versions: [{ percentage: 100 }] } });
+  assert.equal(find(report, 'deployment.traffic').status, AUDIT_STATUS.UNKNOWN);
+  assert.notEqual(report.overallStatus, AUDIT_STATUS.PASS);
 });
 
 test('split traffic across versions fails deployment traffic audit', async () => {
@@ -211,7 +218,7 @@ test('all network requests use GET and report never includes authorization heade
   const { report, calls } = await audit();
   assert.ok(calls.length >= 5);
   assert.ok(calls.every((call) => call.method === 'GET'));
-  assert.ok(calls.every((call) => !('body' in call)));
+  assert.ok(calls.every((call) => call.hasBody === false));
   const json = JSON.stringify(report);
   assert.equal(json.includes('TOKEN_MUST_NOT_APPEAR_IN_REPORT'), false);
   assert.equal(json.includes('SENSITIVE_BINDING_VALUE_MUST_NOT_APPEAR'), false);
