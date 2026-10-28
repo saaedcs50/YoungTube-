@@ -239,17 +239,24 @@ function inspectTraffic(deployment) {
   }));
   const total = distribution.every((version) => Number.isFinite(version.percentage))
     ? distribution.reduce((sum, version) => sum + version.percentage, 0) : null;
-  const singleFull = distribution.length === 1 && total !== null && Math.abs(distribution[0].percentage - 100) < 0.001;
+  const validVersionIds = distribution.every((version) => typeof version.versionId === 'string' && version.versionId.trim().length > 0);
+  const singleFull = distribution.length === 1 && validVersionIds && total !== null && Math.abs(distribution[0].percentage - 100) < 0.001;
   const validTotal = total !== null && Math.abs(total - 100) < 0.001;
-  const status = singleFull ? AUDIT_STATUS.PASS : AUDIT_STATUS.FAIL;
-  return check('deployment.traffic', 'deployment', status,
-    singleFull ? 'The latest deployment directs 100% of traffic to one Worker version.' : 'The latest deployment is split, has an invalid traffic total, or does not direct 100% to one version.', {
-      deploymentId: deployment?.id || null,
-      versionCount: distribution.length,
-      trafficTotalPercent: total,
-      trafficTotalIs100Percent: validTotal,
-      distribution,
-    });
+  const status = distribution.length === 1 && !validVersionIds ? AUDIT_STATUS.UNKNOWN
+    : singleFull ? AUDIT_STATUS.PASS : AUDIT_STATUS.FAIL;
+  const summary = singleFull
+    ? 'The latest deployment directs 100% of traffic to one identified Worker version.'
+    : status === AUDIT_STATUS.UNKNOWN
+      ? 'A 100% traffic percentage was returned without an identifiable Worker version.'
+      : 'The latest deployment is split, has an invalid traffic total, or does not direct 100% to one version.';
+  return check('deployment.traffic', 'deployment', status, summary, {
+    deploymentId: deployment?.id || null,
+    versionCount: distribution.length,
+    versionIdsAvailable: validVersionIds,
+    trafficTotalPercent: total,
+    trafficTotalIs100Percent: validTotal,
+    distribution,
+  });
 }
 
 function annotationStrings(deployment) {
@@ -287,17 +294,22 @@ export function inspectDeploymentSha(deployment, githubSha) {
   }
   const normalizedSha = String(githubSha).toLowerCase();
   const matching = uniqueTokens.filter((token) => normalizedSha.startsWith(token));
-  const status = matching.length > 0 ? AUDIT_STATUS.PASS : AUDIT_STATUS.FAIL;
-  return check('deployment.sha_matches_github', 'source-linkage', status,
-    matching.length > 0
-      ? 'A SHA in the latest deployment annotation is an exact SHA or a valid prefix of current GitHub main.'
-      : 'The latest deployment annotation contains a SHA candidate that is not a prefix of current GitHub main.', {
-        deploymentId: deployment?.id || null,
-        annotationPresent: true,
-        githubShaKnown: true,
-        shaCandidates: uniqueTokens.slice(0, 5),
-        matchingPrefixFound: matching.length > 0,
-      });
+  const ambiguous = matching.length > 0 && uniqueTokens.length > 1;
+  const status = matching.length === 0 ? AUDIT_STATUS.FAIL
+    : ambiguous ? AUDIT_STATUS.UNKNOWN : AUDIT_STATUS.PASS;
+  const summary = status === AUDIT_STATUS.PASS
+    ? 'A SHA in the latest deployment annotation is an exact SHA or a valid prefix of current GitHub main.'
+    : status === AUDIT_STATUS.UNKNOWN
+      ? 'The annotation contains multiple SHA candidates, so source linkage is ambiguous.'
+      : 'The latest deployment annotation contains a SHA candidate that is not a prefix of current GitHub main.';
+  return check('deployment.sha_matches_github', 'source-linkage', status, summary, {
+    deploymentId: deployment?.id || null,
+    annotationPresent: true,
+    githubShaKnown: true,
+    shaCandidates: uniqueTokens.slice(0, 5),
+    matchingPrefixFound: matching.length > 0,
+    ambiguousCandidates: ambiguous,
+  });
 }
 
 export function inspectHealth(statusCode, body, parseOk = true) {
