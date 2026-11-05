@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "vite --port=3000 --host=127.0.0.1",
     "build": "vite build",
     "cap:sync": "npm run build && npx cap sync android",
-    "preview": "vite preview --port=3000 --host=0.0.0.0",
+    "preview": "vite preview --port=3000 --host=127.0.0.1",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test:navigation": "node --test tests/navigation-history.test.mjs",
@@ -15,7 +15,8 @@
     "test:music": "node --test tests/music-classification.test.mjs",
     "test:content-policy": "node --test tests/content-policy.test.mjs",
     "typecheck:worker": "tsc --noEmit -p tsconfig.worker.json",
-    "test:catalog": "node --test tests/catalog-v2-contract.test.mjs tests/catalog-auto-review-contract.test.mjs"
+    "test:catalog": "node --test tests/catalog-v2-contract.test.mjs tests/catalog-auto-review-contract.test.mjs",
+    "test:hardening": "node --test tests/dev-config-safety.test.mjs tests/rate-limit-contract.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -25,19 +26,15 @@
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "dexie": "^4.0.8",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "react-youtube": "^10.1.0",
-    "virtua": "^0.51.3",
-    "vite": "^6.4.4"
+    "virtua": "^0.51.3"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/qrcode": "^1.5.6",
     "autoprefixer": "^10.4.21",
@@ -45,7 +42,7 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.4.4",
+    "vite": "^6.4.5",
     "vite-plugin-pwa": "^1.3.0"
   }
 }
