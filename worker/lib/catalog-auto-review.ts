@@ -19,10 +19,6 @@ export interface VideoSafetyAssessment {
   evidenceTimestamps: string[];
   summary: string;
 }
-export type VideoSafetyScanResult =
-  | { ok: true; model: string; policyVersion: string; assessment: VideoSafetyAssessment }
-  | { ok: false; pending?: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic };
-
 const CATEGORY_IDS = [
   'learn', 'science_discovery', 'stories_programs', 'music_songs',
   'arts_crafts', 'cooking_food', 'nature_life', 'movement_play', 'gaming',
@@ -148,6 +144,7 @@ export interface VideoSafetyCandidate {
 export interface VideoSafetyProviderDiagnostic {
   outcome: 'pending' | 'success' | 'failed';
   stage: 'network' | 'http' | 'response_json' | 'response_validation' | 'response' | 'interaction';
+  operation?: 'create_interaction' | 'poll_interaction';
   timestamp: string;
   model: string;
   httpStatus?: number;
@@ -268,6 +265,7 @@ function parseProviderHttpFailure(
   response: Response,
   providerError: any,
   videoCount: number,
+  operation: 'create_interaction' | 'poll_interaction',
 ): { error: VideoSafetyProviderError; diagnostic: VideoSafetyProviderDiagnostic } {
   const code = Number(providerError?.code);
   const status = Number(response.status);
@@ -287,6 +285,7 @@ function parseProviderHttpFailure(
   return {
     error,
     diagnostic: providerDiagnostic('http', videoCount, {
+      operation,
       httpStatus: status,
       ...(Number.isFinite(code) ? { providerCode: code } : {}),
       ...(providerStatus ? { providerStatus } : {}),
@@ -481,7 +480,7 @@ export async function startPublicYouTubeVideosSafetyInteraction(
       }),
     });
   } catch (error) {
-    const diagnostic = providerDiagnostic('network', count, {
+    const diagnostic = providerDiagnostic('network', count, { operation: 'create_interaction',
       message: error instanceof Error ? error.name.slice(0, 80) : 'UnknownNetworkError',
       error: 'provider_unavailable',
     });
@@ -491,7 +490,7 @@ export async function startPublicYouTubeVideosSafetyInteraction(
 
   if (!response.ok) {
     const payload = await response.clone().json().catch(() => null) as any;
-    const failure = parseProviderHttpFailure(response, payload?.error, count);
+    const failure = parseProviderHttpFailure(response, payload?.error, count, 'create_interaction');
     console.error('catalog_auto_review_provider_failure', JSON.stringify(failure.diagnostic));
     return { ok: false, ...failure };
   }
@@ -555,7 +554,7 @@ export async function pollPublicYouTubeVideosSafetyInteraction(
       headers: { 'x-goog-api-key': apiKey.trim() },
     });
   } catch (error) {
-    const diagnostic = providerDiagnostic('network', count, {
+    const diagnostic = providerDiagnostic('network', count, { operation: 'poll_interaction',
       interactionId,
       message: error instanceof Error ? error.name.slice(0, 80) : 'UnknownNetworkError',
       error: 'provider_unavailable',
@@ -566,7 +565,7 @@ export async function pollPublicYouTubeVideosSafetyInteraction(
 
   if (!response.ok) {
     const payload = await response.clone().json().catch(() => null) as any;
-    const failure = parseProviderHttpFailure(response, payload?.error, count);
+    const failure = parseProviderHttpFailure(response, payload?.error, count, 'poll_interaction');
     failure.diagnostic.interactionId = interactionId;
     console.error('catalog_auto_review_provider_failure', JSON.stringify(failure.diagnostic));
     return { ok: false, ...failure };
@@ -652,43 +651,4 @@ export async function deletePublicYouTubeVideosSafetyInteraction(
     // The stored interaction has provider-side retention as a fallback; do not
     // allow a cleanup network error to turn a completed video review into failure.
   }
-}
-
-export async function scanPublicYouTubeVideoForSafety(
-  apiKey: string,
-  videoId: string,
-  title: string,
-  expectedCategory: string,
-): Promise<{ ok: true; model: string; policyVersion: string; assessment: VideoSafetyAssessment } | { ok: false; error: VideoSafetyProviderError; diagnostic?: VideoSafetyProviderDiagnostic }> {
-  const started = await startPublicYouTubeVideosSafetyInteraction(apiKey, [{ videoId, title, expectedCategory }]);
-  if (started.ok === false) return started;
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    const result = await pollPublicYouTubeVideosSafetyInteraction(apiKey, started.interactionId, [videoId]);
-    if (result.pending === true) continue;
-    await deletePublicYouTubeVideosSafetyInteraction(apiKey, started.interactionId);
-    if (result.ok === false) return result;
-    const item = result.assessments[0];
-    if (!item) return {
-      ok: false,
-      error: 'invalid_model_output',
-      diagnostic: providerDiagnostic('response_validation', 1, {
-        interactionId: started.interactionId,
-        message: 'Provider completed without returning the requested video assessment.',
-        error: 'invalid_model_output',
-      }),
-    };
-    return { ok: true, model: result.model, policyVersion: result.policyVersion, assessment: item.assessment };
-  }
-  await deletePublicYouTubeVideosSafetyInteraction(apiKey, started.interactionId);
-  return {
-    ok: false,
-    error: 'provider_unavailable',
-    diagnostic: providerDiagnostic('interaction', 1, {
-      interactionId: started.interactionId,
-      interactionStatus: 'timeout',
-      message: 'Provider interaction exceeded the single-video polling window.',
-      error: 'provider_unavailable',
-    }),
-  };
 }

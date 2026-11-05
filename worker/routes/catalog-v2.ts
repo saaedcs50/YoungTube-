@@ -514,8 +514,8 @@ async function pollAutoReviewInteraction(env:Env,b:any):Promise<void>{
   await queueAutoReviewPoll(env,next,10);
   return;
  }
- await deletePublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,interactionId);
  if(poll.ok===false){
+  await deletePublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,interactionId);
   const diagnostic:VideoSafetyProviderDiagnostic={...poll.diagnostic,outcome:'failed',timestamp:now(),error:poll.error,interactionId,diagnosticOnly};
   if(diagnosticOnly)await failDiagnosticOnly(diagnostic);
   else{
@@ -526,9 +526,13 @@ async function pollAutoReviewInteraction(env:Env,b:any):Promise<void>{
  }
  const successDiagnostic:VideoSafetyProviderDiagnostic={outcome:'success',stage:'response',timestamp:now(),model:poll.model,httpStatus:200,videoCount:ids.length,diagnosticOnly,interactionStatus:'completed',message:diagnosticOnly?'Gemini completed a valid one-video diagnostic. No review result was saved.':'Gemini completed the requested video review interaction.'};
  await persistAutoReviewProviderDiagnostic(env,successDiagnostic);
- if(diagnosticOnly)return;
+ if(diagnosticOnly){
+  await deletePublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,interactionId);
+  return;
+ }
  const snapshots=Array.isArray(b.videoSnapshots)?b.videoSnapshots:[];
  await applyAutoReviewCompletedBatch(env,snapshots,poll,b.modeAtStart==='enforce'?'enforce':'shadow');
+ await deletePublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,interactionId);
 }
 
 export async function scheduleCatalogMetadataRefresh(env:Env):Promise<void>{

@@ -32,12 +32,20 @@ export class TelemetryAggregator {
   state: any;
   ctx: any;
 
-  private rateLimitMap = new Map<string, { count: number; resetAt: number }>();
   private lastRateLimitSweep = Date.now();
 
   constructor(state: any, _env?: any) {
     this.state = state;
     this.ctx = state;
+    state.blockConcurrencyWhile(async () => {
+      state.storage.sql.exec(`
+        CREATE TABLE IF NOT EXISTS public_rate_limit_windows (
+          rate_key TEXT PRIMARY KEY,
+          request_count INTEGER NOT NULL,
+          reset_at_ms INTEGER NOT NULL
+        )
+      `);
+    });
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -118,8 +126,8 @@ export class TelemetryAggregator {
   }
 
   /**
-   * In-memory sliding/fixed window rate-limiter per IP.
-   * Runs in Durable Object memory with zero KV writes and zero storage I/O.
+   * Durable fixed-window limiter. One atomic SQLite upsert handles concurrent
+   * requests and preserves counters across DO eviction/restarts.
    */
   private handleRateLimit(
     ip: string,
@@ -127,32 +135,26 @@ export class TelemetryAggregator {
     windowSec: number
   ): { allowed: boolean; count: number; resetInSec: number } {
     const now = Date.now();
-    // Periodic sweep of expired IP records to prevent memory growth
-    if (now - this.lastRateLimitSweep > 60000) {
+    const maxRequests = Math.min(10_000, Math.max(1, Math.floor(Number(limit) || 60)));
+    const safeWindowSec = Math.min(3600, Math.max(1, Math.floor(Number(windowSec) || 60)));
+    const windowMs = safeWindowSec * 1000;
+    if (now - this.lastRateLimitSweep > 60_000) {
       this.lastRateLimitSweep = now;
-      for (const [key, entry] of this.rateLimitMap.entries()) {
-        if (now > entry.resetAt) {
-          this.rateLimitMap.delete(key);
-        }
-      }
+      this.state.storage.sql.exec('DELETE FROM public_rate_limit_windows WHERE reset_at_ms <= ?', now);
     }
-
-    const windowMs = (windowSec || 60) * 1000;
-    const maxRequests = limit || 60;
-
-    let entry = this.rateLimitMap.get(ip);
-    if (!entry || now > entry.resetAt) {
-      entry = { count: 1, resetAt: now + windowMs };
-      this.rateLimitMap.set(ip, entry);
-      return { allowed: true, count: 1, resetInSec: windowSec };
-    }
-
-    entry.count++;
-    const resetInSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
-    if (entry.count > maxRequests) {
-      return { allowed: false, count: entry.count, resetInSec };
-    }
-    return { allowed: true, count: entry.count, resetInSec };
+    const rows = this.state.storage.sql.exec(
+      `INSERT INTO public_rate_limit_windows (rate_key, request_count, reset_at_ms)
+       VALUES (?, 1, ?)
+       ON CONFLICT(rate_key) DO UPDATE SET
+         request_count = CASE WHEN public_rate_limit_windows.reset_at_ms <= ? THEN 1 ELSE public_rate_limit_windows.request_count + 1 END,
+         reset_at_ms = CASE WHEN public_rate_limit_windows.reset_at_ms <= ? THEN excluded.reset_at_ms ELSE public_rate_limit_windows.reset_at_ms END
+       RETURNING request_count, reset_at_ms`,
+      ip, now + windowMs, now, now
+    ).toArray() as Array<{ request_count: number; reset_at_ms: number }>;
+    const row = rows[0];
+    const count = Math.max(0, Number(row?.request_count || 0));
+    const resetAt = Math.max(now, Number(row?.reset_at_ms || now + windowMs));
+    return { allowed: count > 0 && count <= maxRequests, count, resetInSec: Math.max(1, Math.ceil((resetAt - now) / 1000)) };
   }
 
   private async getStorage(): Promise<any> {
