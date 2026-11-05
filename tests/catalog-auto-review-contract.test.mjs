@@ -186,3 +186,14 @@ test('Gemini Interactions JSON parsing uses only final model_output steps and ne
   assert.ok(reviewer.includes('contentPartTypes'));
 
 });
+
+
+test('completed Gemini interaction remains stored until D1 review application returns', () => {
+  const pollStart = route.indexOf('async function pollAutoReviewInteraction');
+  const pollEnd = route.indexOf('export async function scheduleCatalogMetadataRefresh', pollStart);
+  assert.ok(pollStart >= 0 && pollEnd > pollStart);
+  const handler = route.slice(pollStart, pollEnd);
+  const applied = handler.indexOf('await applyAutoReviewCompletedBatch');
+  const deleted = handler.lastIndexOf('await deletePublicYouTubeVideosSafetyInteraction');
+  assert.ok(applied >= 0 && deleted > applied, 'D1 review writes must finish before provider interaction deletion');
+});
