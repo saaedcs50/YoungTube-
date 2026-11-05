@@ -142,7 +142,7 @@ export class TelemetryAggregator {
       this.lastRateLimitSweep = now;
       this.state.storage.sql.exec('DELETE FROM public_rate_limit_windows WHERE reset_at_ms <= ?', now);
     }
-    const rows = this.state.storage.sql.exec<{ request_count: number; reset_at_ms: number }>(
+    const rows = this.state.storage.sql.exec(
       `INSERT INTO public_rate_limit_windows (rate_key, request_count, reset_at_ms)
        VALUES (?, 1, ?)
        ON CONFLICT(rate_key) DO UPDATE SET
@@ -150,7 +150,7 @@ export class TelemetryAggregator {
          reset_at_ms = CASE WHEN public_rate_limit_windows.reset_at_ms <= ? THEN excluded.reset_at_ms ELSE public_rate_limit_windows.reset_at_ms END
        RETURNING request_count, reset_at_ms`,
       ip, now + windowMs, now, now
-    ).toArray();
+    ).toArray() as Array<{ request_count: number; reset_at_ms: number }>;
     const row = rows[0];
     const count = Math.max(0, Number(row?.request_count || 0));
     const resetAt = Math.max(now, Number(row?.reset_at_ms || now + windowMs));
