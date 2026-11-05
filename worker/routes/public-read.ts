@@ -35,7 +35,7 @@ import {
   fetchChannels,
 } from '../lib/youtube-api';
 import { Env, VideoItem } from '../lib/types';
-import { classifySongVariantForCandidate, hasExplicitNoMusicClaim } from '../../shared/musicClassification';
+import { classifySongVariantForCandidate, legacyHasMusicFlag } from '../../shared/musicClassification';
 
 function resolveYoutubeApiKeyForPublicRoute(request: Request, env: Env): string {
   const isAdmin = checkAdminAuth(request, env);
@@ -799,7 +799,7 @@ export async function handlePublicReadRoutes(
         sourceId: string;
         videoDuration?: number;
         isPortrait?: boolean;
-        hasMusic: boolean;
+        hasMusic?: boolean;
         primaryCategoryId?: string;
         contentFormat?: string;
         songVariant?: string;
@@ -835,9 +835,9 @@ export async function handlePublicReadRoutes(
                 publishedAt: v.publishedAt || '',
                 sourceId,
                 videoDuration: typeof v.videoDuration === 'number' ? v.videoDuration : undefined,
-                // Legacy boolean remains for compatibility; UI routing uses the
-                // video-level classification evidence below.
-                hasMusic: !hasExplicitNoMusicClaim(titleStr),
+                // Legacy boolean reflects song-only classification evidence.
+                // Unclassified lessons/cartoons do not acquire an audio claim.
+                hasMusic: legacyHasMusicFlag(song),
                 primaryCategoryId: song?.publicCategory,
                 contentFormat: song ? 'song' : undefined,
                 songVariant: song?.variant,
@@ -891,7 +891,7 @@ export async function handlePublicReadRoutes(
         sourceId: string;
         videoDuration?: number;
         isPortrait: boolean;
-        hasMusic: boolean;
+        hasMusic?: boolean;
         primaryCategoryId?: string;
         contentFormat?: string;
         songVariant?: string;
