@@ -10,7 +10,7 @@ import {
 } from './services/globalBlocks';
 import {
   classifySongVariantForCandidate,
-  hasExplicitNoMusicClaim,
+  legacyHasMusicFlag,
   MUSIC_CLASSIFICATION_VERSION,
 } from '../shared/musicClassification';
 
@@ -577,9 +577,7 @@ export async function filterAndCacheVideos(
 
       // Legacy boolean compatibility is song-only now. A lesson or cartoon
       // titled "without music" must not acquire a no-music badge/flag.
-      const hasMusic = songClassification
-        ? !hasExplicitNoMusicClaim(video.title)
-        : undefined;
+      const hasMusic = legacyHasMusicFlag(songClassification);
 
       if (songClassification?.publicCategory === 'music_songs_no_music') {
         noMusicCount++;

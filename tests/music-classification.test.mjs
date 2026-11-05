@@ -22,6 +22,8 @@ const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname)
 
 let hasExplicitNoMusicClaim;
 let normalizeTitleForMusicMatch;
+let classifySongVariantForCandidate;
+let legacyHasMusicFlag;
 
 before(() => {
   const sourcePath = path.join(projectRoot, 'shared/musicClassification.ts');
@@ -49,8 +51,12 @@ before(() => {
   const mod = require(outPath);
   hasExplicitNoMusicClaim = mod.hasExplicitNoMusicClaim;
   normalizeTitleForMusicMatch = mod.normalizeTitleForMusicMatch;
+  classifySongVariantForCandidate = mod.classifySongVariantForCandidate;
+  legacyHasMusicFlag = mod.legacyHasMusicFlag;
   assert.equal(typeof hasExplicitNoMusicClaim, 'function');
   assert.equal(typeof normalizeTitleForMusicMatch, 'function');
+  assert.equal(typeof classifySongVariantForCandidate, 'function');
+  assert.equal(typeof legacyHasMusicFlag, 'function');
 });
 
 test('supported explicit no-music claims are detected (pre-existing phrases)', () => {
@@ -124,8 +130,10 @@ test('integration: client and Worker both consume the same shared helper', () =>
   // Both import the one shared helper (no duplicated phrase rules).
   assert.match(filtering, /from '\.\.\/shared\/musicClassification'/);
   assert.match(publicRead, /from '\.\.\/\.\.\/shared\/musicClassification'/);
-  assert.match(filtering, /hasExplicitNoMusicClaim\(video\.title\)/);
-  assert.match(publicRead, /hasExplicitNoMusicClaim\(titleStr\)/);
+  assert.match(filtering, /legacyHasMusicFlag\(songClassification\)/);
+  assert.match(publicRead, /legacyHasMusicFlag\(song\)/);
+  assert.equal(filtering.includes('hasExplicitNoMusicClaim(video.title)'), false);
+  assert.equal(publicRead.includes('hasExplicitNoMusicClaim(titleStr)'), false);
   // The old hardcoded two-phrase duplication is gone from both call sites.
   assert.equal(filtering.includes("includes('no music')"), false);
   assert.equal(filtering.includes("includes('بدون موسيقى')"), false);
@@ -213,4 +221,18 @@ test('boolean contract remains fail-safe for explicit, ordinary and ambiguous ti
   ]) {
     assert.equal(hasMusic(title), true, title);
   }
+});
+
+
+test('legacy hasMusic follows canonical song classification and stays unset for non-songs', () => {
+  const noMusic = classifySongVariantForCandidate({ title: 'أنشودة أطفال بدون موسيقى' });
+  assert.equal(noMusic?.publicCategory, 'music_songs_no_music');
+  assert.equal(legacyHasMusicFlag(noMusic), false);
+  const noRhythm = classifySongVariantForCandidate({ title: 'أنشودة أطفال بدون إيقاع' });
+  assert.equal(noRhythm?.publicCategory, 'music_songs');
+  assert.equal(legacyHasMusicFlag(noRhythm), true);
+  const lesson = classifySongVariantForCandidate({ title: 'شرح الحروف بدون موسيقى' });
+  assert.equal(lesson, null);
+  assert.equal(legacyHasMusicFlag(lesson), undefined);
+  assert.equal(legacyHasMusicFlag(null), undefined);
 });

@@ -442,6 +442,17 @@ export function classifySongVariant(input: {
   };
 }
 
+/**
+ * Compatibility mapping for the retired boolean field. False is reserved for
+ * the canonical no-music song category; non-song content stays undefined.
+ */
+export function legacyHasMusicFlag(
+  classification: SongVariantClassification | null | undefined
+): boolean | undefined {
+  if (!classification) return undefined;
+  return classification.publicCategory !== 'music_songs_no_music';
+}
+
 export function matchesPublicSongCategory(input: {
   title: string;
   description?: string;
