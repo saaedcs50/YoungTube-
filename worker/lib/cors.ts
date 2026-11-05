@@ -130,14 +130,18 @@ export async function checkPublicRateLimit(request: Request, env: Env, limit = R
           windowSec,
         }),
       });
-      if (res.ok) {
-        const data: any = await res.json();
-        return data.allowed !== false;
+      if (!res.ok) {
+        console.warn('DO rate limit check failed; denying the request.');
+        return false;
       }
+      const data: any = await res.json();
+      return data?.allowed === true;
     } catch (err) {
-      console.warn('DO rate limit check failed, using in-memory fallback:', err);
+      console.warn('DO rate limit check failed; denying the request:', err);
+      return false;
     }
   }
 
+  // Isolate-local fallback is only used in local/test environments without this binding.
   return checkFallbackRateLimit(rateKey, limit, windowSec);
 }
