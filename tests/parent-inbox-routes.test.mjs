@@ -317,10 +317,17 @@ test('messages remain scoped by device, search is bounded to the latest 200, and
     deviceId: 'scope_device_B_123', capabilityToken: TEST_CAPABILITY, type: 'question', body: 'Another device owns this', contact: '', appVersion: '1.0.1', platform: 'web',
   });
   assert.equal(other.status, 201);
-  const scoped = await (await storeRequest(store, '/device?deviceId=scope_device_A_123')).json();
-  assert.equal(scoped.messages.length, 1);
-  assert.equal(scoped.messages[0].id, firstId);
-  assert.equal(scoped.messages[0].body, privateMarkup);
+  const unauthenticatedScope = await storeRequest(store, '/device?deviceId=scope_device_A_123');
+  assert.equal(unauthenticatedScope.status, 401);
+  const scopedResponse = await storeRequest(
+    store, '/device?deviceId=scope_device_A_123', 'GET', undefined,
+    { 'X-Parent-Inbox-Capability': TEST_CAPABILITY },
+  );
+  assert.equal(scopedResponse.status, 200);
+  const scoped = await scopedResponse.json();
+  assert.equal(scoped.messages.length, 2);
+  assert.equal(scoped.messages.some((message) => message.id === firstId), true);
+  assert.equal(scoped.messages.find((message) => message.id === firstId).body, privateMarkup);
 
   for (let i = 0; i < 201; i++) {
     const result = await storeRequest(store, '/create', 'POST', {
