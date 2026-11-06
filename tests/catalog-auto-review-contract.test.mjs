@@ -40,7 +40,7 @@ test('the queue is batched, windowed, and protected by a scheduler lock with con
   assert.ok(route.includes('AUTO_REVIEW_DEFAULT_DAILY_SECONDS_LIMIT = 8 * 60 * 60'));
   assert.ok(route.includes('AUTO_REVIEW_MAX_DAILY_SECONDS_LIMIT = 72 * 60 * 60'));
   assert.ok(route.includes('AUTO_REVIEW_ENQUEUE_WINDOW_VIDEOS = 500'));
-  assert.ok(route.includes("b.type==='AUTO_REVIEW_VIDEO_BATCH'"));
+  assert.ok(route.includes("messageType==='AUTO_REVIEW_VIDEO_BATCH'"));
   assert.ok(route.includes("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('auto_review_scheduler_lock'"));
   assert.ok(route.includes("path==='/api/admin/catalog/auto-review-budget'"));
   assert.ok(route.includes("if(hours>8&&b?.paidTierConfirmed!==true)"));
@@ -135,7 +135,7 @@ test('Gemini video review uses background Interactions with durable queue pollin
   assert.ok(reviewer.includes('pollPublicYouTubeVideosSafetyInteraction'));
   assert.ok(reviewer.includes('deletePublicYouTubeVideosSafetyInteraction'));
   assert.ok(route.includes("type:'AUTO_REVIEW_POLL_INTERACTION'"));
-  assert.ok(route.includes("b.type==='AUTO_REVIEW_POLL_INTERACTION'"));
+  assert.ok(route.includes("messageType==='AUTO_REVIEW_POLL_INTERACTION'"));
   assert.ok(route.includes('async function pollAutoReviewInteraction'));
   assert.ok(route.includes('pollAttempt'));
   assert.ok(route.includes('diagnosticOnly'));
