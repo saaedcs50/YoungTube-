@@ -10,8 +10,10 @@ export interface ParentInboxMessage {
 }
 interface ParentInboxResponse { ok: boolean; error?: string; messages?: ParentInboxMessage[]; message?: ParentInboxMessage }
 const DEVICE_ID_KEY = 'yt_parent_device_id';
+const INBOX_CAPABILITY_KEY = 'yt_parent_inbox_capability_v1';
 const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim() || '1.0.1';
 let memoryDeviceId: string | null = null;
+let memoryInboxCapability: string | null = null;
 
 function createSecureId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
@@ -22,6 +24,25 @@ function createSecureId(): string {
     return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
   }
   throw new Error('secure_id_unavailable');
+}
+
+export function getParentInboxCapabilityToken(): string {
+  if (memoryInboxCapability) return memoryInboxCapability;
+  try {
+    const stored = localStorage.getItem(INBOX_CAPABILITY_KEY);
+    if (stored && /^[a-f0-9]{64}$/i.test(stored)) {
+      memoryInboxCapability = stored.toLowerCase();
+      return memoryInboxCapability;
+    }
+  } catch { /* Storage can be unavailable in restricted WebViews. */ }
+  if (typeof crypto === 'undefined' || typeof crypto.getRandomValues !== 'function') {
+    throw new Error('تعذر إنشاء مفتاح حماية لصندوق الرسائل. حدّث التطبيق وحاول مرة أخرى.');
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const generated = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
+  memoryInboxCapability = generated;
+  try { localStorage.setItem(INBOX_CAPABILITY_KEY, generated); } catch { /* Use memory for this session. */ }
+  return generated;
 }
 
 export function getParentDeviceId(): string {
@@ -64,11 +85,15 @@ async function request<T>(path: string, init: RequestInit = {}, operation: 'send
   return payload as T;
 }
 
-export async function fetchParentInbox(deviceId: string, signal?: AbortSignal): Promise<ParentInboxMessage[]> {
-  const result = await request<ParentInboxResponse>(`/api/parent-inbox?deviceId=${encodeURIComponent(deviceId)}`, { signal }, 'load');
+export async function fetchParentInbox(deviceId: string, capabilityToken: string, signal?: AbortSignal): Promise<ParentInboxMessage[]> {
+  const result = await request<ParentInboxResponse>(
+    `/api/parent-inbox?deviceId=${encodeURIComponent(deviceId)}`,
+    { signal, headers: { 'X-Parent-Inbox-Capability': capabilityToken } },
+    'load',
+  );
   return Array.isArray(result.messages) ? result.messages : [];
 }
-export async function createParentInboxMessage(input: { deviceId: string; type: ParentInboxType; body: string; contact: string }, signal?: AbortSignal): Promise<ParentInboxMessage> {
+export async function createParentInboxMessage(input: { deviceId: string; capabilityToken: string; type: ParentInboxType; body: string; contact: string }, signal?: AbortSignal): Promise<ParentInboxMessage> {
   const result = await request<ParentInboxResponse>('/api/parent-inbox', {
     method: 'POST', signal,
     body: JSON.stringify({ ...input, appVersion: APP_VERSION, platform: currentPlatform() }),
