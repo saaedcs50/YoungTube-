@@ -457,7 +457,7 @@ export async function startPublicYouTubeVideosSafetyInteraction(
 
   let response: Response;
   try {
-    response = await fetch(GEMINI_INTERACTIONS_API_URL,
+    response = await fetch(GEMINI_INTERACTIONS_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
       body: JSON.stringify({
