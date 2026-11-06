@@ -1,5 +1,6 @@
 export const VIDEO_SAFETY_REVIEW_VERSION = 'youngtube-video-safety-review-v1';
 export const VIDEO_SAFETY_REVIEW_MODEL = 'gemini-3.8-flash';
+export const GEMINI_INTERACTIONS_API_URL = 'https://generativelanguage.googleapis.com/v1/interactions';
 export const AUTO_REVIEW_BATCH_SIZE = 10;
 
 // First rollout is deliberately narrow. Channel membership and title hints are not
@@ -454,7 +455,7 @@ export async function startPublicYouTubeVideosSafetyInteraction(
 
   let response: Response;
   try {
-    response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    response = await fetch(GEMINI_INTERACTIONS_API_URL,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
       body: JSON.stringify({
@@ -549,7 +550,7 @@ export async function pollPublicYouTubeVideosSafetyInteraction(
   const count = expectedVideoIds.length;
   let response: Response;
   try {
-    response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions/' + encodeURIComponent(interactionId), {
+    response = await fetch(GEMINI_INTERACTIONS_API_URL + '/' + encodeURIComponent(interactionId), {
       method: 'GET',
       headers: { 'x-goog-api-key': apiKey.trim() },
     });
@@ -586,7 +587,7 @@ export async function pollPublicYouTubeVideosSafetyInteraction(
   }
 
   const status = String(payload?.status || '');
-  if (status === 'in_progress') {
+  if (status === 'in_progress' || status === 'queued') {
     return {
       ok: true,
       pending: true,
@@ -643,7 +644,7 @@ export async function deletePublicYouTubeVideosSafetyInteraction(
   interactionId: string,
 ): Promise<void> {
   try {
-    await fetch('https://generativelanguage.googleapis.com/v1beta/interactions/' + encodeURIComponent(interactionId), {
+    await fetch(GEMINI_INTERACTIONS_API_URL + '/' + encodeURIComponent(interactionId), {
       method: 'DELETE',
       headers: { 'x-goog-api-key': apiKey.trim() },
     });
