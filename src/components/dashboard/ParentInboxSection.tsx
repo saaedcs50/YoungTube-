@@ -1,7 +1,7 @@
 import React, { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Clock3, Inbox, Loader2, MessageCircle, RefreshCw, Send, WifiOff } from 'lucide-react';
 import {
-  createParentInboxMessage, fetchParentInbox, getParentDeviceId,
+  createParentInboxMessage, fetchParentInbox, getParentDeviceId, getParentInboxCapabilityToken,
   parentInboxStatusLabel, parentInboxTypeLabel,
   type ParentInboxMessage, type ParentInboxType,
 } from '../../services/parentInbox';
@@ -49,7 +49,8 @@ export const ParentInboxSection: React.FC = () => {
     setLoadError(null);
     try {
       if (!deviceId.current) deviceId.current = getParentDeviceId();
-      const result = await fetchParentInbox(deviceId.current, controller.signal);
+      const capabilityToken = getParentInboxCapabilityToken();
+      const result = await fetchParentInbox(deviceId.current, capabilityToken, controller.signal);
       if (mounted.current && !controller.signal.aborted) setMessages(result);
     } catch (error) {
       if (mounted.current && !controller.signal.aborted) setLoadError(error instanceof Error ? error.message : 'تعذر تحميل الرسائل حاليًا.');
@@ -75,7 +76,8 @@ export const ParentInboxSection: React.FC = () => {
     const controller = withController();
     try {
       if (!deviceId.current) deviceId.current = getParentDeviceId();
-      const created = await createParentInboxMessage({ deviceId: deviceId.current, type, body: text, contact: contactText }, controller.signal);
+      const capabilityToken = getParentInboxCapabilityToken();
+      const created = await createParentInboxMessage({ deviceId: deviceId.current, capabilityToken, type, body: text, contact: contactText }, controller.signal);
       if (!mounted.current || controller.signal.aborted) return;
       setMessages((old) => [created, ...old.filter((item) => item.id !== created.id)].slice(0, 500));
       setBody(''); setContact(''); setSuccess('رسالتك وصلت. لو فيه رد هتلاقيه تحت الرسالة دي.');
@@ -105,7 +107,7 @@ export const ParentInboxSection: React.FC = () => {
       </form>
     </div>
     <div className="rounded-2xl border border-yt-border bg-yt-surface p-4 sm:p-6 shadow-sm space-y-4">
-      <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2.5 min-w-0"><Inbox className="w-5 h-5 text-yt-text-muted shrink-0" /><div><h3 className="text-sm sm:text-base font-extrabold">رسائلي على الجهاز ده</h3><p className="text-[11px] text-yt-text-muted mt-0.5">حدّث الرسائل يدويًا لمتابعة الردود.</p></div></div><button id="parent-inbox-refresh-button" type="button" onClick={() => void load(true)} disabled={refreshing || loading} className="inline-flex items-center gap-1.5 rounded-lg border border-yt-border bg-yt-bg px-3 py-2 text-xs font-bold text-yt-text hover:bg-yt-surface-muted disabled:opacity-50 shrink-0"><RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> تحديث</button></div>
+      <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2.5 min-w-0"><Inbox className="w-5 h-5 text-yt-text-muted shrink-0" /><div><h3 className="text-sm sm:text-base font-extrabold">رسائلي على الجهاز ده</h3><p className="text-[11px] text-yt-text-muted mt-0.5">حدّث الرسائل يدويًا لمتابعة الردود. الرسائل الأقدم من تحديث الحماية قد تظل متاحة في لوحة الإدارة فقط.</p></div></div><button id="parent-inbox-refresh-button" type="button" onClick={() => void load(true)} disabled={refreshing || loading} className="inline-flex items-center gap-1.5 rounded-lg border border-yt-border bg-yt-bg px-3 py-2 text-xs font-bold text-yt-text hover:bg-yt-surface-muted disabled:opacity-50 shrink-0"><RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> تحديث</button></div>
       {loading ? <div className="flex items-center justify-center gap-2 py-8 text-sm text-yt-text-muted"><Loader2 className="w-4 h-4 animate-spin" />جاري تحميل الرسائل...</div> : loadError ? <div className="rounded-xl border border-yt-border bg-yt-bg p-4 text-sm text-yt-text-muted flex items-start gap-2"><WifiOff className="w-4 h-4 mt-0.5 shrink-0" /><div><p>{loadError}</p><button type="button" className="mt-2 underline font-bold text-yt-text" onClick={() => void load(true)}>حاول مرة تانية</button></div></div> : messages.length === 0 ? <div className="rounded-xl border border-dashed border-yt-border bg-yt-bg px-4 py-8 text-center"><Inbox className="w-8 h-8 mx-auto mb-2 text-yt-text-muted/70" /><p className="text-sm font-bold text-yt-text">مفيش رسائل لسه</p><p className="mt-1 text-xs text-yt-text-muted">أي رسالة تبعتها هتظهر هنا.</p></div> : <div className="space-y-3">{messages.map((message) => <article key={message.id} className="rounded-xl border border-yt-border bg-yt-bg p-3.5 sm:p-4 space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 flex-wrap"><span className="text-xs font-extrabold text-yt-text">{parentInboxTypeLabel(message.type)}</span><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${statusStyle(message.status)}`}>{parentInboxStatusLabel(message.status)}</span></div><span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-yt-text-muted"><Clock3 className="w-3 h-3" />{formatDate(message.createdAt)}</span></div><p className="text-sm text-yt-text leading-relaxed whitespace-pre-wrap break-words">{message.body}</p>{message.reply && <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/25 p-3.5 space-y-1.5"><p className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300">رد YoungTube</p><p className="text-sm text-emerald-950 dark:text-emerald-100 leading-relaxed whitespace-pre-wrap break-words">{message.reply}</p>{message.repliedAt && <p className="text-[10px] text-emerald-800/75 dark:text-emerald-300/75">{formatDate(message.repliedAt)}</p>}</div>}</article>)}</div>}
     </div>
   </section>;

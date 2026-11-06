@@ -3,7 +3,7 @@ import type { Env } from '../lib/types';
 
 const HEADERS = { ...corsHeaders, 'Cache-Control': 'no-store' };
 const ALLOWED_TYPES = new Set(['bug', 'suggestion', 'thanks', 'question']);
-const ALLOWED_PUBLIC_FIELDS = new Set(['deviceId', 'type', 'body', 'contact', 'appVersion', 'platform']);
+const ALLOWED_PUBLIC_FIELDS = new Set(['deviceId', 'capabilityToken', 'type', 'body', 'contact', 'appVersion', 'platform']);
 
 function response(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: HEADERS });
@@ -51,6 +51,8 @@ async function createMessage(request: Request, env: Env): Promise<Response> {
   const input = await readObject(request);
   if (!input || Object.keys(input).some((key) => !ALLOWED_PUBLIC_FIELDS.has(key))) return errorResponse('invalid', 400);
   const deviceId = typeof input.deviceId === 'string' ? cleanText(input.deviceId) : '';
+  const capabilityToken = typeof input.capabilityToken === 'string' ? input.capabilityToken.trim().toLowerCase() : '';
+  if (!/^[a-f0-9]{64}$/.test(capabilityToken)) return errorResponse('capability_required', 401);
   const body = typeof input.body === 'string' ? cleanText(input.body) : '';
   const contact = typeof input.contact === 'string' ? cleanText(input.contact) : '';
   const appVersion = typeof input.appVersion === 'string' ? cleanText(input.appVersion) : '';
@@ -61,7 +63,7 @@ async function createMessage(request: Request, env: Env): Promise<Response> {
 
   const stored = await storeRequest(env, '/create', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ deviceId, type: input.type, body, contact, appVersion, platform }),
+    body: JSON.stringify({ deviceId, capabilityToken, type: input.type, body, contact, appVersion, platform }),
   });
   if (stored.status !== 201) return new Response(await stored.text(), { status: stored.status, headers: HEADERS });
 
@@ -89,10 +91,14 @@ async function createMessage(request: Request, env: Env): Promise<Response> {
   return response({ ok: true, message: payload.message ? publicMessage(payload.message) : undefined }, 201);
 }
 
-async function listDeviceMessages(url: URL, env: Env): Promise<Response> {
+async function listDeviceMessages(request: Request, url: URL, env: Env): Promise<Response> {
   const deviceId = cleanText(url.searchParams.get('deviceId') || '');
+  const capabilityToken = (request.headers.get('X-Parent-Inbox-Capability') || '').trim().toLowerCase();
   if (!/^[A-Za-z0-9_-]{8,80}$/.test(deviceId)) return errorResponse('invalid', 400);
-  const stored = await storeRequest(env, `/device?deviceId=${encodeURIComponent(deviceId)}`);
+  if (!/^[a-f0-9]{64}$/.test(capabilityToken)) return errorResponse('capability_required', 401);
+  const stored = await storeRequest(env, `/device?deviceId=${encodeURIComponent(deviceId)}`, {
+    headers: { 'X-Parent-Inbox-Capability': capabilityToken },
+  });
   if (!stored.ok) return errorResponse('inbox_unavailable', 503);
   try {
     const payload = await stored.json() as { messages?: Array<Record<string, unknown>> };
@@ -106,7 +112,7 @@ export async function handleParentInboxRoutes(request: Request, env: Env, url: U
   const method = request.method.toUpperCase();
   if (url.pathname === '/api/parent-inbox') {
     if (method === 'POST') return createMessage(request, env);
-    if (method === 'GET') return listDeviceMessages(url, env);
+    if (method === 'GET') return listDeviceMessages(request, url, env);
     return errorResponse('method_not_allowed', 405);
   }
 

@@ -3,7 +3,7 @@ type MessageType = 'bug' | 'suggestion' | 'thanks' | 'question';
 type MessageStatus = 'new' | 'read' | 'replied' | 'closed';
 
 interface ParentInboxRow {
-  id: string; device_id: string; created_at: string; updated_at: string;
+  id: string; device_id: string; capability_hash: string | null; created_at: string; updated_at: string;
   type: MessageType; body: string; contact: string; app_version: string; platform: string;
   status: MessageStatus; read_at: string | null; reply: string | null; replied_at: string | null;
   admin_note: string; pinned: number; archived: number; closed_at: string | null; archived_at: string | null;
@@ -40,6 +40,15 @@ function isType(value: unknown): value is MessageType {
   return value === 'bug' || value === 'suggestion' || value === 'thanks' || value === 'question';
 }
 
+function isCapabilityToken(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+}
+
+async function hashCapability(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token.toLowerCase()));
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+}
+
 export class ParentInboxStore {
   private state: any;
   private ready: Promise<unknown>;
@@ -54,7 +63,7 @@ export class ParentInboxStore {
   private initialize(): void {
     const sql = this.state.storage.sql;
     sql.exec(`CREATE TABLE IF NOT EXISTS parent_inbox_messages (
-      id TEXT PRIMARY KEY, device_id TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      id TEXT PRIMARY KEY, device_id TEXT NOT NULL, capability_hash TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       type TEXT NOT NULL CHECK (type IN ('bug','suggestion','thanks','question')),
       body TEXT NOT NULL, contact TEXT NOT NULL DEFAULT '', app_version TEXT NOT NULL DEFAULT '',
       platform TEXT NOT NULL DEFAULT 'unknown',
@@ -63,6 +72,13 @@ export class ParentInboxStore {
       pinned INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0,
       closed_at TEXT, archived_at TEXT
     )`);
+    // Upgrade the existing Durable Object SQLite table without deleting any inbox rows.
+    // Rows created before this capability existed stay NULL and remain admin-only.
+    const columns = sql.exec('PRAGMA table_info(parent_inbox_messages)').toArray() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === 'capability_hash')) {
+      sql.exec('ALTER TABLE parent_inbox_messages ADD COLUMN capability_hash TEXT');
+    }
+    sql.exec('CREATE INDEX IF NOT EXISTS parent_inbox_capability_idx ON parent_inbox_messages(device_id, capability_hash, created_at DESC)');
     sql.exec('CREATE INDEX IF NOT EXISTS parent_inbox_created_idx ON parent_inbox_messages(created_at DESC)');
     sql.exec('CREATE INDEX IF NOT EXISTS parent_inbox_device_idx ON parent_inbox_messages(device_id, created_at DESC)');
     sql.exec('CREATE INDEX IF NOT EXISTS parent_inbox_status_idx ON parent_inbox_messages(status, archived)');
@@ -77,12 +93,16 @@ export class ParentInboxStore {
     try {
       if (method === 'POST' && url.pathname === '/create') {
         const input = await request.json() as Record<string, unknown>;
-        return this.createMessage(input);
+        return await this.createMessage(input);
       }
       if (method === 'GET' && url.pathname === '/device') {
         const deviceId = url.searchParams.get('deviceId') || '';
+        const capabilityToken = (request.headers.get('X-Parent-Inbox-Capability') || '').trim();
+        if (!isCapabilityToken(capabilityToken)) return json({ ok: false, error: 'capability_required' }, 401);
+        const capabilityHash = await hashCapability(capabilityToken);
         const rows = this.state.storage.sql.exec(
-          'SELECT * FROM parent_inbox_messages WHERE device_id = ? ORDER BY created_at DESC LIMIT 500', deviceId,
+          'SELECT * FROM parent_inbox_messages WHERE device_id = ? AND capability_hash = ? ORDER BY created_at DESC LIMIT 500',
+          deviceId, capabilityHash,
         ).toArray() as ParentInboxRow[];
         return json({ ok: true, messages: rows.map(toMessage) });
       }
@@ -112,8 +132,11 @@ export class ParentInboxStore {
     }
   }
 
-  private createMessage(input: Record<string, unknown>): Response {
+  private async createMessage(input: Record<string, unknown>): Promise<Response> {
     const deviceId = typeof input.deviceId === 'string' ? cleanText(input.deviceId) : '';
+    const capabilityToken = typeof input.capabilityToken === 'string' ? input.capabilityToken.trim() : '';
+    if (!isCapabilityToken(capabilityToken)) return json({ ok: false, error: 'capability_required' }, 401);
+    const capabilityHash = await hashCapability(capabilityToken);
     const body = typeof input.body === 'string' ? cleanText(input.body) : '';
     const contact = typeof input.contact === 'string' ? cleanText(input.contact) : '';
     const appVersion = typeof input.appVersion === 'string' ? cleanText(input.appVersion) : '';
@@ -132,8 +155,9 @@ export class ParentInboxStore {
       if (Number(rate[0]?.count || 0) >= 5) return { limited: true as const };
       sql.exec('INSERT INTO parent_inbox_device_rate (device_id, created_at_ms) VALUES (?, ?)', deviceId, nowMs);
       sql.exec(`INSERT INTO parent_inbox_messages
-        (id, device_id, created_at, updated_at, type, body, contact, app_version, platform, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')`, id, deviceId, now, now, input.type as string, body, contact, appVersion, platform);
+        (id, device_id, capability_hash, created_at, updated_at, type, body, contact, app_version, platform, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')`,
+        id, deviceId, capabilityHash, now, now, input.type as string, body, contact, appVersion, platform);
       sql.exec(`DELETE FROM parent_inbox_messages WHERE id NOT IN
         (SELECT id FROM parent_inbox_messages ORDER BY created_at DESC, rowid DESC LIMIT 500)`);
       const rows = sql.exec('SELECT * FROM parent_inbox_messages WHERE id = ?', id).toArray() as ParentInboxRow[];
