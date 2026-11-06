@@ -9,6 +9,7 @@ const route = fs.readFileSync(path.join(root, 'worker/routes/catalog-v2.ts'), 'u
 const reviewer = fs.readFileSync(path.join(root, 'worker/lib/catalog-auto-review.ts'), 'utf8');
 const types = fs.readFileSync(path.join(root, 'worker/lib/types.ts'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'worker/migrations/0005_catalog_auto_review.sql'), 'utf8');
+const wrangler = fs.readFileSync(path.join(root, 'wrangler.toml'), 'utf8');
 
 test('multimodal screening uses Gemini 3.8 and batches up to ten separate public YouTube videos', () => {
   assert.ok(reviewer.includes("VIDEO_SAFETY_REVIEW_MODEL = 'gemini-3.8-flash'"));
@@ -196,4 +197,27 @@ test('completed Gemini interaction remains stored until D1 review application re
   const applied = handler.indexOf('await applyAutoReviewCompletedBatch');
   const deleted = handler.lastIndexOf('await deletePublicYouTubeVideosSafetyInteraction');
   assert.ok(applied >= 0 && deleted > applied, 'D1 review writes must finish before provider interaction deletion');
+});
+
+
+test('Gemini Interactions create, poll, and delete use the stable v1 API consistently', () => {
+  assert.ok(reviewer.includes("GEMINI_INTERACTIONS_API_URL = 'https://generativelanguage.googleapis.com/v1/interactions'"));
+  assert.ok(reviewer.includes('fetch(GEMINI_INTERACTIONS_API_URL,'));
+  assert.ok(reviewer.includes("fetch(GEMINI_INTERACTIONS_API_URL + '/' + encodeURIComponent(interactionId),"));
+  assert.equal(reviewer.includes('/v1beta/interactions'), false);
+  assert.ok(reviewer.includes("status === 'in_progress' || status === 'queued'"));
+});
+
+test('queue failures are redacted and persisted before ack; DLQ items are quarantined rather than replayed', () => {
+  assert.ok(route.includes('persistCatalogQueueFailure'));
+  assert.ok(route.includes("queueName==='youngtube-catalog-dlq'"));
+  assert.ok(route.includes("'dead_letter_received'"));
+  assert.ok(route.includes("attempts>CATALOG_QUEUE_MAX_RETRIES"));
+  assert.ok(route.includes("message.ack()"));
+  assert.ok(route.includes("message.retry({delaySeconds:60})"));
+  assert.ok(route.includes("'queue_failure:'+failureHash"));
+  assert.ok(route.includes("interactionIdHash"));
+  assert.ok(route.includes("videoIds.length"));
+  assert.ok(wrangler.includes('queue = "youngtube-catalog-dlq"'));
+  assert.ok(wrangler.includes('dead_letter_queue = "youngtube-catalog-quarantine"'));
 });
