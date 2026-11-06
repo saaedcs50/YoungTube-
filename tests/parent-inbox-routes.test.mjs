@@ -142,7 +142,7 @@ test('unauthenticated admin GET and POST are rejected before storage access', as
 test('public message creation requires a capability and never returns private fields', async () => {
   storeCalls = [];
   const env = mockEnv();
-  const bad = await handleParentInboxRoutes(request('/api/parent-inbox', 'POST', { deviceId: 'bad', type: 'question', body: 'hello' }), env, new URL('https://unit.test/api/parent-inbox'));
+  const bad = await handleParentInboxRoutes(request('/api/parent-inbox', 'POST', { deviceId: 'bad', capabilityToken: TEST_CAPABILITY, type: 'question', body: 'hello' }), env, new URL('https://unit.test/api/parent-inbox'));
   assert.equal(bad.status, 400);
   const missingCapability = await handleParentInboxRoutes(request('/api/parent-inbox', 'POST', {
     deviceId: 'device_123456789', type: 'question', body: 'رسالة اختبار عادية',
@@ -345,6 +345,14 @@ test('messages remain scoped by device, search is bounded to the latest 200, and
 
 test('legacy database rows are preserved for admins but never exposed through a new capability', async () => {
   const store = createLegacyStore();
+  const missingCapability = await storeRequest(store, '/device?deviceId=legacy_device_123');
+  assert.equal(missingCapability.status, 401);
+  const wrongCapability = await storeRequest(
+    store, '/device?deviceId=legacy_device_123', 'GET', undefined,
+    { 'X-Parent-Inbox-Capability': 'b'.repeat(64) },
+  );
+  assert.equal(wrongCapability.status, 200);
+  assert.deepEqual((await wrongCapability.json()).messages, []);
   const legacy = await storeRequest(
     store, '/device?deviceId=legacy_device_123', 'GET', undefined,
     { 'X-Parent-Inbox-Capability': TEST_CAPABILITY },
@@ -373,4 +381,24 @@ test('legacy database rows are preserved for admins but never exposed through a 
   const adminAfter = await (await storeRequest(store, '/admin')).json();
   assert.equal(adminAfter.retainedCount, 2);
   assert.equal(adminAfter.messages.some((message) => message.id === 'm_legacy00000001'), true);
+});
+
+
+test('new capability is stored only as a SHA-256 hash and never returned to callers', async () => {
+  const state = sqliteState();
+  const store = new ParentInboxStore(state);
+  const response = await storeRequest(store, '/create', 'POST', {
+    deviceId: 'hashed_capability_device', capabilityToken: TEST_CAPABILITY,
+    type: 'question', body: 'Verify hashed storage', contact: '', appVersion: '1.0.1', platform: 'android',
+  });
+  assert.equal(response.status, 201);
+  const payload = await response.json();
+  assert.equal(JSON.stringify(payload).includes(TEST_CAPABILITY), false);
+  const rows = state.storage.sql.exec(
+    'SELECT capability_hash FROM parent_inbox_messages WHERE id = ?',
+    payload.message.id,
+  ).toArray();
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].capability_hash, /^[a-f0-9]{64}$/);
+  assert.notEqual(rows[0].capability_hash, TEST_CAPABILITY);
 });
