@@ -7,7 +7,7 @@ import {
 } from '../../shared/contentTaxonomy';
 import { classifySongVariantForCandidate, isLikelySongContentTitle, MUSIC_CLASSIFICATION_VERSION } from '../../shared/musicClassification';
 import { evaluateShortsPolicy, SHORTS_POLICY_VERSION } from '../../shared/shortsPolicy';
-import { VIDEO_SAFETY_REVIEW_VERSION, AUTO_REVIEW_BATCH_SIZE, isAutoReviewCategory, isHighConfidenceSafeAssessment, isHighConfidencePolicyViolation, startPublicYouTubeVideosSafetyInteraction, pollPublicYouTubeVideosSafetyInteraction, deletePublicYouTubeVideosSafetyInteraction, type VideoSafetyBatchResult, type VideoSafetyProviderDiagnostic } from '../lib/catalog-auto-review';
+import { VIDEO_SAFETY_REVIEW_VERSION, VIDEO_SAFETY_REVIEW_MODEL, AUTO_REVIEW_BATCH_SIZE, isAutoReviewCategory, isHighConfidenceSafeAssessment, isHighConfidencePolicyViolation, startPublicYouTubeVideosSafetyInteraction, pollPublicYouTubeVideosSafetyInteraction, deletePublicYouTubeVideosSafetyInteraction, type VideoSafetyBatchResult, type VideoSafetyProviderDiagnostic } from '../lib/catalog-auto-review';
 import { getJpegDimensions, parseIsoDuration } from '../lib/helpers';
 import { fetchVideos } from '../lib/youtube-api';
 import type { Env } from '../lib/types';
@@ -875,6 +875,124 @@ export async function handleCatalogV2Routes(req:Request,env:Env,url:URL):Promise
  }
  return null;
 }
+const CATALOG_QUEUE_MAX_RETRIES = 5;
+
+async function sha256Hex(value:string):Promise<string>{
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));
+ return Array.from(new Uint8Array(digest),(byte)=>byte.toString(16).padStart(2,'0')).join('');
+}
+
+async function persistCatalogQueueFailure(
+ env:Env,
+ message:any,
+ queueName:string,
+ reason:'queue_retry_exhausted'|'dead_letter_received',
+):Promise<void>{
+ if(!env.CATALOG_DB)throw new Error('catalog_db_unavailable');
+ const body=message?.body&&typeof message.body==='object'?message.body:{};
+ const messageType=typeof body.type==='string'?body.type.slice(0,80):'unknown';
+ const rawIds=Array.isArray(body.videoIds)?body.videoIds:(typeof body.videoId==='string'?[body.videoId]:[]);
+ const videoIds=Array.from(new Set<string>(rawIds.map((value:any)=>String(value||'').trim()).filter((value:string)=>/^[A-Za-z0-9_-]{11}$/.test(value)))).slice(0,AUTO_REVIEW_BATCH_SIZE);
+ const diagnosticOnly=body.diagnosticOnly===true;
+ const interactionId=typeof body.interactionId==='string'?body.interactionId.trim():'';
+ const messageIdentity=String(message?.id||[queueName,messageType,body.jobId||interactionId||now()].join(':'));
+ const failureHash=await sha256Hex(messageIdentity);
+ const interactionHash=interactionId?await sha256Hex(interactionId):null;
+ const attempts=Math.max(1,Math.min(100,Math.floor(Number(message?.attempts)||1)));
+ const timestamp=now();
+ const record={
+  kind:'catalog_queue_failure',
+  queue:queueName,
+  messageType,
+  reason,
+  attempts,
+  timestamp,
+  videoCount:videoIds.length,
+  diagnosticOnly,
+  ...(interactionHash?{interactionIdHash:interactionHash}:{}),
+  ...(typeof body.jobId==='string'?{jobIdHash:await sha256Hex(body.jobId)}:{})
+ };
+ await env.CATALOG_DB.prepare(
+  "INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES (?,?,?) ON CONFLICT(config_key) DO UPDATE SET config_value=excluded.config_value,updated_at=excluded.updated_at"
+ ).bind('queue_failure:'+failureHash,JSON.stringify(record),timestamp).run();
+
+ if(messageType==='AUTO_REVIEW_POLL_INTERACTION'){
+  const diagnostic:VideoSafetyProviderDiagnostic={
+   outcome:'failed',
+   stage:'interaction',
+   operation:'poll_interaction',
+   timestamp,
+   model:VIDEO_SAFETY_REVIEW_MODEL,
+   videoCount:videoIds.length,
+   diagnosticOnly,
+   error:'provider_unavailable',
+   interactionStatus:reason,
+   message:reason==='dead_letter_received'
+    ?'A polling message reached the dead-letter queue. A redacted recovery record was saved; the interaction was not replayed.'
+    :'Polling delivery exhausted its retry budget. The affected videos were returned to manual review; no automatic approval was made.',
+   ...(interactionHash?{interactionId:interactionHash}:{}),
+  };
+  await persistAutoReviewProviderDiagnostic(env,diagnostic);
+  if(!diagnosticOnly&&videoIds.length)await markAutoReviewBatchFailure(env,videoIds,'provider_unavailable');
+ }
+ if(typeof body.jobId==='string'&&body.jobId.trim()){
+  await env.CATALOG_DB.prepare(
+   "UPDATE ingest_jobs SET status='FAILED',attempts=attempts+1,last_error=?,updated_at=? WHERE job_id=? AND status!='SUCCEEDED'"
+  ).bind(reason,timestamp,body.jobId.slice(0,160)).run();
+ }
+}
+
+async function handleCatalogV2DeadLetterBatch(batch:any,env:Env):Promise<void>{
+ for(const message of batch.messages||[]){
+  try{
+   await persistCatalogQueueFailure(env,message,'youngtube-catalog-dlq','dead_letter_received');
+   message.ack();
+  }catch{
+   // Do not acknowledge a dead-letter item until its redacted recovery record is durable.
+   message.retry({delaySeconds:60});
+  }
+ }
+}
+
 export async function handleCatalogV2QueueBatch(batch:any,env:Env):Promise<void>{
- for(const message of batch.messages||[]){try{const b=message.body||{};if(b.type==='MIGRATE_SOURCE_PAGE')await migratePage(env,b);else if(b.type==='ENRICH_VIDEO_BATCH')await enrichBatch(env,b);else if(b.type==='AUTO_REVIEW_VIDEO_BATCH')await autoReviewVideoBatch(env,b);else if(b.type==='AUTO_REVIEW_VIDEO')await autoReviewVideoBatch(env,{videoIds:[b.videoId]});else if(b.type==='AUTO_REVIEW_POLL_INTERACTION')await pollAutoReviewInteraction(env,b);else if(b.type==='PUBLISH_GENERATION_PAGE')await publishPage(env,b);else console.warn('Unknown catalog queue message');message.ack();}catch(e){const text=e instanceof Error?e.message:'catalog_queue_error';try{if(env.CATALOG_DB&&message.body?.jobId)await env.CATALOG_DB.prepare("UPDATE ingest_jobs SET status='RETRYING',attempts=attempts+1,last_error=?,updated_at=? WHERE job_id=? AND status!='SUCCEEDED'").bind(text.slice(0,500),now(),String(message.body.jobId)).run();}catch{}console.error('Catalog queue failed',text);message.retry({delaySeconds:Math.min(300,15*Math.max(1,Number(message.attempts||1)))});}}
+ const queueName=typeof batch?.queue==='string'?batch.queue:'';
+ if(queueName==='youngtube-catalog-dlq'){
+  await handleCatalogV2DeadLetterBatch(batch,env);
+  return;
+ }
+ for(const message of batch.messages||[]){
+  const body=message.body||{};
+  const messageType=typeof body.type==='string'?body.type:'unknown';
+  try{
+   if(messageType==='MIGRATE_SOURCE_PAGE')await migratePage(env,body);
+   else if(messageType==='ENRICH_VIDEO_BATCH')await enrichBatch(env,body);
+   else if(messageType==='AUTO_REVIEW_VIDEO_BATCH')await autoReviewVideoBatch(env,body);
+   else if(messageType==='AUTO_REVIEW_VIDEO')await autoReviewVideoBatch(env,{videoIds:[body.videoId]});
+   else if(messageType==='AUTO_REVIEW_POLL_INTERACTION')await pollAutoReviewInteraction(env,body);
+   else if(messageType==='PUBLISH_GENERATION_PAGE')await publishPage(env,body);
+   else throw new Error('unknown_catalog_queue_message');
+   message.ack();
+  }catch(error){
+   const attempts=Math.max(1,Math.floor(Number(message.attempts)||1));
+   const errorKind=error instanceof Error?error.name.slice(0,80):'UnknownError';
+   if(attempts>CATALOG_QUEUE_MAX_RETRIES){
+    try{
+     await persistCatalogQueueFailure(env,message,queueName||'catalog-processing','queue_retry_exhausted');
+     message.ack();
+     continue;
+    }catch{
+     console.error('Catalog queue terminal persistence failed',{messageType,attempts,errorKind});
+     message.retry({delaySeconds:300});
+     continue;
+    }
+   }
+   if(env.CATALOG_DB&&typeof body.jobId==='string'){
+    await env.CATALOG_DB.prepare(
+     "UPDATE ingest_jobs SET status='RETRYING',attempts=attempts+1,last_error=?,updated_at=? WHERE job_id=? AND status!='SUCCEEDED'"
+    ).bind('queue_processing_retry:'+errorKind,now(),body.jobId.slice(0,160)).run().catch(()=>undefined);
+   }
+   console.error('Catalog queue failed',{messageType,attempts,errorKind});
+   message.retry({delaySeconds:Math.min(300,15*attempts)});
+  }
+ }
 }

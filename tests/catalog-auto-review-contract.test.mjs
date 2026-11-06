@@ -9,6 +9,7 @@ const route = fs.readFileSync(path.join(root, 'worker/routes/catalog-v2.ts'), 'u
 const reviewer = fs.readFileSync(path.join(root, 'worker/lib/catalog-auto-review.ts'), 'utf8');
 const types = fs.readFileSync(path.join(root, 'worker/lib/types.ts'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'worker/migrations/0005_catalog_auto_review.sql'), 'utf8');
+const wrangler = fs.readFileSync(path.join(root, 'wrangler.toml'), 'utf8');
 
 test('multimodal screening uses Gemini 3.8 and batches up to ten separate public YouTube videos', () => {
   assert.ok(reviewer.includes("VIDEO_SAFETY_REVIEW_MODEL = 'gemini-3.8-flash'"));
@@ -39,7 +40,7 @@ test('the queue is batched, windowed, and protected by a scheduler lock with con
   assert.ok(route.includes('AUTO_REVIEW_DEFAULT_DAILY_SECONDS_LIMIT = 8 * 60 * 60'));
   assert.ok(route.includes('AUTO_REVIEW_MAX_DAILY_SECONDS_LIMIT = 72 * 60 * 60'));
   assert.ok(route.includes('AUTO_REVIEW_ENQUEUE_WINDOW_VIDEOS = 500'));
-  assert.ok(route.includes("b.type==='AUTO_REVIEW_VIDEO_BATCH'"));
+  assert.ok(route.includes("messageType==='AUTO_REVIEW_VIDEO_BATCH'"));
   assert.ok(route.includes("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('auto_review_scheduler_lock'"));
   assert.ok(route.includes("path==='/api/admin/catalog/auto-review-budget'"));
   assert.ok(route.includes("if(hours>8&&b?.paidTierConfirmed!==true)"));
@@ -134,7 +135,7 @@ test('Gemini video review uses background Interactions with durable queue pollin
   assert.ok(reviewer.includes('pollPublicYouTubeVideosSafetyInteraction'));
   assert.ok(reviewer.includes('deletePublicYouTubeVideosSafetyInteraction'));
   assert.ok(route.includes("type:'AUTO_REVIEW_POLL_INTERACTION'"));
-  assert.ok(route.includes("b.type==='AUTO_REVIEW_POLL_INTERACTION'"));
+  assert.ok(route.includes("messageType==='AUTO_REVIEW_POLL_INTERACTION'"));
   assert.ok(route.includes('async function pollAutoReviewInteraction'));
   assert.ok(route.includes('pollAttempt'));
   assert.ok(route.includes('diagnosticOnly'));
@@ -196,4 +197,29 @@ test('completed Gemini interaction remains stored until D1 review application re
   const applied = handler.indexOf('await applyAutoReviewCompletedBatch');
   const deleted = handler.lastIndexOf('await deletePublicYouTubeVideosSafetyInteraction');
   assert.ok(applied >= 0 && deleted > applied, 'D1 review writes must finish before provider interaction deletion');
+});
+
+
+test('Gemini Interactions create, poll, and delete use the currently documented v1beta API consistently', () => {
+  assert.ok(reviewer.includes("GEMINI_INTERACTIONS_API_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions'"));
+  assert.ok(reviewer.includes('fetch(GEMINI_INTERACTIONS_API_URL,'));
+  assert.ok(reviewer.includes("fetch(GEMINI_INTERACTIONS_API_URL + '/' + encodeURIComponent(interactionId),"));
+  assert.ok(reviewer.includes('/v1beta/interactions'));
+  assert.equal(reviewer.includes('https://generativelanguage.googleapis.com/v1/interactions'), false);
+  assert.ok(reviewer.includes("apiVersion: 'v1beta'"));
+  assert.ok(reviewer.includes("status === 'in_progress' || status === 'queued'"));
+});
+
+test('queue failures are redacted and persisted before ack; DLQ items are quarantined rather than replayed', () => {
+  assert.ok(route.includes('persistCatalogQueueFailure'));
+  assert.ok(route.includes("queueName==='youngtube-catalog-dlq'"));
+  assert.ok(route.includes("'dead_letter_received'"));
+  assert.ok(route.includes("attempts>CATALOG_QUEUE_MAX_RETRIES"));
+  assert.ok(route.includes("message.ack()"));
+  assert.ok(route.includes("message.retry({delaySeconds:60})"));
+  assert.ok(route.includes("'queue_failure:'+failureHash"));
+  assert.ok(route.includes("interactionIdHash"));
+  assert.ok(route.includes("videoIds.length"));
+  assert.ok(wrangler.includes('queue = "youngtube-catalog-dlq"'));
+  assert.ok(wrangler.includes('dead_letter_queue = "youngtube-catalog-quarantine"'));
 });
