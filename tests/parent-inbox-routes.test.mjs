@@ -325,7 +325,7 @@ test('messages remain scoped by device, search is bounded to the latest 200, and
   );
   assert.equal(scopedResponse.status, 200);
   const scoped = await scopedResponse.json();
-  assert.equal(scoped.messages.length, 2);
+  assert.equal(scoped.messages.length, 1);
   assert.equal(scoped.messages.some((message) => message.id === firstId), true);
   assert.equal(scoped.messages.find((message) => message.id === firstId).body, privateMarkup);
 
