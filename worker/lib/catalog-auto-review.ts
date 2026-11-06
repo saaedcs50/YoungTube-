@@ -339,6 +339,8 @@ function parseCompletedInteraction(
   const diagnosticBase = {
     outcome: 'failed' as const,
     stage: 'response_validation' as const,
+    apiVersion: 'v1beta' as const,
+    operation: 'poll_interaction' as const,
     timestamp: new Date().toISOString(),
     model: VIDEO_SAFETY_REVIEW_MODEL,
     videoCount: expectedVideoIds.length,
@@ -448,6 +450,7 @@ export async function startPublicYouTubeVideosSafetyInteraction(
   const count = Array.isArray(videos) ? videos.length : 0;
   if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim() || !prepared) {
     const diagnostic = providerDiagnostic('response_validation', count, {
+      operation: 'create_interaction',
       message: 'The provider request was missing a key or contained an invalid video batch.',
       error: 'invalid_model_output',
     });
@@ -503,6 +506,7 @@ export async function startPublicYouTubeVideosSafetyInteraction(
     payload = await response.json();
   } catch {
     const diagnostic = providerDiagnostic('response_json', count, {
+      operation: 'create_interaction',
       httpStatus: response.status,
       message: 'Provider returned a non-JSON response.',
       error: 'invalid_model_output',
@@ -515,6 +519,7 @@ export async function startPublicYouTubeVideosSafetyInteraction(
   const status = typeof payload?.status === 'string' ? payload.status : '';
   if (!interactionId) {
     const diagnostic = providerDiagnostic('response_validation', count, {
+      operation: 'create_interaction',
       httpStatus: response.status,
       providerStatus: status || undefined,
       message: safeProviderMessage(payload?.errors?.[0]?.message) || 'Provider accepted the request but did not return an interaction ID.',
@@ -527,6 +532,7 @@ export async function startPublicYouTubeVideosSafetyInteraction(
     const providerMessage = safeProviderMessage(payload?.errors?.[0]?.message);
     const error: VideoSafetyProviderError = status === 'incomplete' ? 'invalid_model_output' : 'provider_unavailable';
     const diagnostic = providerDiagnostic('interaction', count, {
+      operation: 'create_interaction',
       httpStatus: response.status,
       interactionId,
       interactionStatus: status,
@@ -579,6 +585,7 @@ export async function pollPublicYouTubeVideosSafetyInteraction(
     payload = await response.json();
   } catch {
     const diagnostic = providerDiagnostic('response_json', count, {
+      operation: 'poll_interaction',
       httpStatus: response.status,
       interactionId,
       message: 'Provider returned a non-JSON interaction response.',
@@ -597,6 +604,8 @@ export async function pollPublicYouTubeVideosSafetyInteraction(
       diagnostic: {
         outcome: 'pending',
         stage: 'interaction',
+        apiVersion: 'v1beta',
+        operation: 'poll_interaction',
         timestamp: new Date().toISOString(),
         model: VIDEO_SAFETY_REVIEW_MODEL,
         videoCount: count,
@@ -626,6 +635,7 @@ export async function pollPublicYouTubeVideosSafetyInteraction(
     const numericCode = typeof rawCode === 'number' && Number.isFinite(rawCode) ? rawCode : undefined;
     const error: VideoSafetyProviderError = status === 'incomplete' ? 'invalid_model_output' : 'provider_unavailable';
     const diagnostic = providerDiagnostic('interaction', count, {
+      operation: 'poll_interaction',
       httpStatus: response.status,
       interactionId,
       interactionStatus: status || 'unknown',
