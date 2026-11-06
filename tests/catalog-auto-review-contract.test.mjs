@@ -200,12 +200,13 @@ test('completed Gemini interaction remains stored until D1 review application re
 });
 
 
-test('Gemini Interactions create, poll, and delete use the stable v1 API consistently', () => {
-  assert.ok(reviewer.includes("GEMINI_INTERACTIONS_API_URL = 'https://generativelanguage.googleapis.com/v1/interactions'"));
+test('Gemini Interactions create, poll, and delete use the currently documented v1beta API consistently', () => {
+  assert.ok(reviewer.includes("GEMINI_INTERACTIONS_API_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions'"));
   assert.ok(reviewer.includes('fetch(GEMINI_INTERACTIONS_API_URL,'));
   assert.ok(reviewer.includes("fetch(GEMINI_INTERACTIONS_API_URL + '/' + encodeURIComponent(interactionId),"));
-  assert.equal(reviewer.includes('/v1beta/interactions'), false);
-  assert.ok(reviewer.includes("apiVersion: 'v1'"));
+  assert.ok(reviewer.includes('/v1beta/interactions'));
+  assert.equal(reviewer.includes('https://generativelanguage.googleapis.com/v1/interactions'), false);
+  assert.ok(reviewer.includes("apiVersion: 'v1beta'"));
   assert.ok(reviewer.includes("status === 'in_progress' || status === 'queued'"));
 });
 
