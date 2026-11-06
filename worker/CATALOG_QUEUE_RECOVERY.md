@@ -18,7 +18,7 @@ If D1 cannot persist the record after the DLQ consumer's retries, Cloudflare sen
 ## Replay policy
 
 - Never replay an old `AUTO_REVIEW_POLL_INTERACTION` payload. Its interaction may be terminal, expired, or inaccessible.
-- A provider retry must create a new interaction ID using the current stable Interactions API version.
+- A provider retry must create a new interaction ID using the currently documented Interactions API version (`v1beta`).
 - Reuse the same Shadow sample slots only after a fresh one-video diagnostic succeeds. Do not reset the reservation counter or retry counter by hand.
 - For non-provider jobs, inspect the corresponding `ingest_jobs` row and the redacted `queue_failure:<sha256>` record before constructing a new idempotent job.
 - A human/operator must confirm a new attempt from the authenticated admin workflow; the DLQ consumer itself never redrives content.
