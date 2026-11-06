@@ -205,6 +205,7 @@ test('Gemini Interactions create, poll, and delete use the stable v1 API consist
   assert.ok(reviewer.includes('fetch(GEMINI_INTERACTIONS_API_URL,'));
   assert.ok(reviewer.includes("fetch(GEMINI_INTERACTIONS_API_URL + '/' + encodeURIComponent(interactionId),"));
   assert.equal(reviewer.includes('/v1beta/interactions'), false);
+  assert.ok(reviewer.includes("apiVersion: 'v1'"));
   assert.ok(reviewer.includes("status === 'in_progress' || status === 'queued'"));
 });
 
