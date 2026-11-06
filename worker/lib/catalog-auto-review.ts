@@ -1,6 +1,6 @@
 export const VIDEO_SAFETY_REVIEW_VERSION = 'youngtube-video-safety-review-v1';
 export const VIDEO_SAFETY_REVIEW_MODEL = 'gemini-3.8-flash';
-export const GEMINI_INTERACTIONS_API_URL = 'https://generativelanguage.googleapis.com/v1/interactions';
+export const GEMINI_INTERACTIONS_API_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 export const AUTO_REVIEW_BATCH_SIZE = 10;
 
 // First rollout is deliberately narrow. Channel membership and title hints are not
@@ -145,7 +145,7 @@ export interface VideoSafetyCandidate {
 export interface VideoSafetyProviderDiagnostic {
   outcome: 'pending' | 'success' | 'failed';
   stage: 'network' | 'http' | 'response_json' | 'response_validation' | 'response' | 'interaction';
-  apiVersion?: 'v1';
+  apiVersion?: 'v1beta';
   operation?: 'create_interaction' | 'poll_interaction';
   timestamp: string;
   model: string;
@@ -256,7 +256,7 @@ function providerDiagnostic(
   return {
     outcome: 'failed',
     stage,
-    apiVersion: 'v1',
+    apiVersion: 'v1beta',
     timestamp: new Date().toISOString(),
     model: VIDEO_SAFETY_REVIEW_MODEL,
     videoCount,
