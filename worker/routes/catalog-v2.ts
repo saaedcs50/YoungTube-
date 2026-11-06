@@ -27,8 +27,9 @@ const AUTO_REVIEW_RATE_LIMIT_PAUSE_MS = 24 * 60 * 60 * 1000;
 const json = (data: unknown, status = 200, cache = 'no-store') => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache } });
 async function persistAutoReviewProviderDiagnostic(env:Env, diagnostic:VideoSafetyProviderDiagnostic):Promise<void>{
  if(!env.CATALOG_DB)return;
+ const normalized:VideoSafetyProviderDiagnostic={apiVersion:'v1beta',...diagnostic};
  await env.CATALOG_DB.prepare("INSERT INTO catalog_config(config_key,config_value,updated_at) VALUES ('auto_review_last_provider_diagnostic',?,?) ON CONFLICT(config_key) DO UPDATE SET config_value=excluded.config_value,updated_at=excluded.updated_at")
-  .bind(JSON.stringify(diagnostic),diagnostic.timestamp||now()).run().catch(()=>undefined);
+  .bind(JSON.stringify(normalized),normalized.timestamp||now()).run().catch(()=>undefined);
 }
 function parseAutoReviewDiagnostic(value:unknown):VideoSafetyProviderDiagnostic|null{
  try{const parsed=JSON.parse(String(value||'null'));return parsed&&typeof parsed==='object'&&typeof parsed.outcome==='string'?parsed as VideoSafetyProviderDiagnostic:null;}catch{return null;}
@@ -474,7 +475,7 @@ async function autoReviewVideoBatch(env:Env,b:any):Promise<void>{
   return;
  }
  const videoSnapshots=eligible.map(row=>({videoId:row.videoId,category:row.category,duration:row.duration,metadataCheckedAt:row.metadataCheckedAt}));
- const pendingDiagnostic:VideoSafetyProviderDiagnostic={outcome:'pending',stage:'interaction',timestamp:now(),model:start.model,videoCount:eligible.length,interactionId:start.interactionId,interactionStatus:start.status,diagnosticOnly:false,message:'Gemini accepted the background review request; results are pending.'};
+ const pendingDiagnostic:VideoSafetyProviderDiagnostic={outcome:'pending',stage:'interaction',apiVersion:'v1beta',operation:'create_interaction',timestamp:now(),model:start.model,videoCount:eligible.length,interactionId:start.interactionId,interactionStatus:start.status,diagnosticOnly:false,message:'Gemini accepted the background review request; results are pending.'};
  await persistAutoReviewProviderDiagnostic(env,pendingDiagnostic);
  try{
   await queueAutoReviewPoll(env,{interactionId:start.interactionId,videoIds:eligible.map(row=>row.videoId),videoSnapshots,modeAtStart:settings.mode,diagnosticOnly:false,pollAttempt:0});
@@ -494,7 +495,7 @@ async function pollAutoReviewInteraction(env:Env,b:any):Promise<void>{
   await persistAutoReviewProviderDiagnostic(env,{...diagnostic,outcome:'failed',timestamp:now(),diagnosticOnly:true});
  };
  if(!interactionId||!ids.length||!env.GEMINI_API_KEY){
-  const diagnostic:VideoSafetyProviderDiagnostic={outcome:'failed',stage:'interaction',timestamp:now(),model:'gemini-3.8-flash',error:'provider_unavailable',videoCount:ids.length,diagnosticOnly,message:'The background review poll is missing its interaction ID, video IDs, or provider key.'};
+  const diagnostic:VideoSafetyProviderDiagnostic={outcome:'failed',stage:'interaction',apiVersion:'v1beta',operation:'poll_interaction',timestamp:now(),model:VIDEO_SAFETY_REVIEW_MODEL,error:'provider_unavailable',videoCount:ids.length,diagnosticOnly,message:'The background review poll is missing its interaction ID, video IDs, or provider key.'};
   await persistAutoReviewProviderDiagnostic(env,diagnostic);
   if(!diagnosticOnly)await markAutoReviewBatchFailure(env,ids,'provider_unavailable');
   return;
@@ -524,7 +525,7 @@ async function pollAutoReviewInteraction(env:Env,b:any):Promise<void>{
   }
   return;
  }
- const successDiagnostic:VideoSafetyProviderDiagnostic={outcome:'success',stage:'response',timestamp:now(),model:poll.model,httpStatus:200,videoCount:ids.length,diagnosticOnly,interactionStatus:'completed',message:diagnosticOnly?'Gemini completed a valid one-video diagnostic. No review result was saved.':'Gemini completed the requested video review interaction.'};
+ const successDiagnostic:VideoSafetyProviderDiagnostic={outcome:'success',stage:'response',apiVersion:'v1beta',operation:'poll_interaction',timestamp:now(),model:poll.model,httpStatus:200,videoCount:ids.length,diagnosticOnly,interactionStatus:'completed',message:diagnosticOnly?'Gemini completed a valid one-video diagnostic. No review result was saved.':'Gemini completed the requested video review interaction.'};
  await persistAutoReviewProviderDiagnostic(env,successDiagnostic);
  if(diagnosticOnly){
   await deletePublicYouTubeVideosSafetyInteraction(env.GEMINI_API_KEY,interactionId);
