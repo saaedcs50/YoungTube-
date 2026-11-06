@@ -223,3 +223,15 @@ test('queue failures are redacted and persisted before ack; DLQ items are quaran
   assert.ok(wrangler.includes('queue = "youngtube-catalog-dlq"'));
   assert.ok(wrangler.includes('dead_letter_queue = "youngtube-catalog-quarantine"'));
 });
+
+
+test('Gemini diagnostics persist API version and identify create or poll for pending and terminal outcomes', () => {
+  assert.ok(reviewer.includes("apiVersion: 'v1beta' as const"));
+  assert.ok(reviewer.includes("operation: 'poll_interaction' as const"));
+  assert.ok(reviewer.includes("operation: 'create_interaction'"));
+  assert.ok(reviewer.includes("operation: 'poll_interaction'"));
+  assert.ok(reviewer.includes("apiVersion: 'v1beta'"));
+  assert.ok(route.includes("const normalized:VideoSafetyProviderDiagnostic={apiVersion:'v1beta',...diagnostic}"));
+  assert.ok(route.includes("apiVersion:'v1beta',operation:'create_interaction'"));
+  assert.ok(route.includes("apiVersion:'v1beta',operation:'poll_interaction'"));
+});
