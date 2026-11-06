@@ -145,6 +145,7 @@ export interface VideoSafetyCandidate {
 export interface VideoSafetyProviderDiagnostic {
   outcome: 'pending' | 'success' | 'failed';
   stage: 'network' | 'http' | 'response_json' | 'response_validation' | 'response' | 'interaction';
+  apiVersion?: 'v1';
   operation?: 'create_interaction' | 'poll_interaction';
   timestamp: string;
   model: string;
@@ -255,6 +256,7 @@ function providerDiagnostic(
   return {
     outcome: 'failed',
     stage,
+    apiVersion: 'v1',
     timestamp: new Date().toISOString(),
     model: VIDEO_SAFETY_REVIEW_MODEL,
     videoCount,
